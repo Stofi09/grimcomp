@@ -1,9 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { XP_COSTS, type CharacteristicKey } from '@/data/character';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useXp } from '@/hooks/useXp';
+import { useConditions } from '@/hooks/useConditions';
+import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Stat } from '@/components/Stat';
@@ -26,6 +28,19 @@ const SUGGEST_KEY: CharacteristicKey = 'ws';
 export const CharacteristicsScreen: React.FC = () => {
   const { list, get, adjust } = useCharacteristics();
   const xp = useXp();
+  const { modifier: condMod } = useConditions();
+
+  const test = (key: CharacteristicKey) => {
+    const c = list.find(x => x.key === key)!;
+    const r = resolveTest({ target: c.current, modifier: condMod.total, label: c.name });
+    const condLine = condMod.parts.length
+      ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
+      : '';
+    Alert.alert(
+      `${c.name} — ${outcomeLabel(r.outcome)}`,
+      formatTestResult(r) + condLine,
+    );
+  };
 
   const suggest = list.find(c => c.key === SUGGEST_KEY)!;
   const advNow = get(SUGGEST_KEY);
@@ -83,9 +98,14 @@ export const CharacteristicsScreen: React.FC = () => {
 
       <View style={styles.statsGrid}>
         {list.map(x => (
-          <View key={x.key} style={styles.statCell}>
+          <Pressable
+            key={x.key}
+            style={({ pressed }) => [styles.statCell, pressed && { opacity: 0.7 }]}
+            onPress={() => test(x.key)}
+            hitSlop={4}
+          >
             <Stat c={x} suggested={x.key === SUGGEST_KEY} />
-          </View>
+          </Pressable>
         ))}
       </View>
 

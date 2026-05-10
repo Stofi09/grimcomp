@@ -1,7 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { CHARACTER } from '@/data/character';
+import { CHARACTER, type Weapon } from '@/data/character';
+import { useCharacteristics } from '@/hooks/useCharacteristics';
+import { useStoredState } from '@/hooks/useStoredState';
+import { useConditions } from '@/hooks/useConditions';
+import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
 import { Hero } from '@/components/Hero';
 import { Card, CardHead } from '@/components/Card';
 import { Pill } from '@/components/Pill';
@@ -12,11 +16,60 @@ import { HitLocationFigure } from '@/components/HitLocationFigure';
 import { colors, fontFamilies } from '@/theme';
 import { layoutStyles } from '@/components/primitives';
 
-const rollD100 = () => Math.floor(Math.random() * 100) + 1;
+// Pick the test characteristic from the weapon's group. Bow / crossbow / etc.
+// → BS; everything else → WS.
+const charForWeapon = (w: Weapon): 'ws' | 'bs' => {
+  const g = w.group.toLowerCase();
+  return /bow|cross|sling|throw|gun|fire/.test(g) ? 'bs' : 'ws';
+};
+
+// Pick the matching skill name from the weapon group, so we can read the
+// correct skill advance from the live skill-advances map.
+const skillForWeapon = (w: Weapon): string =>
+  charForWeapon(w) === 'bs' ? `Ranged (${w.group})` : `Melee (${w.group})`;
+
+// Compute final damage. WFRP damage strings are like "SB+4", "4", "SB+2".
+// SB = Strength bonus.
+const computeDamage = (formula: string, sb: number): number => {
+  const m = formula.match(/(SB)?\s*([+-]?\d+)?/i);
+  if (!m) return 0;
+  const useSb = !!m[1];
+  const flat = m[2] ? parseInt(m[2], 10) : 0;
+  return (useSb ? sb : 0) + flat;
+};
 
 export const CombatScreen: React.FC = () => {
   const c = CHARACTER;
+  const { get: getChar } = useCharacteristics();
+  const { modifier: condMod } = useConditions();
+  const [skillAdv] = useStoredState<Record<string, number>>(
+    'gc.skills.adv',
+    Object.fromEntries(c.skills.map(s => [s.name, s.adv]))
+  );
   const totalAP = c.ap.head + c.ap.body + c.ap.arm_l + c.ap.arm_r + c.ap.leg_l + c.ap.leg_r;
+  const sb = Math.floor((c.characteristics.find(x => x.key === 's')!.init + getChar('s')) / 10);
+
+  // Test target = base char value + skill advance for the matching skill.
+  const targetForWeapon = (w: Weapon): number => {
+    const ch = c.characteristics.find(x => x.key === charForWeapon(w))!;
+    const adv = skillAdv[skillForWeapon(w)] ?? 0;
+    return ch.init + getChar(charForWeapon(w)) + adv;
+  };
+
+  const attack = (w: Weapon) => {
+    const target = targetForWeapon(w);
+    const r = resolveTest({ target, modifier: condMod.total, label: w.name });
+    const dmg = r.success ? computeDamage(w.dmg, sb) + Math.max(0, r.sl) : 0;
+    const dmgLine = r.success ? `\n\nDamage: ${dmg}  (${w.dmg} + ${Math.max(0, r.sl)} SL)` : '';
+    const condLine = condMod.parts.length
+      ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
+      : '';
+    Alert.alert(
+      `${w.name} — ${outcomeLabel(r.outcome)}`,
+      formatTestResult(r) + dmgLine + condLine,
+    );
+  };
+
   return (
     <ScreenContainer>
       <Hero
@@ -78,7 +131,7 @@ export const CombatScreen: React.FC = () => {
                     <Button
                       variant="ghost"
                       iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
-                      onPress={() => Alert.alert(`Attack: ${w.name}`, `d100 → ${rollD100()}\nDamage: ${w.dmg}`)}
+                      onPress={() => attack(w)}
                     >{''}</Button>
                   </Cell>
                 </TableRow>

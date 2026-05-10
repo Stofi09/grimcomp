@@ -2,6 +2,8 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { colors, fontFamilies, space } from '@/theme';
 import { Icon } from './Icon';
+import { resolveTest, outcomeLabel } from '@/utils/roll';
+import { useConditions } from '@/hooks/useConditions';
 
 interface AppBarProps {
   crumbs: string[];
@@ -9,9 +11,11 @@ interface AppBarProps {
   onMenuPress?: () => void;
 }
 
-const rollD100 = () => Math.floor(Math.random() * 100) + 1;
-
-export const AppBar: React.FC<AppBarProps> = ({ crumbs, showMenu, onMenuPress }) => (
+export const AppBar: React.FC<AppBarProps> = ({ crumbs, showMenu, onMenuPress }) => {
+  // Pull condition modifier for the quick-roll button so the toolbar's d100
+  // reflects the same penalties as in-screen tests.
+  const { modifier: condMod } = useConditions();
+  return (
   <View style={styles.bar}>
     {showMenu ? (
       <Pressable style={styles.menuBtn} onPress={onMenuPress} hitSlop={6}>
@@ -49,9 +53,16 @@ export const AppBar: React.FC<AppBarProps> = ({ crumbs, showMenu, onMenuPress })
     <Pressable
       style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
       onPress={() => {
-        const a = rollD100();
-        const b = rollD100();
-        Alert.alert('Quick d100', `${a}\n\n(extra die: ${b})`);
+        // No specific target — show the bare d100 plus auto-success/fumble
+        // interpretation (01–05 / 96–100).
+        const r = resolveTest({ target: 50, modifier: condMod.total, label: 'Quick test' });
+        const condLine = condMod.parts.length
+          ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
+          : '';
+        Alert.alert(
+          `Quick d100 — ${outcomeLabel(r.outcome)}`,
+          `Rolled ${r.roll}.\n\nTip: tap the dice next to a skill or weapon to test against a real target.${condLine}`,
+        );
       }}
       hitSlop={4}
     >
@@ -60,6 +71,7 @@ export const AppBar: React.FC<AppBarProps> = ({ crumbs, showMenu, onMenuPress })
     </Pressable>
   </View>
 );
+};
 
 const styles = StyleSheet.create({
   bar: {

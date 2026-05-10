@@ -5,6 +5,8 @@ import { CHARACTER, type Skill } from '@/data/character';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useXp } from '@/hooks/useXp';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
+import { useConditions } from '@/hooks/useConditions';
+import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
@@ -23,12 +25,11 @@ const careerBracket = (adv: number) =>
 // Non-career: +5 surcharge stacks on top.
 const otherBracket = (adv: number) => careerBracket(adv) + 5;
 
-const rollD100 = () => Math.floor(Math.random() * 100) + 1;
-
 export const SkillsScreen: React.FC = () => {
   const c = CHARACTER;
   const { list: chars } = useCharacteristics();
   const xp = useXp();
+  const { modifier: condMod } = useConditions();
   const charLabel = Object.fromEntries(c.characteristics.map(x => [x.key, x.short])) as Record<string, string>;
   const charBase = Object.fromEntries(chars.map(x => [x.key, x.current])) as Record<string, number>;
 
@@ -99,6 +100,7 @@ export const SkillsScreen: React.FC = () => {
         onChange={onAdvChange}
         totalFor={totalFor}
         charLabel={charLabel}
+        condMod={condMod}
         career
       />
 
@@ -109,6 +111,7 @@ export const SkillsScreen: React.FC = () => {
         onChange={onAdvChange}
         totalFor={totalFor}
         charLabel={charLabel}
+        condMod={condMod}
       />
     </ScreenContainer>
   );
@@ -120,10 +123,11 @@ interface SkillTableProps {
   onChange: (skill: Skill, current: number, next: number) => void;
   totalFor: (s: Skill, adv: number) => number;
   charLabel: Record<string, string>;
+  condMod: { total: number; parts: Array<{ name: string; stacks: number; modifier: number }> };
   career?: boolean;
 }
 
-const SkillTable: React.FC<SkillTableProps> = ({ skills, advances, onChange, totalFor, charLabel, career }) => (
+const SkillTable: React.FC<SkillTableProps> = ({ skills, advances, onChange, totalFor, charLabel, condMod, career }) => (
   <Card flush>
     <Table>
       <TableRow header>
@@ -171,7 +175,16 @@ const SkillTable: React.FC<SkillTableProps> = ({ skills, advances, onChange, tot
               <Button
                 variant="ghost"
                 iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
-                onPress={() => Alert.alert(`${s.name} test`, `d100 → ${rollD100()} (target ${tot})`)}
+                onPress={() => {
+                  const r = resolveTest({ target: tot, modifier: condMod.total, label: s.name });
+                  const breakdown = condMod.parts.length
+                    ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
+                    : '';
+                  Alert.alert(
+                    `${s.name} — ${outcomeLabel(r.outcome)}`,
+                    formatTestResult(r) + breakdown,
+                  );
+                }}
               >{''}</Button>
             </Cell>
           </TableRow>
