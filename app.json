@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Grim Companion",
+    "slug": "grimcomp",
+    "version": "1.0.0",
+    "orientation": "default",
+    "scheme": "grimcomp",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.grimcomp.app",
+      "requireFullScreen": false
+    },
+    "android": {
+      "package": "com.grimcomp.app"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "assetBundlePatterns": ["**/*"]
+  }
+}
