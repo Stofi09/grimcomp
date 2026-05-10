@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { CHARACTER, type Skill } from '@/data/character';
+import { useStoredState } from '@/hooks/useStoredState';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
@@ -20,9 +21,11 @@ const rollD100 = () => Math.floor(Math.random() * 100) + 1;
 export const SkillsScreen: React.FC = () => {
   const c = CHARACTER;
   const charLabel = Object.fromEntries(c.characteristics.map(x => [x.key, x.short])) as Record<string, string>;
-  // Per-skill advance state, initialised from the character data. Edits here
-  // make Adv./Total/Buy update live as the user taps the steppers.
-  const [advances, setAdvances] = useState<Record<string, number>>(() =>
+  // Per-skill advance state, initialised from the character data and persisted
+  // across reloads. Edits make Adv./Total/Buy update live as the user taps the
+  // steppers.
+  const [advances, setAdvances] = useStoredState<Record<string, number>>(
+    'gc.skills.adv',
     Object.fromEntries(c.skills.map(s => [s.name, s.adv]))
   );
   const setAdv = (name: string, next: number) =>

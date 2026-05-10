@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
+import { useStoredState } from '@/hooks/useStoredState';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
@@ -11,7 +12,7 @@ import { Icon } from '@/components/Icon';
 import { colors, fontFamilies } from '@/theme';
 
 export const FaithScreen: React.FC = () => {
-  const [sin, setSin] = useState(0);
+  const [sin, setSin] = useStoredState('gc.sin', 0);
   return (
     <ScreenContainer>
       <Hero

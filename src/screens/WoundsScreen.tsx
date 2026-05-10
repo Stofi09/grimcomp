@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { CHARACTER, CONDITIONS } from '@/data/character';
+import { useStoredState } from '@/hooks/useStoredState';
+import { useConditions } from '@/hooks/useConditions';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card, CardHead } from '@/components/Card';
@@ -16,7 +18,8 @@ import { tabular, layoutStyles } from '@/components/primitives';
 
 export const WoundsScreen: React.FC = () => {
   const c = CHARACTER;
-  const [wounds, setWounds] = useState(c.wounds.current);
+  const [wounds, setWounds] = useStoredState('gc.wounds', c.wounds.current);
+  const { conds, cycle } = useConditions();
   return (
     <ScreenContainer>
       <Hero
@@ -83,9 +86,8 @@ export const WoundsScreen: React.FC = () => {
       <Section title="Conditions" aside="tap to add a stack · long-press for the rule" />
       <View style={styles.chips}>
         {CONDITIONS.map(t => {
-          const cond = c.conditions.find(x => x.type === t);
-          const n = cond?.stacks ?? 0;
-          return <Chip key={t} label={t} count={n} on={n > 0} />;
+          const n = conds[t] ?? 0;
+          return <Chip key={t} label={t} count={n} on={n > 0} onPress={() => cycle(t)} />;
         })}
       </View>
 

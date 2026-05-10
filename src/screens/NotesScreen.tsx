@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import { useStoredState } from '@/hooks/useStoredState';
 import { ScreenContainer } from './ScreenContainer';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -26,7 +27,7 @@ const NOTES: Note[] = [
 const FILTERS = ['All', 'Sin', 'Miscast', 'Channelling', 'Fear', 'Corruption', 'Mutation', 'House', 'GM'];
 
 export const NotesScreen: React.FC = () => {
-  const [filter, setFilter] = useState('All');
+  const [filter, setFilter] = useStoredState('gc.notes.filter', 'All');
   const visible = filter === 'All' ? NOTES : NOTES.filter(n => n.cat === filter);
 
   return (

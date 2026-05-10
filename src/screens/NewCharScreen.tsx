@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import { useStoredState } from '@/hooks/useStoredState';
 import { ScreenContainer } from './ScreenContainer';
 import { Hero } from '@/components/Hero';
 import { Card } from '@/components/Card';
@@ -19,8 +20,8 @@ const METHODS: Method[] = [
 ];
 
 export const NewCharScreen: React.FC = () => {
-  const [active, setActive] = useState(3);
-  const [method, setMethod] = useState('Point Buy');
+  const [active, setActive] = useStoredState('gc.newchar.step', 3);
+  const [method, setMethod] = useStoredState('gc.newchar.method', 'Point Buy');
 
   return (
     <ScreenContainer>

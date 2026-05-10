@@ -4,43 +4,47 @@ import { colors, fontFamilies } from '@/theme';
 
 interface ChipProps {
   label: string;
-  /** initial count (uncontrolled) */
+  /** Current count. If `onPress` is provided this is the source of truth (controlled). */
   count?: number;
-  /** initial on (uncontrolled) */
+  /** Whether the chip is "on". If omitted, derived from `count > 0`. */
   on?: boolean;
-  /** optional controlled callback */
+  /**
+   * If provided, the chip is controlled — parent owns state, the chip just
+   * fires `onPress` on tap and renders whatever `count`/`on` say. If omitted,
+   * the chip self-cycles 0 → 1 → 2 → 0 on tap.
+   */
   onPress?: () => void;
 }
 
 export const Chip: React.FC<ChipProps> = ({ label, count, on, onPress }) => {
-  // Uncontrolled toggle: tapping cycles 0 → 1 → 2 → 0 and flips on accordingly.
-  const [localCount, setLocalCount] = useState(count ?? 0);
-  const [localOn, setLocalOn] = useState(on ?? (count != null && count > 0));
+  // Uncontrolled fallback for screens that don't manage their own state.
+  const [internalCount, setInternalCount] = useState(count ?? 0);
+  const controlled = !!onPress;
+  const cur = controlled ? (count ?? 0) : internalCount;
+  const isOn = on ?? cur > 0;
 
-  const handlePress = () => {
+  const handle = () => {
     if (onPress) {
       onPress();
       return;
     }
-    const next = localCount >= 2 ? 0 : localCount + 1;
-    setLocalCount(next);
-    setLocalOn(next > 0);
+    setInternalCount(c => (c >= 2 ? 0 : c + 1));
   };
 
   return (
     <Pressable
-      onPress={handlePress}
+      onPress={handle}
       hitSlop={4}
       style={({ pressed }) => [
         styles.base,
-        localOn && styles.on,
+        isOn && styles.on,
         pressed && { opacity: 0.7 },
       ]}
     >
-      <Text style={[styles.label, localOn && styles.labelOn]}>{label}</Text>
-      {localCount > 0 ? (
-        <View style={[styles.n, localOn && styles.nOn]}>
-          <Text style={[styles.nText, localOn && styles.nTextOn]}>{localCount}</Text>
+      <Text style={[styles.label, isOn && styles.labelOn]}>{label}</Text>
+      {cur > 0 ? (
+        <View style={[styles.n, isOn && styles.nOn]}>
+          <Text style={[styles.nText, isOn && styles.nTextOn]}>{cur}</Text>
         </View>
       ) : null}
     </Pressable>

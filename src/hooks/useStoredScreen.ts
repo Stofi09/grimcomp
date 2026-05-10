@@ -1,7 +1,7 @@
 // Persists the active screen across reloads.
 // Mirrors the prototype's `localStorage.getItem('gc_screen')` behaviour.
-import { useEffect, useState, useCallback, useRef } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCallback } from 'react';
+import { useStoredState } from './useStoredState';
 import type { ScreenId } from '@/data/nav';
 
 const KEY = 'gc.screen';
@@ -12,40 +12,13 @@ const VALID: ReadonlyArray<ScreenId> = [
 ];
 
 /**
- * Hydrates `screen` from AsyncStorage on mount, then writes-through on every change.
- * Returns `[ready, screen, setScreen]`. Consumer should render a placeholder until ready
- * to avoid a single-frame flash of the default screen.
+ * Returns `[ready, screen, setScreen]`. Validates the persisted value and
+ * falls back to `initial` if the stored id is unknown.
  */
 export function useStoredScreen(initial: ScreenId = 'overview') {
-  const [screen, setScreen] = useState<ScreenId>(initial);
-  const [ready, setReady] = useState(false);
-  const hydrated = useRef(false);
-
-  // hydrate
-  useEffect(() => {
-    let cancelled = false;
-    AsyncStorage.getItem(KEY).then(value => {
-      if (cancelled) return;
-      if (value && (VALID as ReadonlyArray<string>).includes(value)) {
-        setScreen(value as ScreenId);
-      }
-      hydrated.current = true;
-      setReady(true);
-    }).catch(() => {
-      if (cancelled) return;
-      hydrated.current = true;
-      setReady(true);
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  // write-through after hydration
-  useEffect(() => {
-    if (!hydrated.current) return;
-    AsyncStorage.setItem(KEY, screen).catch(() => { /* swallow */ });
-  }, [screen]);
-
-  const update = useCallback((next: ScreenId) => setScreen(next), []);
-
-  return [ready, screen, update] as const;
+  const [stored, setStored, ready] = useStoredState<ScreenId>(KEY, initial);
+  // Guard against corrupted storage (e.g. someone wrote a non-ScreenId).
+  const screen: ScreenId = (VALID as ReadonlyArray<string>).includes(stored) ? stored : initial;
+  const setScreen = useCallback((next: ScreenId) => setStored(next), [setStored]);
+  return [ready, screen, setScreen] as const;
 }

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { CHARACTER, CONDITIONS, type CharacteristicKey } from '@/data/character';
+import { useConditions } from '@/hooks/useConditions';
 import { Hero } from '@/components/Hero';
 import { Pill } from '@/components/Pill';
 import { Button } from '@/components/Button';
@@ -28,6 +29,7 @@ export const OverviewScreen: React.FC = () => {
   const wpb = bonusOf('wp');
   const xpTotal = c.xpCurrent + c.xpSpent;
   const corrThresh = tb + wpb;
+  const { conds, cycle } = useConditions();
 
   return (
     <ScreenContainer>
@@ -172,9 +174,8 @@ export const OverviewScreen: React.FC = () => {
       <Section title="Current Conditions" aside="tap to apply · long-press for rule" />
       <View style={styles.chips}>
         {CONDITIONS.map(t => {
-          const cond = c.conditions.find(x => x.type === t);
-          const n = cond?.stacks ?? 0;
-          return <Chip key={t} label={t} count={n} on={n > 0} />;
+          const n = conds[t] ?? 0;
+          return <Chip key={t} label={t} count={n} on={n > 0} onPress={() => cycle(t)} />;
         })}
       </View>
 
