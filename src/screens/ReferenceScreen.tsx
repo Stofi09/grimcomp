@@ -75,7 +75,11 @@ export const ReferenceScreen: React.FC = () => (
           <Cell header flex={0.4}> </Cell>
         </TableRow>
         {RECENT.map((r, i) => (
-          <TableRow key={i} last={i === RECENT.length - 1}>
+          <TableRow
+            key={i}
+            last={i === RECENT.length - 1}
+            onPress={() => Alert.alert(r[0], `${r[1]} — ${r[2]}`)}
+          >
             <Cell flex={2} textStyle={{ fontFamily: fontFamilies.bodySemibold }}>{r[0]}</Cell>
             <Cell flex={1.2} textStyle={{ color: colors.ink3 }}>{r[1]}</Cell>
             <Cell flex={1.4} textStyle={{ fontFamily: fontFamilies.mono, fontSize: 11, color: colors.ink3 }}>{r[2]}</Cell>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -165,16 +165,28 @@ export const CareerScreen: React.FC = () => {
       <Section title="Rank talents (4)" />
       <View style={styles.talentRow}>
         {TALENTS.map((t) => (
-          <Card tight key={t.name} style={styles.talentCell}>
-            <View style={layoutStyles.rowBetween}>
-              <Text style={styles.talentName}>{t.name}</Text>
-              {t.done ? (
-                <Icon name="check" size={14} color={colors.success} />
-              ) : (
-                <Pill variant="brass" size={10}>buyable</Pill>
-              )}
-            </View>
-          </Card>
+          <Pressable
+            key={t.name}
+            style={({ pressed }) => [styles.talentCell, pressed && { opacity: 0.7 }]}
+            onPress={() =>
+              Alert.alert(
+                t.name,
+                t.done ? 'Already taken at this rank.' : 'Buyable at the next career rank — 100 XP.'
+              )
+            }
+            hitSlop={4}
+          >
+            <Card tight style={{ flex: 1 }}>
+              <View style={layoutStyles.rowBetween}>
+                <Text style={styles.talentName}>{t.name}</Text>
+                {t.done ? (
+                  <Icon name="check" size={14} color={colors.success} />
+                ) : (
+                  <Pill variant="brass" size={10}>buyable</Pill>
+                )}
+              </View>
+            </Card>
+          </Pressable>
         ))}
       </View>
     </ScreenContainer>

@@ -1,6 +1,6 @@
 // Lightweight table primitives that match the styles.css `.tbl` patterns.
 import React from 'react';
-import { View, Text, StyleSheet, ViewStyle, TextStyle, StyleProp } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ViewStyle, TextStyle, StyleProp } from 'react-native';
 import { colors, fontFamilies } from '@/theme';
 import { tabular } from './primitives';
 
@@ -17,20 +17,30 @@ interface TableRowProps {
   header?: boolean;
   style?: StyleProp<ViewStyle>;
   last?: boolean;
+  /** Optional press handler — wraps the row in Pressable when provided. */
+  onPress?: () => void;
 }
 
-export const TableRow: React.FC<TableRowProps> = ({ children, header, style, last }) => (
-  <View
-    style={[
-      styles.row,
-      header ? styles.header : null,
-      !last && !header ? styles.divider : null,
-      style,
-    ]}
-  >
-    {children}
-  </View>
-);
+export const TableRow: React.FC<TableRowProps> = ({ children, header, style, last, onPress }) => {
+  const rowStyle: StyleProp<ViewStyle> = [
+    styles.row,
+    header ? styles.header : null,
+    !last && !header ? styles.divider : null,
+    style,
+  ];
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        hitSlop={2}
+        style={({ pressed }) => [rowStyle, pressed && styles.rowPressed]}
+      >
+        {children}
+      </Pressable>
+    );
+  }
+  return <View style={rowStyle}>{children}</View>;
+};
 
 interface CellProps {
   children: React.ReactNode;
@@ -96,6 +106,9 @@ const styles = StyleSheet.create({
   divider: {
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
+  },
+  rowPressed: {
+    backgroundColor: colors.brassHighlight,
   },
   cell: {
     paddingHorizontal: 14,

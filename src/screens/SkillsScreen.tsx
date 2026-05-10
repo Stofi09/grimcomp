@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { CHARACTER, type Skill } from '@/data/character';
@@ -20,9 +20,16 @@ const rollD100 = () => Math.floor(Math.random() * 100) + 1;
 export const SkillsScreen: React.FC = () => {
   const c = CHARACTER;
   const charLabel = Object.fromEntries(c.characteristics.map(x => [x.key, x.short])) as Record<string, string>;
-  const total = (s: Skill) => {
+  // Per-skill advance state, initialised from the character data. Edits here
+  // make Adv./Total/Buy update live as the user taps the steppers.
+  const [advances, setAdvances] = useState<Record<string, number>>(() =>
+    Object.fromEntries(c.skills.map(s => [s.name, s.adv]))
+  );
+  const setAdv = (name: string, next: number) =>
+    setAdvances(prev => ({ ...prev, [name]: next }));
+  const totalFor = (s: Skill, adv: number) => {
     const ch = c.characteristics.find(x => x.key === s.char)!;
-    return ch.init + ch.adv + s.adv;
+    return ch.init + ch.adv + adv;
   };
   return (
     <ScreenContainer>
@@ -51,22 +58,37 @@ export const SkillsScreen: React.FC = () => {
       />
 
       <Section title="Career skills" aside="8 / 8 · roadwarden" />
-      <SkillTable skills={c.skills.filter(s => s.career)} total={total} charLabel={charLabel} career />
+      <SkillTable
+        skills={c.skills.filter(s => s.career)}
+        advances={advances}
+        setAdv={setAdv}
+        totalFor={totalFor}
+        charLabel={charLabel}
+        career
+      />
 
       <Section title="Other" aside="+5 xp surcharge" />
-      <SkillTable skills={c.skills.filter(s => !s.career)} total={total} charLabel={charLabel} />
+      <SkillTable
+        skills={c.skills.filter(s => !s.career)}
+        advances={advances}
+        setAdv={setAdv}
+        totalFor={totalFor}
+        charLabel={charLabel}
+      />
     </ScreenContainer>
   );
 };
 
 interface SkillTableProps {
   skills: Skill[];
-  total: (s: Skill) => number;
+  advances: Record<string, number>;
+  setAdv: (name: string, next: number) => void;
+  totalFor: (s: Skill, adv: number) => number;
   charLabel: Record<string, string>;
   career?: boolean;
 }
 
-const SkillTable: React.FC<SkillTableProps> = ({ skills, total, charLabel, career }) => (
+const SkillTable: React.FC<SkillTableProps> = ({ skills, advances, setAdv, totalFor, charLabel, career }) => (
   <Card flush>
     <Table>
       <TableRow header>
@@ -77,40 +99,50 @@ const SkillTable: React.FC<SkillTableProps> = ({ skills, total, charLabel, caree
         <Cell header flex={2}>Buy</Cell>
         <Cell header flex={0.4}> </Cell>
       </TableRow>
-      {skills.map((s, i) => (
-        <TableRow key={`${s.name}-${i}`} last={i === skills.length - 1}>
-          <Cell flex={2.4}>
-            <View style={styles.nameRow}>
-              <Text style={styles.skillName}>{s.name}</Text>
-              {s.advanced ? <Pill variant="brass" size={9.5}>advanced</Pill> : null}
-            </View>
-          </Cell>
-          <Cell flex={0.5} textStyle={styles.charCol}>
-            {charLabel[s.char]}
-          </Cell>
-          <Cell num flex={0.5} textStyle={{ color: colors.brass, fontFamily: fontFamilies.bodySemibold }}>
-            +{s.adv}
-          </Cell>
-          <Cell num flex={0.6} textStyle={{ fontFamily: fontFamilies.bodySemibold, fontSize: 13 }}>
-            {total(s)}
-          </Cell>
-          <Cell flex={2}>
-            <View style={styles.purchaseCell}>
-              <Stepper value={s.adv} step={5} max={40} />
-              <Text style={styles.cost}>
-                {career ? `${careerCost(s.adv)} XP` : '+5 surcharge'}
-              </Text>
-            </View>
-          </Cell>
-          <Cell flex={0.4} align="right">
-            <Button
-              variant="ghost"
-              iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
-              onPress={() => Alert.alert(`${s.name} test`, `d100 → ${rollD100()} (target ${total(s)})`)}
-            >{''}</Button>
-          </Cell>
-        </TableRow>
-      ))}
+      {skills.map((s, i) => {
+        const adv = advances[s.name] ?? s.adv;
+        const tot = totalFor(s, adv);
+        return (
+          <TableRow key={`${s.name}-${i}`} last={i === skills.length - 1}>
+            <Cell flex={2.4}>
+              <View style={styles.nameRow}>
+                <Text style={styles.skillName}>{s.name}</Text>
+                {s.advanced ? <Pill variant="brass" size={9.5}>advanced</Pill> : null}
+              </View>
+            </Cell>
+            <Cell flex={0.5} textStyle={styles.charCol}>
+              {charLabel[s.char]}
+            </Cell>
+            <Cell num flex={0.5} textStyle={{ color: colors.brass, fontFamily: fontFamilies.bodySemibold }}>
+              +{adv}
+            </Cell>
+            <Cell num flex={0.6} textStyle={{ fontFamily: fontFamilies.bodySemibold, fontSize: 13 }}>
+              {tot}
+            </Cell>
+            <Cell flex={2}>
+              <View style={styles.purchaseCell}>
+                <Stepper
+                  value={adv}
+                  step={5}
+                  min={0}
+                  max={40}
+                  onChange={(next) => setAdv(s.name, next)}
+                />
+                <Text style={styles.cost}>
+                  {career ? `${careerCost(adv)} XP` : '+5 surcharge'}
+                </Text>
+              </View>
+            </Cell>
+            <Cell flex={0.4} align="right">
+              <Button
+                variant="ghost"
+                iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
+                onPress={() => Alert.alert(`${s.name} test`, `d100 → ${rollD100()} (target ${tot})`)}
+              >{''}</Button>
+            </Cell>
+          </TableRow>
+        );
+      })}
     </Table>
   </Card>
 );

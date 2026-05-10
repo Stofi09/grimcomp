@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { CHARACTER } from '@/data/character';
 import { Hero } from '@/components/Hero';
@@ -55,11 +55,17 @@ export const TalentsScreen: React.FC = () => {
           </Card>
         ))}
 
-        <Card dashed style={[styles.cell, styles.empty]}>
-          <Icon name="plus" size={20} color={colors.ink3} />
-          <Text style={styles.emptyTitle}>New talent</Text>
-          <Text style={styles.emptySub}>5 available in career</Text>
-        </Card>
+        <Pressable
+          style={({ pressed }) => [styles.cell, pressed && { opacity: 0.7 }]}
+          onPress={() => Alert.alert('New talent', '5 talents available in your career path. Picker not wired up.')}
+          hitSlop={4}
+        >
+          <Card dashed style={[{ flex: 1 }, styles.empty]}>
+            <Icon name="plus" size={20} color={colors.ink3} />
+            <Text style={styles.emptyTitle}>New talent</Text>
+            <Text style={styles.emptySub}>5 available in career</Text>
+          </Card>
+        </Pressable>
       </View>
     </ScreenContainer>
   );
