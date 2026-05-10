@@ -24,31 +24,55 @@ UI language: English.
 
 ```sh
 npm install
-npm run ios            # iPad Pro 13-inch (M5) — the project's default
-npm run ios:ipad       # same as above
+
+# These three are equivalent — they boot the iPad, start Metro, and
+# auto-open Expo Go on the iPad via `xcrun simctl openurl <UDID>`.
+npm start
+npm run ios
+npm run ios:ipad
+
+# Form-factor variants
 npm run ios:ipad:11    # iPad Pro 11-inch (M5)
 npm run ios:iphone     # iPhone 17 Pro
+
+# Other entry points
+npm run start:metro    # boots the iPad + Metro QR, no auto-launch (scan with phone)
+npm run start:raw      # pure `expo start`, no pinning at all
 npm run android        # opens Android emulator
 npm run web            # browser preview
-npm run icons          # regenerate the App Store icon from scripts/generate-icons.js
+npm run icons          # regenerate the App Store icon
 ```
 
-### Pinning a default simulator per project
+### Why so many scripts? Pinning a simulator per project
 
-Expo SDK 51's `expo start --ios` has no `--device` flag — it just opens
-whichever simulator is already booted, falling back to the system default
-(usually an iPhone). To pin a specific device per project we boot it ourselves
-first via `scripts/dev-ios.js`, then hand off to Expo.
+Expo SDK 51's `expo start --ios` has no `--device` flag. Inside, it picks
+the **first simulator that's currently booted** (regardless of which one you
+intended), falling back to the system default. With multiple RN projects open
+this is unreliable — whichever sim was booted last wins.
 
-In another project you can either:
+`scripts/dev-ios.js` solves it deterministically:
 
-- **Copy `scripts/dev-ios.js`** and change the device name in `package.json`,
-  e.g. `"ios": "node scripts/dev-ios.js 'iPhone 17 Pro'"`.
-- Or set the env var **once** in your shell:
-  `EXPO_IOS_DEVICE='iPhone 17 Pro' npm run ios` — the script reads it as a
-  fallback when no argument is supplied.
+1. Boot the requested device (no-op if already booted).
+2. Spawn `expo start`.
+3. When Metro logs `Waiting on http://localhost:<port>`, run
+   `xcrun simctl openurl <UDID> exp://localhost:<port>`. This pushes the
+   deep-link directly to the chosen device, bypassing Expo's selection.
 
-List available devices any time with `xcrun simctl list devices available`.
+For another project, copy `scripts/dev-ios.js` and change the device
+name in that project's `package.json`:
+
+```json
+"ios": "node scripts/dev-ios.js 'iPhone 17 Pro'"
+```
+
+Or skip the script and rely on the env var as a fallback:
+
+```sh
+EXPO_IOS_DEVICE='iPhone 17 Pro' npm run ios
+```
+
+List devices with `xcrun simctl list devices available`. The script gives
+a fuzzy "did you mean" hint when the device name doesn't match.
 
 ## TestFlight / production builds
 
