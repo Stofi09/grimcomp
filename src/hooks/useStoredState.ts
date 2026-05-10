@@ -1,53 +1,104 @@
-// Generic AsyncStorage-backed useState. JSON-serialises the value, hydrates on
-// mount, write-throughs on every change.
-import { useEffect, useRef, useState } from 'react';
+// Generic AsyncStorage-backed useState with cross-instance sync.
+//
+// Multiple components calling `useStoredState(key, …)` with the same key share
+// state in real time — when one writes, every other subscriber re-renders with
+// the new value. That's required so the rail's "spendable XP" vital and the XP
+// screen's counter stay in sync as the user buys advances.
+//
+// Hydration is async on first read; subsequent reads are synchronous.
+
+import { useEffect, useRef, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type SetState<T> = (next: T | ((prev: T) => T)) => void;
+type Setter<T> = T | ((prev: T) => T);
+type SetState<T> = (next: Setter<T>) => void;
+
+// In-memory store shared across all subscribers, keyed by storage key.
+const cache = new Map<string, unknown>();
+const listeners = new Map<string, Set<() => void>>();
+
+function emit(key: string) {
+  const ls = listeners.get(key);
+  if (ls) for (const l of ls) l();
+}
 
 /**
- * useStoredState<T>(key, initial)
+ * Persisted, cross-instance-synced state.
  *
- * Like useState, but persisted across reloads under `key` in AsyncStorage.
- * Reads are async — on the very first render the hook returns `initial`, then
- * after hydration it returns the persisted value (one re-render).
- *
- * Returns `[value, setValue, ready]`. Most consumers can ignore `ready` and
- * accept a single-frame flash of `initial`. Gate the render on `ready` if the
- * flash is unacceptable.
+ * Returns `[value, setValue, ready]`. Components reading the same key see the
+ * same value and re-render together when any one of them calls setValue.
+ * Writes are mirrored to AsyncStorage so the value survives reloads.
  */
 export function useStoredState<T>(key: string, initial: T) {
-  const [value, setValue] = useState<T>(initial);
-  const [ready, setReady] = useState(false);
-  const hydrated = useRef(false);
+  // `_tick` is a render trigger — when another instance writes, our listener
+  // bumps it, forcing this hook to re-read from `cache`.
+  const [, setTick] = useState(0);
+  const [ready, setReady] = useState(cache.has(key));
+  const initialRef = useRef(initial);
 
+  // Subscribe to cross-instance writes for this key.
   useEffect(() => {
-    let cancelled = false;
-    AsyncStorage.getItem(key).then(raw => {
-      if (cancelled) return;
-      if (raw != null) {
-        try {
-          setValue(JSON.parse(raw) as T);
-        } catch {
-          // corrupted entry — fall back to initial
-        }
-      }
-      hydrated.current = true;
-      setReady(true);
-    }).catch(() => {
-      if (cancelled) return;
-      hydrated.current = true;
-      setReady(true);
-    });
-    return () => { cancelled = true; };
-    // intentionally only on `key` — same key in same component shouldn't re-hydrate
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let set = listeners.get(key);
+    if (!set) {
+      set = new Set();
+      listeners.set(key, set);
+    }
+    const l = () => setTick(n => n + 1);
+    set.add(l);
+    return () => {
+      set!.delete(l);
+      if (set!.size === 0) listeners.delete(key);
+    };
   }, [key]);
 
+  // Hydrate once per key. The `cache.has(key)` check ensures only the first
+  // mounting instance pays the AsyncStorage round-trip.
   useEffect(() => {
-    if (!hydrated.current) return;
-    AsyncStorage.setItem(key, JSON.stringify(value)).catch(() => { /* swallow */ });
-  }, [key, value]);
+    if (cache.has(key)) {
+      setReady(true);
+      return;
+    }
+    let cancelled = false;
+    AsyncStorage.getItem(key)
+      .then(raw => {
+        if (cancelled) return;
+        if (raw != null) {
+          try { cache.set(key, JSON.parse(raw) as T); }
+          catch { cache.set(key, initialRef.current); }
+        } else {
+          cache.set(key, initialRef.current);
+        }
+        emit(key);
+        setReady(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        cache.set(key, initialRef.current);
+        emit(key);
+        setReady(true);
+      });
+    return () => { cancelled = true; };
+  }, [key]);
 
-  return [value, setValue as SetState<T>, ready] as const;
+  const value = (cache.has(key) ? cache.get(key) : initialRef.current) as T;
+
+  const setValue: SetState<T> = useCallback((next) => {
+    const cur = (cache.has(key) ? cache.get(key) : initialRef.current) as T;
+    const resolved = typeof next === 'function' ? (next as (p: T) => T)(cur) : next;
+    if (Object.is(resolved, cur)) return;
+    cache.set(key, resolved);
+    emit(key);
+    AsyncStorage.setItem(key, JSON.stringify(resolved)).catch(() => { /* swallow */ });
+  }, [key]);
+
+  return [value, setValue, ready] as const;
+}
+
+/**
+ * Test-only: drop everything from the in-memory cache. Use sparingly; doesn't
+ * touch AsyncStorage, so re-mounted hooks will re-hydrate from disk.
+ */
+export function _resetStoredCache() {
+  cache.clear();
+  listeners.clear();
 }

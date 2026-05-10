@@ -1,6 +1,10 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
+import { useCareer } from '@/hooks/useCareer';
+import { useXp } from '@/hooks/useXp';
+import { useStoredState } from '@/hooks/useStoredState';
+import { CHARACTER } from '@/data/character';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card, CardHead } from '@/components/Card';
@@ -16,45 +20,90 @@ interface Level {
   name: string;
   status: string;
   xp: number;
-  done?: boolean;
-  current?: boolean;
 }
 
 const LEVELS: Level[] = [
-  { n: 1, name: 'Roadwarden', status: 'Silver 2', xp: 0, done: true },
-  { n: 2, name: 'Road Sergeant', status: 'Silver 3', xp: 200, done: true, current: true },
+  { n: 1, name: 'Roadwarden', status: 'Silver 2', xp: 0 },
+  { n: 2, name: 'Road Sergeant', status: 'Silver 3', xp: 200 },
   { n: 3, name: 'Mounted Sergeant', status: 'Silver 4', xp: 400 },
   { n: 4, name: 'Captain', status: 'Gold 1', xp: 600 },
 ];
 
-const REQUIRED = [
-  { name: 'Ride (Horse)', min: 10, adv: 15 },
-  { name: 'Perception', min: 10, adv: 10 },
-  { name: 'Melee (Basic)', min: 10, adv: 10 },
-  { name: 'Ranged (Bow)', min: 10, adv: 5 },
-  { name: 'Outdoor Survival', min: 5, adv: 10 },
-  { name: 'Intimidate', min: 5, adv: 5 },
-  { name: 'Track', min: 5, adv: 5 },
-  { name: 'Lore (Heraldry)', min: 5, adv: 0 },
+const REQUIRED_TEMPLATE: Array<{ name: string; min: number }> = [
+  { name: 'Ride (Horse)', min: 10 },
+  { name: 'Perception', min: 10 },
+  { name: 'Melee (Basic)', min: 10 },
+  { name: 'Ranged (Bow)', min: 10 },
+  { name: 'Outdoor Survival', min: 5 },
+  { name: 'Intimidate', min: 5 },
+  { name: 'Track', min: 5 },
+  { name: 'Lore (Heraldry)', min: 5 },
 ];
 
-const TALENTS = [
-  { name: 'Sharp', done: true },
-  { name: 'Sure Shot', done: true },
-  { name: 'Hardy', done: true },
-  { name: 'Menacing', done: false },
-];
+// Cost to buy the next career rank. WFRP 4e core p.49: 100 XP × the new rank.
+const ADVANCE_COST = 200;
 
 export const CareerScreen: React.FC = () => {
-  const ready = REQUIRED.filter(s => s.adv >= s.min).length;
-  const ok = ready === REQUIRED.length;
+  const career = useCareer();
+  const xp = useXp();
+
+  // Pull live skill advances so the requirements table is accurate after the
+  // player buys advances on the Skills screen.
+  const [skillAdv] = useStoredState<Record<string, number>>(
+    'gc.skills.adv',
+    Object.fromEntries(CHARACTER.skills.map(s => [s.name, s.adv]))
+  );
+
+  const required = REQUIRED_TEMPLATE.map(r => ({
+    ...r,
+    adv: skillAdv[r.name] ?? 0,
+  }));
+  const ready = required.filter(s => s.adv >= s.min).length;
+  const ok = ready === required.length;
+
+  // Per-rank picked talents (mocked for the prototype; in a real build this
+  // would come from a talents-by-rank table).
+  const [talents] = useStoredState<Array<{ name: string; done: boolean }>>(
+    'gc.career.talents',
+    [
+      { name: 'Sharp', done: true },
+      { name: 'Sure Shot', done: true },
+      { name: 'Hardy', done: true },
+      { name: 'Menacing', done: false },
+    ],
+  );
+
+  const tryAdvance = () => {
+    if (!ok) return;
+    if (!career.canAdvance) {
+      Alert.alert('Top of career', 'Sigmund is already at the highest rank.');
+      return;
+    }
+    const nextLevel = LEVELS[career.level];
+    const reason = `${nextLevel.name} (rank ${career.level + 1})`;
+    const r = xp.spend(ADVANCE_COST, reason, 'career');
+    if (!r.ok) {
+      Alert.alert('Not enough XP', r.message);
+      return;
+    }
+    career.advance();
+    Alert.alert('Advanced!', `You are now a ${nextLevel.name} (${nextLevel.status}).`);
+  };
+
+  const nextRankName = LEVELS[Math.min(LEVELS.length - 1, career.level)].name;
 
   return (
     <ScreenContainer>
       <Hero
         title="Career"
         subRow={
-          <Text style={styles.sub}>Roadwarden · 4-rank warrior career · requirements and advancement</Text>
+          <>
+            <Text style={styles.sub}>Roadwarden · 4-rank warrior career</Text>
+            <Text style={styles.sep}>·</Text>
+            <Text style={styles.sub}>Currently {career.name} (rank {career.level})</Text>
+            <Text style={styles.sep}>·</Text>
+            <Text style={styles.sub}>{xp.current} XP available</Text>
+          </>
         }
       />
 
@@ -62,9 +111,11 @@ export const CareerScreen: React.FC = () => {
 
       <View style={styles.path}>
         {LEVELS.map((l, i) => {
-          const dotColor = l.current ? colors.empire : l.done ? colors.brass : colors.borderStrong;
-          const dotBg = l.current ? colors.empire : l.done ? colors.brass : colors.surface;
-          const lineColor = l.done ? colors.brass : colors.divider;
+          const done = l.n < career.level;
+          const current = l.n === career.level;
+          const dotColor = current ? colors.empire : done ? colors.brass : colors.borderStrong;
+          const dotBg = current ? colors.empire : done ? colors.brass : colors.surface;
+          const lineColor = done || current ? colors.brass : colors.divider;
           return (
             <View key={l.n} style={styles.pathCell}>
               <View
@@ -86,7 +137,7 @@ export const CareerScreen: React.FC = () => {
                 <Text
                   style={[
                     styles.dotText,
-                    { color: l.current || l.done ? '#fff' : colors.ink3 },
+                    { color: current || done ? '#fff' : colors.ink3 },
                   ]}
                 >
                   {l.n}
@@ -95,7 +146,7 @@ export const CareerScreen: React.FC = () => {
               <Text
                 style={[
                   styles.levelName,
-                  l.current ? { color: colors.empire } : null,
+                  current ? { color: colors.empire } : null,
                 ]}
               >
                 {l.name}
@@ -107,11 +158,14 @@ export const CareerScreen: React.FC = () => {
         })}
       </View>
 
-      <Section title="Advance to rank 3" aside={`${ready}/${REQUIRED.length} skills ready`} />
+      <Section
+        title={career.canAdvance ? `Advance to rank ${career.level + 1}` : 'Top of career'}
+        aside={`${ready}/${required.length} skills ready`}
+      />
 
       <Card flush>
         <CardHead
-          title="Mounted Sergeant requirements"
+          title={`${nextRankName} requirements`}
           right={
             <Pill variant={ok ? 'success' : 'warn'}>
               {ok ? 'Ready to advance' : 'Not yet met'}
@@ -125,10 +179,10 @@ export const CareerScreen: React.FC = () => {
             <Cell header num flex={1}>Current</Cell>
             <Cell header flex={1.2}>Status</Cell>
           </TableRow>
-          {REQUIRED.map((s, i) => {
+          {required.map((s, i) => {
             const met = s.adv >= s.min;
             return (
-              <TableRow key={s.name} last={i === REQUIRED.length - 1}>
+              <TableRow key={s.name} last={i === required.length - 1}>
                 <Cell flex={2}>{s.name}</Cell>
                 <Cell num flex={1} textStyle={[styles.mono]}>+{s.min}</Cell>
                 <Cell num flex={1} textStyle={[styles.mono, { color: met ? colors.success : colors.warning }]}>+{s.adv}</Cell>
@@ -149,14 +203,14 @@ export const CareerScreen: React.FC = () => {
           <View style={layoutStyles.rowBetween}>
             <View>
               <Text style={styles.label}>Advance cost</Text>
-              <Text style={[styles.cost, tabular]}>200 XP</Text>
+              <Text style={[styles.cost, tabular]}>{ADVANCE_COST} XP</Text>
             </View>
             <Button
               variant="primary"
-              disabled={!ok}
-              onPress={() => Alert.alert('Advance', 'Advance to rank 3 — 200 XP spent (mock).')}
+              disabled={!ok || !career.canAdvance}
+              onPress={tryAdvance}
             >
-              Advance to rank 3
+              {career.canAdvance ? `Advance to rank ${career.level + 1}` : 'Maxed'}
             </Button>
           </View>
         </View>
@@ -164,14 +218,14 @@ export const CareerScreen: React.FC = () => {
 
       <Section title="Rank talents (4)" />
       <View style={styles.talentRow}>
-        {TALENTS.map((t) => (
+        {talents.map((t) => (
           <Pressable
             key={t.name}
             style={({ pressed }) => [styles.talentCell, pressed && { opacity: 0.7 }]}
             onPress={() =>
               Alert.alert(
                 t.name,
-                t.done ? 'Already taken at this rank.' : 'Buyable at the next career rank — 100 XP.'
+                t.done ? 'Already taken at this rank.' : 'Buy this on the Talents screen.'
               )
             }
             hitSlop={4}
@@ -195,6 +249,7 @@ export const CareerScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   sub: { fontSize: 13, color: colors.ink3, fontFamily: fontFamilies.body },
+  sep: { color: colors.ink4 },
   path: { flexDirection: 'row', position: 'relative' },
   pathCell: {
     flex: 1,

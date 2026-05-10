@@ -29,9 +29,9 @@ export const Stat: React.FC<StatProps> = ({ c, suggested }) => {
 
       <View style={styles.breakdown}>
         <Text style={styles.breakdownText}>
-          <Text style={styles.breakdownB}>{c.init}</Text> alap
+          <Text style={styles.breakdownB}>{c.init}</Text> base
         </Text>
-        <Text style={[styles.breakdownText, { color: colors.brass }]}>+{c.adv} hal.</Text>
+        <Text style={[styles.breakdownText, { color: colors.brass }]}>+{c.adv} adv</Text>
       </View>
     </View>
   );

@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { CHARACTER, XP_COSTS } from '@/data/character';
+import { XP_COSTS, type CharacteristicKey } from '@/data/character';
+import { useCharacteristics } from '@/hooks/useCharacteristics';
+import { useXp } from '@/hooks/useXp';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Stat } from '@/components/Stat';
@@ -13,8 +15,54 @@ import { Table, TableRow, Cell } from '@/components/Table';
 import { colors, fontFamilies } from '@/theme';
 import { tabular, layoutStyles } from '@/components/primitives';
 
+// XP cost band given current adv. WFRP 4e core p.49.
+const bracket = (adv: number) =>
+  adv < 5 ? 25 : adv < 10 ? 30 : adv < 15 ? 40 : adv < 20 ? 50 : adv < 25 ? 70 : adv < 30 ? 90 : adv < 35 ? 120 : 150;
+
+// The screen's "suggested" focus is always Weapon Skill — the design picked it
+// for the Roadwarden, and it remains the cheapest path to rank 3 requirements.
+const SUGGEST_KEY: CharacteristicKey = 'ws';
+
 export const CharacteristicsScreen: React.FC = () => {
-  const c = CHARACTER;
+  const { list, get, adjust } = useCharacteristics();
+  const xp = useXp();
+
+  const suggest = list.find(c => c.key === SUGGEST_KEY)!;
+  const advNow = get(SUGGEST_KEY);
+  const cost = bracket(advNow);
+  const highlightIdx = XP_COSTS.findIndex(b => b.cost === cost);
+
+  const buy = (key: CharacteristicKey) => {
+    const c = list.find(x => x.key === key)!;
+    const cur = get(key);
+    const next = cur + 5;
+    const cost = bracket(cur);
+    const reason = `${c.name} +${cur} → +${next}`;
+    const r = xp.spend(cost, reason, 'char');
+    if (!r.ok) {
+      Alert.alert('Not enough XP', r.message);
+      return;
+    }
+    adjust(key, +5);
+    Alert.alert('Bought advance', r.message);
+  };
+
+  const pickOther = () => {
+    // Quick "buy any characteristic +5" picker. Lists each one with current
+    // adv + bracket cost; tapping a button fires the buy.
+    const buttons = list
+      .filter(c => c.key !== SUGGEST_KEY)
+      .map(c => ({
+        text: `${c.name} (+${c.adv} → +${c.adv + 5}) · ${bracket(c.adv)} XP`,
+        onPress: () => buy(c.key),
+      }));
+    Alert.alert(
+      'Buy another characteristic',
+      'Pick one to advance by +5.',
+      [...buttons, { text: 'Cancel', style: 'cancel' }],
+    );
+  };
+
   return (
     <ScreenContainer>
       <Hero
@@ -25,6 +73,8 @@ export const CharacteristicsScreen: React.FC = () => {
             <Text style={styles.sub}>Initial + advances = current.</Text>
             <Text style={styles.sep}>·</Text>
             <Text style={styles.sub}>Bonus = the tens digit, used in every test.</Text>
+            <Text style={styles.sep}>·</Text>
+            <Text style={styles.sub}>{xp.current} XP available</Text>
           </>
         }
       />
@@ -32,9 +82,9 @@ export const CharacteristicsScreen: React.FC = () => {
       <Section title="Profile" />
 
       <View style={styles.statsGrid}>
-        {c.characteristics.map(x => (
+        {list.map(x => (
           <View key={x.key} style={styles.statCell}>
-            <Stat c={x} suggested={x.key === 'ws'} />
+            <Stat c={x} suggested={x.key === SUGGEST_KEY} />
           </View>
         ))}
       </View>
@@ -51,7 +101,7 @@ export const CharacteristicsScreen: React.FC = () => {
               <Cell header flex={1.4}>Note</Cell>
             </TableRow>
             {XP_COSTS.map((x, i) => {
-              const highlight = i === 2;
+              const highlight = i === highlightIdx;
               return (
                 <TableRow key={x.range} last={i === XP_COSTS.length - 1} style={highlight ? styles.rowHl : null}>
                   <Cell flex={1}>{x.range}</Cell>
@@ -59,7 +109,7 @@ export const CharacteristicsScreen: React.FC = () => {
                     {x.cost}
                   </Cell>
                   <Cell flex={1.4} textStyle={{ color: colors.ink3, fontSize: 11 }}>
-                    {highlight ? '← Weapon Skill is here' : ''}
+                    {highlight ? `← ${suggest.name} is here` : ''}
                   </Cell>
                 </TableRow>
               );
@@ -73,29 +123,29 @@ export const CharacteristicsScreen: React.FC = () => {
           </View>
           <View style={[layoutStyles.rowBetween, { alignItems: 'baseline' }]}>
             <Text style={styles.suggestTitle}>
-              Weapon Skill <Text style={{ color: colors.brass }}>+5</Text>
+              {suggest.name} <Text style={{ color: colors.brass }}>+5</Text>
             </Text>
             <Pill variant="success" iconLeft={<Icon name="check" size={11} color={colors.success} />}>
               in career path
             </Pill>
           </View>
           <Text style={[styles.muted, { marginTop: 6 }]}>
-            Roadwarden 2 → 3 needs at least +10 WS. You're at +10 already; another +5 builds a buffer.
+            Roadwarden 2 → 3 needs at least +10 WS. You're at +{suggest.adv}; another +5 builds a buffer.
           </Text>
           <View style={styles.divider} />
           <View style={styles.suggestRow}>
             <View style={{ alignItems: 'center' }}>
               <Text style={styles.miniLabel}>NOW</Text>
-              <Text style={[styles.bigNum, tabular]}>43</Text>
+              <Text style={[styles.bigNum, tabular]}>{suggest.current}</Text>
             </View>
             <Text style={styles.arrow}>→</Text>
             <View style={{ alignItems: 'center' }}>
               <Text style={styles.miniLabel}>AFTER +5</Text>
-              <Text style={[styles.bigNum, { color: colors.brass }, tabular]}>48</Text>
+              <Text style={[styles.bigNum, { color: colors.brass }, tabular]}>{suggest.current + 5}</Text>
             </View>
             <View style={{ alignItems: 'center' }}>
               <Text style={styles.miniLabel}>COST</Text>
-              <Text style={[styles.bigNum, tabular]}>40<Text style={{ fontSize: 14, color: colors.ink3 }}> xp</Text></Text>
+              <Text style={[styles.bigNum, tabular]}>{cost}<Text style={{ fontSize: 14, color: colors.ink3 }}> xp</Text></Text>
             </View>
           </View>
           <View style={[layoutStyles.row, { marginTop: 14, gap: 8 }]}>
@@ -103,11 +153,11 @@ export const CharacteristicsScreen: React.FC = () => {
               variant="primary"
               large
               style={{ flex: 1, justifyContent: 'center' }}
-              onPress={() => Alert.alert('Purchase', 'Weapon Skill +5 — 40 XP spent (mock).')}
+              onPress={() => buy(SUGGEST_KEY)}
             >
-              Buy · 40 XP
+              Buy · {cost} XP
             </Button>
-            <Button variant="ghost" onPress={() => Alert.alert('Other', 'Pick another characteristic to advance.')}>
+            <Button variant="ghost" onPress={pickOther}>
               Other…
             </Button>
           </View>

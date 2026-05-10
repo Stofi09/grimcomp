@@ -4,6 +4,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fontFamilies, RAIL_WIDTH, space } from '@/theme';
 import { CHARACTER } from '@/data/character';
 import { NAV, type ScreenId } from '@/data/nav';
+import { useXp } from '@/hooks/useXp';
+import { useCareer } from '@/hooks/useCareer';
+import { useStoredState } from '@/hooks/useStoredState';
 import { Icon } from './Icon';
 import { Avatar } from './Avatar';
 import { tabular } from './primitives';
@@ -17,6 +20,9 @@ interface RailProps {
 
 export const Rail: React.FC<RailProps> = ({ current, onNav, onClose, width = RAIL_WIDTH }) => {
   const c = CHARACTER;
+  const xp = useXp();
+  const career = useCareer();
+  const [wounds] = useStoredState('gc.wounds', c.wounds.current);
   return (
     <View style={[styles.rail, { width }]}>
       {/* parchment-tan vertical gradient — matches styles.css .rail */}
@@ -62,14 +68,14 @@ export const Rail: React.FC<RailProps> = ({ current, onNav, onClose, width = RAI
             <Avatar initials="SB" size={40} fontSize={16} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.name} numberOfLines={1}>{c.name}</Text>
-              <Text style={styles.sub} numberOfLines={1}>{c.career} · {c.careerLevel}. szint</Text>
+              <Text style={styles.sub} numberOfLines={1}>{career.name} · rank {career.level}</Text>
             </View>
             <Icon name="chev" size={13} color={colors.ink4} />
           </View>
           <View style={styles.vitals}>
-            <Vital label="Seb" value={`${c.wounds.current}`} sub={`/${c.wounds.max}`} accent={colors.empire} />
-            <Vital label="Sors" value={`${c.fate}`} sub={`·${c.fortune}`} accent={colors.brass} />
-            <Vital label="TP" value={`${c.xpCurrent}`} accent={colors.brass} last />
+            <Vital label="Wnd" value={`${wounds}`} sub={`/${c.wounds.max}`} accent={colors.empire} />
+            <Vital label="Fate" value={`${c.fate}`} sub={`·${c.fortune}`} accent={colors.brass} />
+            <Vital label="XP" value={`${xp.current}`} accent={colors.brass} last />
           </View>
         </Pressable>
 

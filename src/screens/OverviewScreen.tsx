@@ -1,8 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { CHARACTER, CONDITIONS, type CharacteristicKey } from '@/data/character';
+import { CHARACTER, CONDITIONS } from '@/data/character';
 import { useConditions } from '@/hooks/useConditions';
+import { useXp } from '@/hooks/useXp';
+import { useCharacteristics } from '@/hooks/useCharacteristics';
+import { useCareer } from '@/hooks/useCareer';
+import { useStoredState } from '@/hooks/useStoredState';
 import { Hero } from '@/components/Hero';
 import { Pill } from '@/components/Pill';
 import { Button } from '@/components/Button';
@@ -15,32 +19,33 @@ import { Icon } from '@/components/Icon';
 import { colors, fontFamilies } from '@/theme';
 import { tabular, layoutStyles } from '@/components/primitives';
 
-const bonusOf = (k: CharacteristicKey) => {
-  const c = CHARACTER.characteristics.find(x => x.key === k)!;
-  return Math.floor((c.init + c.adv) / 10);
-};
-
 const rollD100 = () => Math.floor(Math.random() * 100) + 1;
 
 export const OverviewScreen: React.FC = () => {
   const c = CHARACTER;
-  const tb = bonusOf('t');
-  const sb = bonusOf('s');
-  const wpb = bonusOf('wp');
-  const xpTotal = c.xpCurrent + c.xpSpent;
-  const corrThresh = tb + wpb;
+  const xp = useXp();
+  const career = useCareer();
+  const { get: getChar } = useCharacteristics();
   const { conds, cycle } = useConditions();
+  // Live wounds (for the segmented bar) — same key WoundsScreen writes to.
+  const [wounds] = useStoredState('gc.wounds', c.wounds.current);
+
+  const tb = Math.floor((c.characteristics.find(x => x.key === 't')!.init + getChar('t')) / 10);
+  const sb = Math.floor((c.characteristics.find(x => x.key === 's')!.init + getChar('s')) / 10);
+  const wpb = Math.floor((c.characteristics.find(x => x.key === 'wp')!.init + getChar('wp')) / 10);
+  const xpTotal = xp.total;
+  const corrThresh = Math.max(1, tb + wpb);
 
   return (
     <ScreenContainer>
       <Hero
-        eyebrow={`The Eberfeld Road Wardens · Career ${c.careerLevel}/4`}
+        eyebrow={`The Eberfeld Road Wardens · Career ${career.level}/4`}
         italic
         title={c.name}
         trailingTitle={
           <>
-            <Pill variant="empire">{c.career}</Pill>
-            <Pill variant="brass">{c.status}</Pill>
+            <Pill variant="empire">{career.name}</Pill>
+            <Pill variant="brass">{career.status}</Pill>
           </>
         }
         subRow={
@@ -88,11 +93,11 @@ export const OverviewScreen: React.FC = () => {
               <Text style={styles.sub}>SB {sb} + 2×TB {tb*2} + WPB {wpb} = {c.wounds.max}</Text>
             </View>
             <Text style={[styles.bigEmpire, tabular]}>
-              {c.wounds.current}
+              {wounds}
               <Text style={styles.bigFrac}>/{c.wounds.max}</Text>
             </Text>
           </View>
-          <SegBar total={c.wounds.max} filled={c.wounds.current} />
+          <SegBar total={c.wounds.max} filled={wounds} />
           <View style={[layoutStyles.rowBetween, { marginTop: 8 }]}>
             <Text style={styles.metaMono}>0 · CRITICAL</Text>
             <Text style={styles.metaMono}>{c.wounds.max} · FULL</Text>
@@ -162,12 +167,12 @@ export const OverviewScreen: React.FC = () => {
             <Text style={[styles.metaMono, { fontSize: 10 }]}>{xpTotal} TOTAL</Text>
           </View>
           <View style={[layoutStyles.row, { alignItems: 'baseline', gap: 10, marginTop: 8 }]}>
-            <Text style={[styles.xpBig, tabular]}>{c.xpCurrent}</Text>
+            <Text style={[styles.xpBig, tabular]}>{xp.current}</Text>
             <Text style={styles.muted}>spendable</Text>
             <View style={{ flex: 1 }} />
-            <Text style={styles.muted}>{c.xpSpent} spent</Text>
+            <Text style={styles.muted}>{xp.spent} spent</Text>
           </View>
-          <Bar value={c.xpSpent / xpTotal} variant="brass" style={{ marginTop: 10 }} />
+          <Bar value={xpTotal === 0 ? 0 : xp.spent / xpTotal} variant="brass" style={{ marginTop: 10 }} />
         </Card>
       </View>
 

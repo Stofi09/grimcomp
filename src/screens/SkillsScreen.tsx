@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { CHARACTER, type Skill } from '@/data/character';
 import { useStoredState } from '@/hooks/useStoredState';
+import { useXp } from '@/hooks/useXp';
+import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
@@ -13,27 +15,55 @@ import { Icon } from '@/components/Icon';
 import { Table, TableRow, Cell } from '@/components/Table';
 import { colors, fontFamilies } from '@/theme';
 
-const careerCost = (adv: number) =>
-  adv < 5 ? 25 : adv < 10 ? 30 : adv < 15 ? 40 : 50;
+// XP cost band for the *next* +5, given current adv (career skills only).
+// Source: WFRP 4e core book p.49.
+const careerBracket = (adv: number) =>
+  adv < 5 ? 25 : adv < 10 ? 30 : adv < 15 ? 40 : adv < 20 ? 50 : adv < 25 ? 70 : adv < 30 ? 90 : adv < 35 ? 120 : 150;
+
+// Non-career: +5 surcharge stacks on top.
+const otherBracket = (adv: number) => careerBracket(adv) + 5;
 
 const rollD100 = () => Math.floor(Math.random() * 100) + 1;
 
 export const SkillsScreen: React.FC = () => {
   const c = CHARACTER;
+  const { list: chars } = useCharacteristics();
+  const xp = useXp();
   const charLabel = Object.fromEntries(c.characteristics.map(x => [x.key, x.short])) as Record<string, string>;
-  // Per-skill advance state, initialised from the character data and persisted
-  // across reloads. Edits make Adv./Total/Buy update live as the user taps the
-  // steppers.
+  const charBase = Object.fromEntries(chars.map(x => [x.key, x.current])) as Record<string, number>;
+
   const [advances, setAdvances] = useStoredState<Record<string, number>>(
     'gc.skills.adv',
     Object.fromEntries(c.skills.map(s => [s.name, s.adv]))
   );
-  const setAdv = (name: string, next: number) =>
-    setAdvances(prev => ({ ...prev, [name]: next }));
-  const totalFor = (s: Skill, adv: number) => {
-    const ch = c.characteristics.find(x => x.key === s.char)!;
-    return ch.init + ch.adv + adv;
+
+  // Stepper change handler that runs through the XP economy. Each +5 click
+  // costs the next bracket; each −5 refunds the bracket the user is leaving.
+  const onAdvChange = (skill: Skill, current: number, next: number) => {
+    const bracket = skill.career ? careerBracket : otherBracket;
+    if (next > current) {
+      const cost = bracket(current);
+      const reason = `${skill.name} +${current} → +${next}`;
+      const r = xp.spend(cost, reason, 'skill');
+      if (!r.ok) {
+        Alert.alert('Not enough XP', r.message);
+        return;
+      }
+      setAdvances(prev => ({ ...prev, [skill.name]: next }));
+    } else if (next < current) {
+      // Refund the bracket the user is leaving (the last +5 they bought).
+      const refund = bracket(next);
+      const reason = `${skill.name} +${current} → +${next}`;
+      xp.refund(refund, `${skill.name} +${next} → +${current}`, 'skill');
+      setAdvances(prev => ({ ...prev, [skill.name]: next }));
+      // Best-effort feedback for the refund.
+      // (Skip an alert to keep stepper feel snappy.)
+      void reason;
+    }
   };
+
+  const totalFor = (s: Skill, adv: number) => (charBase[s.char] ?? 0) + adv;
+
   return (
     <ScreenContainer>
       <Hero
@@ -44,6 +74,8 @@ export const SkillsScreen: React.FC = () => {
             <Text style={styles.sub}>{c.skills.length} skills</Text>
             <Text style={styles.sep}>·</Text>
             <Text style={styles.sub}>{c.skills.filter(s => s.career).length} in career (discounted)</Text>
+            <Text style={styles.sep}>·</Text>
+            <Text style={styles.sub}>{xp.current} XP available</Text>
           </>
         }
         actions={
@@ -64,7 +96,7 @@ export const SkillsScreen: React.FC = () => {
       <SkillTable
         skills={c.skills.filter(s => s.career)}
         advances={advances}
-        setAdv={setAdv}
+        onChange={onAdvChange}
         totalFor={totalFor}
         charLabel={charLabel}
         career
@@ -74,7 +106,7 @@ export const SkillsScreen: React.FC = () => {
       <SkillTable
         skills={c.skills.filter(s => !s.career)}
         advances={advances}
-        setAdv={setAdv}
+        onChange={onAdvChange}
         totalFor={totalFor}
         charLabel={charLabel}
       />
@@ -85,13 +117,13 @@ export const SkillsScreen: React.FC = () => {
 interface SkillTableProps {
   skills: Skill[];
   advances: Record<string, number>;
-  setAdv: (name: string, next: number) => void;
+  onChange: (skill: Skill, current: number, next: number) => void;
   totalFor: (s: Skill, adv: number) => number;
   charLabel: Record<string, string>;
   career?: boolean;
 }
 
-const SkillTable: React.FC<SkillTableProps> = ({ skills, advances, setAdv, totalFor, charLabel, career }) => (
+const SkillTable: React.FC<SkillTableProps> = ({ skills, advances, onChange, totalFor, charLabel, career }) => (
   <Card flush>
     <Table>
       <TableRow header>
@@ -105,6 +137,7 @@ const SkillTable: React.FC<SkillTableProps> = ({ skills, advances, setAdv, total
       {skills.map((s, i) => {
         const adv = advances[s.name] ?? s.adv;
         const tot = totalFor(s, adv);
+        const nextCost = (career ? careerBracket : otherBracket)(adv);
         return (
           <TableRow key={`${s.name}-${i}`} last={i === skills.length - 1}>
             <Cell flex={2.4}>
@@ -129,11 +162,9 @@ const SkillTable: React.FC<SkillTableProps> = ({ skills, advances, setAdv, total
                   step={5}
                   min={0}
                   max={40}
-                  onChange={(next) => setAdv(s.name, next)}
+                  onChange={(next) => onChange(s, adv, next)}
                 />
-                <Text style={styles.cost}>
-                  {career ? `${careerCost(adv)} XP` : '+5 surcharge'}
-                </Text>
+                <Text style={styles.cost}>{nextCost} XP next</Text>
               </View>
             </Cell>
             <Cell flex={0.4} align="right">

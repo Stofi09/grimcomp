@@ -1,12 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { CHARACTER, XP_LOG, type XpKind } from '@/data/character';
+import { type XpKind } from '@/data/character';
+import { useXp } from '@/hooks/useXp';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Counter } from '@/components/Counter';
 import { Card } from '@/components/Card';
 import { Pill, type PillVariant } from '@/components/Pill';
+import { Button } from '@/components/Button';
+import { Icon } from '@/components/Icon';
 import { Table, TableRow, Cell } from '@/components/Table';
 import { colors, fontFamilies } from '@/theme';
 import { tabular } from '@/components/primitives';
@@ -27,19 +30,45 @@ const KIND_LABEL: Record<XpKind, string> = {
   career: 'Career',
 };
 
+const QUICK_GAINS = [50, 100, 150, 200];
+
 export const XpScreen: React.FC = () => {
-  const c = CHARACTER;
+  const xp = useXp();
+
+  const award = (amount: number) => {
+    const r = xp.gain(amount, 'Session reward');
+    Alert.alert('XP awarded', r.message);
+  };
+
   return (
     <ScreenContainer>
       <Hero
         title="XP Log"
         subRow={<Text style={styles.sub}>Every XP gain and spend is recorded here.</Text>}
+        actions={
+          <Button
+            variant="brass"
+            iconLeft={<Icon name="plus" size={13} color="#2a2010" />}
+            onPress={() => {
+              Alert.alert(
+                'Award session XP',
+                'Pick an amount to add as a session reward.',
+                [
+                  ...QUICK_GAINS.map(n => ({ text: `+${n} XP`, onPress: () => award(n) })),
+                  { text: 'Cancel', style: 'cancel' as const },
+                ],
+              );
+            }}
+          >
+            Award XP
+          </Button>
+        }
       />
 
       <View style={styles.row}>
-        <Counter label="Spendable" sub="now" value={c.xpCurrent} variant="fate" style={{ flex: 1 }} />
-        <Counter label="Spent" sub="lifetime" value={c.xpSpent} style={{ flex: 1 }} />
-        <Counter label="Total earned" sub="play time" value={c.xpCurrent + c.xpSpent} style={{ flex: 1 }} />
+        <Counter label="Spendable" sub="now" value={xp.current} variant="fate" style={{ flex: 1 }} />
+        <Counter label="Spent" sub="lifetime" value={xp.spent} style={{ flex: 1 }} />
+        <Counter label="Total earned" sub="play time" value={xp.total} style={{ flex: 1 }} />
       </View>
 
       <Section title="Log" aside="newest first" />
@@ -51,8 +80,8 @@ export const XpScreen: React.FC = () => {
             <Cell header flex={1.2}>Kind</Cell>
             <Cell header num flex={0.8}>XP</Cell>
           </TableRow>
-          {XP_LOG.map((e, i) => (
-            <TableRow key={i} last={i === XP_LOG.length - 1}>
+          {xp.log.map((e, i) => (
+            <TableRow key={i} last={i === xp.log.length - 1}>
               <Cell flex={1} textStyle={{ fontFamily: fontFamilies.mono, fontSize: 11, color: colors.ink3 }}>
                 {e.date}
               </Cell>
