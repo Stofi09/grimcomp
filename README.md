@@ -24,11 +24,31 @@ UI language: English.
 
 ```sh
 npm install
-npm run ios      # opens iOS Simulator (Expo Go)
-npm run android  # opens Android emulator
-npm run web      # browser preview
-npm run icons    # regenerate the App Store icon from scripts/generate-icons.js
+npm run ios            # iPad Pro 13-inch (M5) — the project's default
+npm run ios:ipad       # same as above
+npm run ios:ipad:11    # iPad Pro 11-inch (M5)
+npm run ios:iphone     # iPhone 17 Pro
+npm run android        # opens Android emulator
+npm run web            # browser preview
+npm run icons          # regenerate the App Store icon from scripts/generate-icons.js
 ```
+
+### Pinning a default simulator per project
+
+Expo SDK 51's `expo start --ios` has no `--device` flag — it just opens
+whichever simulator is already booted, falling back to the system default
+(usually an iPhone). To pin a specific device per project we boot it ourselves
+first via `scripts/dev-ios.js`, then hand off to Expo.
+
+In another project you can either:
+
+- **Copy `scripts/dev-ios.js`** and change the device name in `package.json`,
+  e.g. `"ios": "node scripts/dev-ios.js 'iPhone 17 Pro'"`.
+- Or set the env var **once** in your shell:
+  `EXPO_IOS_DEVICE='iPhone 17 Pro' npm run ios` — the script reads it as a
+  fallback when no argument is supplied.
+
+List available devices any time with `xcrun simctl list devices available`.
 
 ## TestFlight / production builds
 
