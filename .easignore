@@ -1,0 +1,3 @@
+# Excluded from EAS cloud builds. Inherits from .gitignore plus these.
+.DS_Store
+/_check

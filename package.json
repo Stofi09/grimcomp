@@ -7,7 +7,11 @@
     "ios": "expo start --ios",
     "android": "expo start --android",
     "web": "expo start --web",
-    "tsc": "tsc --noEmit"
+    "tsc": "tsc --noEmit",
+    "icons": "node scripts/generate-icons.js",
+    "build:ios": "eas build --platform ios --profile production",
+    "build:ios:preview": "eas build --platform ios --profile preview",
+    "submit:ios": "eas submit --platform ios --profile production --latest"
   },
   "dependencies": {
     "@expo-google-fonts/im-fell-english": "^0.2.3",
@@ -27,6 +31,7 @@
     "@babel/core": "^7.20.0",
     "@types/react": "~18.2.79",
     "babel-plugin-module-resolver": "^5.0.2",
+    "sharp": "^0.34.5",
     "typescript": "~5.3.3"
   },
   "private": true

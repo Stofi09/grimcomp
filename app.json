@@ -4,19 +4,39 @@
     "slug": "grimcomp",
     "version": "1.0.0",
     "orientation": "default",
+    "icon": "./assets/icon.png",
     "scheme": "grimcomp",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ece2d0"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.grimcomp.app",
-      "requireFullScreen": false
+      "requireFullScreen": false,
+      "bundleIdentifier": "com.kristofsolak.grimcomp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
-      "package": "com.grimcomp.app"
+      "package": "com.kristofsolak.grimcomp",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ece2d0"
+      }
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
     },
-    "assetBundlePatterns": ["**/*"]
+    "assetBundlePatterns": ["**/*"],
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
+    },
+    "owner": "stofi09"
   }
 }
