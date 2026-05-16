@@ -118,6 +118,13 @@ export interface Character {
   accent: string;
   isCaster?: boolean;          // toggles Magic screen content
   isAnointed?: boolean;        // toggles Faith screen content
+  /** Spell IDs from src/data/magic.ts (caster characters only). */
+  knownSpells?: string[];
+  /** Prayer IDs from src/data/faith.ts (Anointed characters only). */
+  knownPrayers?: string[];
+  /** Display labels for the Faith / Magic screen banners. */
+  deity?: string;
+  spellLore?: string;
 }
 
 const SIGMUND: Character = {
@@ -352,6 +359,8 @@ const ADELHEID: Character = {
   initials: 'AV',
   accent: '#9a7d1f',
   isCaster: true,
+  spellLore: 'Fire (Aqshy)',
+  knownSpells: ['m.candle', 'm.dart', 'm.gust', 'm.warm', 'm.fireball', 'm.crown', 'm.cauterise', 'm.dazzle'],
 };
 
 // Lightweight placeholder templates for the remaining roster entries — used by
@@ -387,7 +396,6 @@ const BROGAR: Character = {
 };
 
 const HALLA: Character = {
-  ...SIGMUND,
   id: 'c4',
   name: 'Halla Stern',
   species: 'Human',
@@ -407,13 +415,95 @@ const HALLA: Character = {
   hair: 'Pale blonde',
   eyes: 'Pale blue',
   motivation: 'Tend the dying and bring mercy to the road',
+
+  fate: 2,
+  fortune: 2,
+  resilience: 2,
+  resolve: 1,
+
   xpCurrent: 275,
   xpSpent: 425,
   wounds: { current: 10, max: 11 },
   corruption: 0,
+  sin: 0,
+
+  movement: 4,
+  wealth: { gc: 2, ss: 14, d: 4 },
+
+  characteristics: [
+    { key: 'ws', name: 'Weapon Skill', short: 'WS', init: 30, adv: 5 },
+    { key: 'bs', name: 'Ballistic Skill', short: 'BS', init: 28, adv: 0 },
+    { key: 's', name: 'Strength', short: 'S', init: 29, adv: 0 },
+    { key: 't', name: 'Toughness', short: 'T', init: 32, adv: 5 },
+    { key: 'i', name: 'Initiative', short: 'I', init: 33, adv: 5 },
+    { key: 'ag', name: 'Agility', short: 'Ag', init: 31, adv: 0 },
+    { key: 'dex', name: 'Dexterity', short: 'Dex', init: 34, adv: 5 },
+    { key: 'int', name: 'Intelligence', short: 'Int', init: 36, adv: 10 },
+    { key: 'wp', name: 'Willpower', short: 'WP', init: 38, adv: 15 },
+    { key: 'fel', name: 'Fellowship', short: 'Fel', init: 35, adv: 10 },
+  ],
+
+  skills: [
+    { name: 'Pray', char: 'fel', adv: 15, career: true, advanced: false },
+    { name: 'Heal', char: 'int', adv: 15, career: true, advanced: false },
+    { name: 'Charm', char: 'fel', adv: 10, career: true, advanced: false },
+    { name: 'Lore (Theology)', char: 'int', adv: 10, career: true, advanced: true },
+    { name: 'Lore (Shallya)', char: 'int', adv: 10, career: true, advanced: true },
+    { name: 'Cool', char: 'wp', adv: 10, career: true, advanced: false },
+    { name: 'Perception', char: 'i', adv: 5, career: true, advanced: false },
+    { name: 'Intuition', char: 'i', adv: 5, career: true, advanced: false },
+    { name: 'Endurance', char: 't', adv: 5, career: false, advanced: false },
+    { name: 'Athletics', char: 'ag', adv: 0, career: false, advanced: false },
+  ],
+
+  talents: [
+    { name: 'Bless (Shallya)', times: 1, desc: 'Knows the Bless prayer', career: true },
+    { name: 'Invoke (Shallya)', times: 1, desc: 'Can invoke Shallya\'s prayers without sin', career: true },
+    { name: 'Read/Write', times: 1, desc: 'Can read and write Reikspiel + Classical', career: true },
+    { name: 'Kind-hearted', times: 1, desc: '+10 to Charm tests on those in distress', career: false },
+  ],
+
+  weapons: [
+    { name: 'Quarterstaff', group: 'Two-handed', enc: 2, reach: 'Long', dmg: 'SB+3', qual: ['Defensive', 'Pummel'] },
+  ],
+  armour: [
+    { name: 'Robe', locs: ['Body', 'Arms', 'Legs'], enc: 0, ap: 0, qual: ['Practical'] },
+  ],
+  ap: { head: 0, arm_l: 0, arm_r: 0, body: 0, leg_l: 0, leg_r: 0, shield: 0 },
+
+  conditions: [],
+  criticals: [],
+
+  trappings: [
+    { name: 'Holy symbol (dove)', enc: 0 },
+    { name: 'Healing salve ×3', enc: 0 },
+    { name: 'Bandages', enc: 0 },
+    { name: 'Prayer book of Shallya', enc: 1 },
+    { name: 'Vestments', enc: 1 },
+    { name: 'Rations (week)', enc: 1 },
+    { name: 'Lantern', enc: 1 },
+  ],
+
+  party: {
+    name: 'The Eberfeld Road Wardens',
+    short: 'The party has been hired to guard the Eberfeld–Ubersreik road. Halla travels with them to tend the wounded — friend or foe.',
+    members: [
+      { name: 'Sigmund Braun', role: 'Roadwarden' },
+      { name: 'Adelheid Vogt', role: 'Pyromancer' },
+      { name: 'Brogar Grimmson', role: 'Runesmith' },
+    ],
+  },
+
+  psychology: ['Pacifism (will not deal killing blows to non-Chaos creatures)'],
+  mutations: [],
+  ambitionsShort: 'Establish a Shallyan hospice on the Reikland road',
+  ambitionsLong: 'Earn the title of Sister of Shallya at the Couronne hospital',
+
   initials: 'HS',
   accent: '#3d6b3d',
   isAnointed: true,
+  deity: 'Shallya',
+  knownPrayers: ['p.blessing', 'p.calm', 'p.staunch', 'p.cure', 'p.bless', 'p.fortify'],
 };
 
 export const CHARACTER_TEMPLATES: Record<string, Character> = {
