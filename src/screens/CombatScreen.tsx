@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { CHARACTER, type Weapon } from '@/data/character';
+import { type Weapon } from '@/data/character';
+import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
@@ -39,11 +40,11 @@ const computeDamage = (formula: string, sb: number): number => {
 };
 
 export const CombatScreen: React.FC = () => {
-  const c = CHARACTER;
+  const { id, template: c } = useCharacter();
   const { get: getChar } = useCharacteristics();
   const { modifier: condMod } = useConditions();
   const [skillAdv] = useStoredState<Record<string, number>>(
-    'gc.skills.adv',
+    characterKey(id, 'skills.adv'),
     Object.fromEntries(c.skills.map(s => [s.name, s.adv]))
   );
   const totalAP = c.ap.head + c.ap.body + c.ap.arm_l + c.ap.arm_r + c.ap.leg_l + c.ap.leg_r;

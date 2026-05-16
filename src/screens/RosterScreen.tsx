@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { ROSTER } from '@/data/character';
+import { useCharacter } from '@/hooks/useCharacter';
+import { useRoster } from '@/hooks/useRoster';
 import type { ScreenId } from '@/data/nav';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -15,11 +16,18 @@ import { layoutStyles } from '@/components/primitives';
 
 interface Props { onNav: (id: ScreenId) => void; }
 
-export const RosterScreen: React.FC<Props> = ({ onNav }) => (
+export const RosterScreen: React.FC<Props> = ({ onNav }) => {
+  const { id: activeId, setActive } = useCharacter();
+  const { list, remove, custom } = useRoster();
+  const switchTo = (id: string) => {
+    setActive(id);
+    onNav('overview');
+  };
+  return (
   <ScreenContainer>
     <Hero
       title="Characters"
-      subRow={<Text style={styles.sub}>{ROSTER.length} characters · The Eberfeld Road Wardens</Text>}
+      subRow={<Text style={styles.sub}>{list.length} characters · The Eberfeld Road Wardens</Text>}
       actions={
         <Button variant="primary" iconLeft={<Icon name="plus" size={13} color={colors.ivory} />} onPress={() => onNav('newchar')}>
           New character
@@ -30,12 +38,34 @@ export const RosterScreen: React.FC<Props> = ({ onNav }) => (
     <Section title="Active party" />
 
     <View style={styles.grid}>
-      {ROSTER.map(c => (
-        <Pressable key={c.id} style={styles.cellWrap} onPress={() => onNav('overview')}>
+      {list.map(c => {
+        const isActive = c.id === activeId;
+        const isCustom = c.id in custom;
+        const onLong = isCustom
+          ? () => Alert.alert(
+              'Delete character',
+              `Permanently delete ${c.name}? This wipes their XP, wounds, conditions and inventory.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => {
+                  remove(c.id);
+                  if (isActive) setActive('c1');
+                }},
+              ],
+            )
+          : undefined;
+        return (
+        <Pressable
+          key={c.id}
+          style={styles.cellWrap}
+          onPress={() => switchTo(c.id)}
+          onLongPress={onLong}
+          delayLongPress={500}
+        >
           <Card
             style={[
               { flex: 1 },
-              c.active ? { borderColor: colors.brass, shadowOpacity: 0.18 } : null,
+              isActive ? { borderColor: colors.brass, shadowOpacity: 0.18 } : null,
             ]}
           >
             <View style={[layoutStyles.row, { alignItems: 'flex-start', gap: 14 }]}>
@@ -43,17 +73,20 @@ export const RosterScreen: React.FC<Props> = ({ onNav }) => (
               <View style={{ flex: 1, minWidth: 0 }}>
                 <View style={layoutStyles.rowBetween}>
                   <Text style={styles.name}>{c.name}</Text>
-                  {c.active ? <Pill variant="brass" size={10}>ACTIVE</Pill> : null}
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    {isCustom ? <Pill variant="ghost" size={10}>CUSTOM</Pill> : null}
+                    {isActive ? <Pill variant="brass" size={10}>ACTIVE</Pill> : null}
+                  </View>
                 </View>
-                <Text style={styles.meta}>{c.species} · {c.career} · rank {c.level} · {c.status}</Text>
+                <Text style={styles.meta}>{c.species} · {c.career} · rank {c.careerLevel} · {c.status}</Text>
                 <View style={[layoutStyles.row, { gap: 18, marginTop: 12 }]}>
                   <View>
                     <Text style={styles.metaMono}>WOUNDS</Text>
-                    <Text style={styles.bigVal}>{c.wounds}</Text>
+                    <Text style={styles.bigVal}>{c.wounds.current}/{c.wounds.max}</Text>
                   </View>
                   <View>
                     <Text style={styles.metaMono}>SPENDABLE XP</Text>
-                    <Text style={[styles.bigVal, { color: colors.brass }]}>{c.xp}</Text>
+                    <Text style={[styles.bigVal, { color: colors.brass }]}>{c.xpCurrent}</Text>
                   </View>
                   <View style={{ marginLeft: 'auto', alignSelf: 'center' }}>
                     <Icon name="chev" size={16} color={colors.ink3} />
@@ -63,7 +96,8 @@ export const RosterScreen: React.FC<Props> = ({ onNav }) => (
             </View>
           </Card>
         </Pressable>
-      ))}
+        );
+      })}
 
       <Pressable style={styles.cellWrap} onPress={() => onNav('newchar')}>
         <Card dashed style={[styles.empty]}>
@@ -74,7 +108,8 @@ export const RosterScreen: React.FC<Props> = ({ onNav }) => (
       </Pressable>
     </View>
   </ScreenContainer>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   sub: { fontSize: 13, color: colors.ink3, fontFamily: fontFamilies.body },

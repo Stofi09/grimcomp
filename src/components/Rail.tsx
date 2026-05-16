@@ -2,11 +2,12 @@ import React from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fontFamilies, RAIL_WIDTH, space } from '@/theme';
-import { CHARACTER } from '@/data/character';
 import { NAV, type ScreenId } from '@/data/nav';
 import { useXp } from '@/hooks/useXp';
 import { useCareer } from '@/hooks/useCareer';
+import { useCharacter } from '@/hooks/useCharacter';
 import { useStoredState } from '@/hooks/useStoredState';
+import { characterKey } from '@/hooks/useCharacter';
 import { Icon } from './Icon';
 import { Avatar } from './Avatar';
 import { tabular } from './primitives';
@@ -19,10 +20,10 @@ interface RailProps {
 }
 
 export const Rail: React.FC<RailProps> = ({ current, onNav, onClose, width = RAIL_WIDTH }) => {
-  const c = CHARACTER;
+  const { id, template: c } = useCharacter();
   const xp = useXp();
   const career = useCareer();
-  const [wounds] = useStoredState('gc.wounds', c.wounds.current);
+  const [wounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
   return (
     <View style={[styles.rail, { width }]}>
       {/* parchment-tan vertical gradient — matches styles.css .rail */}
@@ -65,7 +66,7 @@ export const Rail: React.FC<RailProps> = ({ current, onNav, onClose, width = RAI
 
         <Pressable style={styles.charCard} onPress={() => onNav('roster')}>
           <View style={styles.charTop}>
-            <Avatar initials="SB" size={40} fontSize={16} />
+            <Avatar initials={c.initials} accent={c.accent} size={40} fontSize={16} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.name} numberOfLines={1}>{c.name}</Text>
               <Text style={styles.sub} numberOfLines={1}>{career.name} · rank {career.level}</Text>

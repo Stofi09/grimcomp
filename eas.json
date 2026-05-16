@@ -1,18 +1,20 @@
 {
   "cli": {
-    "version": ">= 3.0.0",
+    "version": ">= 7.0.0",
     "appVersionSource": "remote"
   },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "node": "22.13.0",
       "ios": {
         "simulator": true
       }
     },
     "preview": {
       "distribution": "internal",
+      "node": "22.13.0",
       "android": {
         "buildType": "apk"
       },
@@ -22,8 +24,10 @@
     },
     "production": {
       "autoIncrement": true,
+      "node": "22.13.0",
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "image": "macos-sequoia-15.5-xcode-26.0"
       },
       "android": {
         "buildType": "app-bundle"
@@ -34,6 +38,7 @@
     "production": {
       "ios": {
         "appleId": "kristof.solak@gmail.com",
+        "ascAppId": "6769978498",
         "appleTeamId": "2JV57W286Z"
       }
     }

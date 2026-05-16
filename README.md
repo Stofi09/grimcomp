@@ -104,17 +104,31 @@ eas init
 eas credentials
 ```
 
+### Pre-flight audit
+
+```sh
+npm run audit:ios
+```
+
+Sanity-checks `app.json` + `eas.json` for the common TestFlight blockers
+(empty projectId, missing bundleId, placeholder Apple Team ID, etc.) before
+you spend cloud build minutes. Mirrors `david-mobil/scripts/audit-ios-config.js`.
+
 ### Build + ship to TestFlight
 
 ```sh
-# Cloud build (15–30 min). Auto-increments the iOS build number.
-npm run build:ios
+# One-shot: build, then auto-submit to TestFlight on success.
+# On the first run EAS will offer to create the App Store Connect entry —
+# accept, then paste the resulting ascAppId into eas.json so future
+# submits are fully unattended.
+npm run submit:ios:testflight
 
-# Upload the latest production build to TestFlight.
-npm run submit:ios
+# Or split build and submit (handy if you want to inspect the .ipa first):
+npm run build:ios     # cloud build, auto-increments build number
+npm run submit:ios    # uploads the latest production build
 ```
 
-After `submit:ios` finishes, the build appears in App Store Connect → Apps → Grim Companion → TestFlight, usually within ~10 minutes of finishing processing. Add internal testers in App Store Connect to install via the TestFlight app.
+After the submit step finishes, the build appears in App Store Connect → Apps → Grim Companion → TestFlight, usually within ~10 minutes of finishing processing. Add internal testers in App Store Connect to install via the TestFlight app.
 
 ### Quick internal preview build (ad-hoc, no App Store)
 

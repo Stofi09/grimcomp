@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { CHARACTER, CONDITIONS } from '@/data/character';
+import { CONDITIONS } from '@/data/character';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
+import { useCharacter, characterKey } from '@/hooks/useCharacter';
+import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card, CardHead } from '@/components/Card';
@@ -17,9 +19,11 @@ import { colors, fontFamilies } from '@/theme';
 import { tabular, layoutStyles } from '@/components/primitives';
 
 export const WoundsScreen: React.FC = () => {
-  const c = CHARACTER;
-  const [wounds, setWounds] = useStoredState('gc.wounds', c.wounds.current);
+  const { id, template: c } = useCharacter();
+  const [wounds, setWounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
   const { conds, cycle } = useConditions();
+  const { list: chars } = useCharacteristics();
+  const tb = chars.find(x => x.key === 't')?.bonus ?? 0;
   return (
     <ScreenContainer>
       <Hero
@@ -53,9 +57,6 @@ export const WoundsScreen: React.FC = () => {
               iconLeft={<Icon name="heart" size={13} color={colors.ink} />}
               style={{ alignSelf: 'stretch' }}
               onPress={() => {
-                const tb = Math.floor(
-                  (CHARACTER.characteristics.find(x => x.key === 't')!.init +
-                    CHARACTER.characteristics.find(x => x.key === 't')!.adv) / 10);
                 setWounds(w => Math.min(c.wounds.max, w + tb));
                 Alert.alert('Rest', `Recovered ${tb} wounds (TB).`);
               }}

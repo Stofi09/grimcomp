@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { CHARACTER, type CharacteristicKey } from '@/data/character';
+import { useCharacter } from '@/hooks/useCharacter';
+import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
@@ -12,15 +13,11 @@ import { Table, TableRow, Cell } from '@/components/Table';
 import { colors, fontFamilies } from '@/theme';
 import { tabular, layoutStyles } from '@/components/primitives';
 
-const bonusOf = (k: CharacteristicKey) => {
-  const c = CHARACTER.characteristics.find(x => x.key === k)!;
-  return Math.floor((c.init + c.adv) / 10);
-};
-
 export const TrappingsScreen: React.FC = () => {
-  const c = CHARACTER;
-  const sb = bonusOf('s');
-  const tb = bonusOf('t');
+  const { template: c } = useCharacter();
+  const { list: chars } = useCharacteristics();
+  const sb = chars.find(x => x.key === 's')?.bonus ?? 0;
+  const tb = chars.find(x => x.key === 't')?.bonus ?? 0;
   const maxEnc = sb + tb;
   const encItems = c.trappings.reduce((a, x) => a + x.enc, 0);
   const encW = c.weapons.reduce((a, x) => a + x.enc, 0);

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { CHARACTER } from '@/data/character';
+import { useCharacter } from '@/hooks/useCharacter';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
@@ -11,7 +11,7 @@ import { colors, fontFamilies } from '@/theme';
 import { tabular, layoutStyles } from '@/components/primitives';
 
 export const PsychologyScreen: React.FC = () => {
-  const c = CHARACTER;
+  const { template: c } = useCharacter();
   return (
     <ScreenContainer>
       <Hero

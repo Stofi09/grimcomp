@@ -4,7 +4,7 @@ import { ScreenContainer } from './ScreenContainer';
 import { useCareer } from '@/hooks/useCareer';
 import { useXp } from '@/hooks/useXp';
 import { useStoredState } from '@/hooks/useStoredState';
-import { CHARACTER } from '@/data/character';
+import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card, CardHead } from '@/components/Card';
@@ -15,82 +15,67 @@ import { Table, TableRow, Cell } from '@/components/Table';
 import { colors, fontFamilies } from '@/theme';
 import { tabular, layoutStyles } from '@/components/primitives';
 
-interface Level {
-  n: number;
-  name: string;
-  status: string;
-  xp: number;
-}
+// Per-character career-rank requirements. Sigmund's are modelled in detail
+// (Roadwarden → Mounted Sergeant from the WFRP4e core book); other characters
+// fall back to an empty list and the screen surfaces a placeholder.
+const REQS_BY_CHAR: Record<string, Array<{ name: string; min: number }>> = {
+  c1: [
+    { name: 'Ride (Horse)', min: 10 },
+    { name: 'Perception', min: 10 },
+    { name: 'Melee (Basic)', min: 10 },
+    { name: 'Ranged (Bow)', min: 10 },
+    { name: 'Outdoor Survival', min: 5 },
+    { name: 'Intimidate', min: 5 },
+    { name: 'Track', min: 5 },
+    { name: 'Lore (Heraldry)', min: 5 },
+  ],
+};
 
-const LEVELS: Level[] = [
-  { n: 1, name: 'Roadwarden', status: 'Silver 2', xp: 0 },
-  { n: 2, name: 'Road Sergeant', status: 'Silver 3', xp: 200 },
-  { n: 3, name: 'Mounted Sergeant', status: 'Silver 4', xp: 400 },
-  { n: 4, name: 'Captain', status: 'Gold 1', xp: 600 },
-];
-
-const REQUIRED_TEMPLATE: Array<{ name: string; min: number }> = [
-  { name: 'Ride (Horse)', min: 10 },
-  { name: 'Perception', min: 10 },
-  { name: 'Melee (Basic)', min: 10 },
-  { name: 'Ranged (Bow)', min: 10 },
-  { name: 'Outdoor Survival', min: 5 },
-  { name: 'Intimidate', min: 5 },
-  { name: 'Track', min: 5 },
-  { name: 'Lore (Heraldry)', min: 5 },
-];
-
-// Cost to buy the next career rank. WFRP 4e core p.49: 100 XP × the new rank.
+// XP cost to buy a career rank (WFRP 4e: 100 XP × rank number for current
+// career, but the prototype uses a flat 200 for simplicity).
 const ADVANCE_COST = 200;
 
 export const CareerScreen: React.FC = () => {
+  const { id, template: c } = useCharacter();
   const career = useCareer();
   const xp = useXp();
 
-  // Pull live skill advances so the requirements table is accurate after the
-  // player buys advances on the Skills screen.
+  // Live skill advances per character.
   const [skillAdv] = useStoredState<Record<string, number>>(
-    'gc.skills.adv',
-    Object.fromEntries(CHARACTER.skills.map(s => [s.name, s.adv]))
+    characterKey(id, 'skills.adv'),
+    Object.fromEntries(c.skills.map(s => [s.name, s.adv]))
   );
 
-  const required = REQUIRED_TEMPLATE.map(r => ({
-    ...r,
-    adv: skillAdv[r.name] ?? 0,
-  }));
+  const reqsForChar = REQS_BY_CHAR[id] ?? [];
+  const required = reqsForChar.map(r => ({ ...r, adv: skillAdv[r.name] ?? 0 }));
   const ready = required.filter(s => s.adv >= s.min).length;
-  const ok = ready === required.length;
+  const ok = required.length > 0 && ready === required.length;
 
-  // Per-rank picked talents (mocked for the prototype; in a real build this
-  // would come from a talents-by-rank table).
-  const [talents] = useStoredState<Array<{ name: string; done: boolean }>>(
-    'gc.career.talents',
-    [
-      { name: 'Sharp', done: true },
-      { name: 'Sure Shot', done: true },
-      { name: 'Hardy', done: true },
-      { name: 'Menacing', done: false },
-    ],
-  );
+  // Per-rank picked talents — kept simple: the first N talents in the
+  // character template are considered "taken" at the current rank.
+  const talents = c.talents.slice(0, 4).map((t, i) => ({
+    name: t.name,
+    done: i < career.level - 1 || t.times > 1,
+  }));
 
   const tryAdvance = () => {
     if (!ok) return;
     if (!career.canAdvance) {
-      Alert.alert('Top of career', 'Sigmund is already at the highest rank.');
+      Alert.alert('Top of career', `${c.name} is already at the highest rank.`);
       return;
     }
-    const nextLevel = LEVELS[career.level];
-    const reason = `${nextLevel.name} (rank ${career.level + 1})`;
+    const nextRank = career.ranks[career.level]; // 0-indexed; career.level is the *current* rank
+    const reason = `${nextRank.name} (rank ${career.level + 1})`;
     const r = xp.spend(ADVANCE_COST, reason, 'career');
     if (!r.ok) {
       Alert.alert('Not enough XP', r.message);
       return;
     }
     career.advance();
-    Alert.alert('Advanced!', `You are now a ${nextLevel.name} (${nextLevel.status}).`);
+    Alert.alert('Advanced!', `You are now a ${nextRank.name} (${nextRank.status}).`);
   };
 
-  const nextRankName = LEVELS[Math.min(LEVELS.length - 1, career.level)].name;
+  const nextRankName = career.ranks[Math.min(career.ranks.length - 1, career.level)]?.name ?? '';
 
   return (
     <ScreenContainer>
@@ -98,7 +83,7 @@ export const CareerScreen: React.FC = () => {
         title="Career"
         subRow={
           <>
-            <Text style={styles.sub}>Roadwarden · 4-rank warrior career</Text>
+            <Text style={styles.sub}>{c.career} · {career.ranks.length}-rank {c.class.toLowerCase()} career</Text>
             <Text style={styles.sep}>·</Text>
             <Text style={styles.sub}>Currently {career.name} (rank {career.level})</Text>
             <Text style={styles.sep}>·</Text>
@@ -110,49 +95,35 @@ export const CareerScreen: React.FC = () => {
       <Section title="Career path" />
 
       <View style={styles.path}>
-        {LEVELS.map((l, i) => {
-          const done = l.n < career.level;
-          const current = l.n === career.level;
+        {career.ranks.map((rank, i) => {
+          const done = rank.level < career.level;
+          const current = rank.level === career.level;
           const dotColor = current ? colors.empire : done ? colors.brass : colors.borderStrong;
           const dotBg = current ? colors.empire : done ? colors.brass : colors.surface;
           const lineColor = done || current ? colors.brass : colors.divider;
+          const cumulativeXp = i * ADVANCE_COST;
           return (
-            <View key={l.n} style={styles.pathCell}>
+            <View key={rank.level} style={styles.pathCell}>
               <View
                 style={[
                   styles.line,
                   {
                     backgroundColor: lineColor,
                     left: i === 0 ? '50%' : 0,
-                    right: i === LEVELS.length - 1 ? '50%' : 0,
+                    right: i === career.ranks.length - 1 ? '50%' : 0,
                   },
                 ]}
               />
-              <View
-                style={[
-                  styles.dot,
-                  { borderColor: dotColor, backgroundColor: dotBg },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.dotText,
-                    { color: current || done ? '#fff' : colors.ink3 },
-                  ]}
-                >
-                  {l.n}
+              <View style={[styles.dot, { borderColor: dotColor, backgroundColor: dotBg }]}>
+                <Text style={[styles.dotText, { color: current || done ? '#fff' : colors.ink3 }]}>
+                  {rank.level}
                 </Text>
               </View>
-              <Text
-                style={[
-                  styles.levelName,
-                  current ? { color: colors.empire } : null,
-                ]}
-              >
-                {l.name}
+              <Text style={[styles.levelName, current ? { color: colors.empire } : null]}>
+                {rank.name}
               </Text>
-              <Text style={styles.levelMeta}>{l.status}</Text>
-              <Text style={styles.levelMeta}>{l.xp} XP earned</Text>
+              <Text style={styles.levelMeta}>{rank.status}</Text>
+              <Text style={styles.levelMeta}>{cumulativeXp} XP earned</Text>
             </View>
           );
         })}
@@ -160,7 +131,7 @@ export const CareerScreen: React.FC = () => {
 
       <Section
         title={career.canAdvance ? `Advance to rank ${career.level + 1}` : 'Top of career'}
-        aside={`${ready}/${required.length} skills ready`}
+        aside={required.length > 0 ? `${ready}/${required.length} skills ready` : 'requirements not yet modelled'}
       />
 
       <Card flush>

@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { CHARACTER, type Skill } from '@/data/character';
+import { type Skill } from '@/data/character';
 import { useStoredState } from '@/hooks/useStoredState';
+import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useXp } from '@/hooks/useXp';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useConditions } from '@/hooks/useConditions';
@@ -26,7 +27,7 @@ const careerBracket = (adv: number) =>
 const otherBracket = (adv: number) => careerBracket(adv) + 5;
 
 export const SkillsScreen: React.FC = () => {
-  const c = CHARACTER;
+  const { id, template: c } = useCharacter();
   const { list: chars } = useCharacteristics();
   const xp = useXp();
   const { modifier: condMod } = useConditions();
@@ -34,7 +35,7 @@ export const SkillsScreen: React.FC = () => {
   const charBase = Object.fromEntries(chars.map(x => [x.key, x.current])) as Record<string, number>;
 
   const [advances, setAdvances] = useStoredState<Record<string, number>>(
-    'gc.skills.adv',
+    characterKey(id, 'skills.adv'),
     Object.fromEntries(c.skills.map(s => [s.name, s.adv]))
   );
 
@@ -93,7 +94,10 @@ export const SkillsScreen: React.FC = () => {
         }
       />
 
-      <Section title="Career skills" aside="8 / 8 · roadwarden" />
+      <Section
+        title="Career skills"
+        aside={`${c.skills.filter(s => s.career).length} · ${c.career.toLowerCase()}`}
+      />
       <SkillTable
         skills={c.skills.filter(s => s.career)}
         advances={advances}

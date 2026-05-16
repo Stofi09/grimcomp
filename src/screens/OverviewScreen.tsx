@@ -1,12 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { CHARACTER, CONDITIONS } from '@/data/character';
+import { CONDITIONS } from '@/data/character';
 import { useConditions } from '@/hooks/useConditions';
 import { useXp } from '@/hooks/useXp';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useCareer } from '@/hooks/useCareer';
 import { useStoredState } from '@/hooks/useStoredState';
+import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { Hero } from '@/components/Hero';
 import { Pill } from '@/components/Pill';
 import { Button } from '@/components/Button';
@@ -22,13 +23,13 @@ import { tabular, layoutStyles } from '@/components/primitives';
 const rollD100 = () => Math.floor(Math.random() * 100) + 1;
 
 export const OverviewScreen: React.FC = () => {
-  const c = CHARACTER;
+  const { id, template: c } = useCharacter();
   const xp = useXp();
   const career = useCareer();
   const { get: getChar } = useCharacteristics();
   const { conds, cycle } = useConditions();
   // Live wounds (for the segmented bar) — same key WoundsScreen writes to.
-  const [wounds] = useStoredState('gc.wounds', c.wounds.current);
+  const [wounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
 
   const tb = Math.floor((c.characteristics.find(x => x.key === 't')!.init + getChar('t')) / 10);
   const sb = Math.floor((c.characteristics.find(x => x.key === 's')!.init + getChar('s')) / 10);
@@ -39,7 +40,7 @@ export const OverviewScreen: React.FC = () => {
   return (
     <ScreenContainer>
       <Hero
-        eyebrow={`The Eberfeld Road Wardens · Career ${career.level}/4`}
+        eyebrow={`${c.party.name} · Career ${career.level}/${career.ranks.length || 4}`}
         italic
         title={c.name}
         trailingTitle={
@@ -188,7 +189,7 @@ export const OverviewScreen: React.FC = () => {
       <Card>
         <Text style={styles.party}>
           <Text style={styles.partyDrop}>{c.party.short[0]}</Text>
-          {c.party.short.slice(1)} The thaw makes the pass icy, but caravans still set out — Sigmund's company is hired for six days, gold paid in advance.
+          {c.party.short.slice(1)}
         </Text>
         <View style={styles.partyGrid}>
           {c.party.members.map(m => (

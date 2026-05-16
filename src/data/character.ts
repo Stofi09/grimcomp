@@ -1,4 +1,7 @@
-// Sample character data — Sigmund Braun (Roadwarden), English UI labels.
+// Character data — multiple full templates keyed by id, plus the shared
+// XP-cost / condition tables. Each character in the roster gets a complete
+// template; the live overlay (advances, wounds, XP log, conditions) is
+// stored per-character under `gc.<id>.<suffix>` keys.
 
 export type CharacteristicKey =
   | 'ws' | 'bs' | 's' | 't' | 'i' | 'ag' | 'dex' | 'int' | 'wp' | 'fel';
@@ -58,14 +61,24 @@ export interface Trapping {
   enc: number;
 }
 
+// Class / career rank progression used by useCareer to render path and
+// status pills. Each character's class defines its 4-rank progression.
+export interface CareerRank {
+  level: number;
+  name: string;
+  status: string;
+}
+
 export interface Character {
   id: string;
   name: string;
   species: string;
   class: string;
-  career: string;
+  career: string;             // currently-occupied career name
   careerLevel: number;
   careerLevelName: string;
+  // 4-rank progression for this career (used by Career screen + useCareer).
+  careerRanks: CareerRank[];
   status: string;
   age: number;
   height: string;
@@ -101,9 +114,13 @@ export interface Character {
   mutations: Array<{ name: string }>;
   ambitionsShort: string;
   ambitionsLong: string;
+  initials: string;
+  accent: string;
+  isCaster?: boolean;          // toggles Magic screen content
+  isAnointed?: boolean;        // toggles Faith screen content
 }
 
-export const CHARACTER: Character = {
+const SIGMUND: Character = {
   id: 'c1',
   name: 'Sigmund Braun',
   species: 'Human',
@@ -111,6 +128,12 @@ export const CHARACTER: Character = {
   career: 'Roadwarden',
   careerLevel: 2,
   careerLevelName: 'Road Sergeant',
+  careerRanks: [
+    { level: 1, name: 'Roadwarden', status: 'Silver 2' },
+    { level: 2, name: 'Road Sergeant', status: 'Silver 3' },
+    { level: 3, name: 'Mounted Sergeant', status: 'Silver 4' },
+    { level: 4, name: 'Captain', status: 'Gold 1' },
+  ],
   status: 'Silver 3',
   age: 28,
   height: '183 cm',
@@ -216,7 +239,200 @@ export const CHARACTER: Character = {
   mutations: [],
   ambitionsShort: 'Find the lost caravan from the Hetzenberg Pass',
   ambitionsLong: 'Form a road-warden company in eastern Reikland',
+  initials: 'SB',
+  accent: '#8b2d2d',
 };
+
+const ADELHEID: Character = {
+  id: 'c2',
+  name: 'Adelheid Vogt',
+  species: 'Human',
+  class: 'Academic',
+  career: 'Wizard',
+  careerLevel: 3,
+  careerLevelName: 'Pyromancer',
+  careerRanks: [
+    { level: 1, name: 'Wizard\'s Apprentice', status: 'Brass 4' },
+    { level: 2, name: 'Wizard', status: 'Silver 3' },
+    { level: 3, name: 'Pyromancer', status: 'Silver 4' },
+    { level: 4, name: 'Master Wizard', status: 'Gold 2' },
+  ],
+  status: 'Silver 4',
+  age: 31,
+  height: '170 cm',
+  hair: 'Auburn',
+  eyes: 'Amber',
+  motivation: 'Master Aqshy — and find the heretics who burned my master',
+
+  fate: 2,
+  fortune: 2,
+  resilience: 3,
+  resolve: 1,
+
+  xpCurrent: 120,
+  xpSpent: 1180,
+  wounds: { current: 9, max: 10 },
+  corruption: 2,
+  sin: 0,
+
+  movement: 4,
+  wealth: { gc: 4, ss: 22, d: 6 },
+
+  characteristics: [
+    { key: 'ws', name: 'Weapon Skill', short: 'WS', init: 28, adv: 0 },
+    { key: 'bs', name: 'Ballistic Skill', short: 'BS', init: 30, adv: 0 },
+    { key: 's', name: 'Strength', short: 'S', init: 29, adv: 0 },
+    { key: 't', name: 'Toughness', short: 'T', init: 32, adv: 5 },
+    { key: 'i', name: 'Initiative', short: 'I', init: 36, adv: 10 },
+    { key: 'ag', name: 'Agility', short: 'Ag', init: 34, adv: 5 },
+    { key: 'dex', name: 'Dexterity', short: 'Dex', init: 38, adv: 10 },
+    { key: 'int', name: 'Intelligence', short: 'Int', init: 40, adv: 20 },
+    { key: 'wp', name: 'Willpower', short: 'WP', init: 38, adv: 20 },
+    { key: 'fel', name: 'Fellowship', short: 'Fel', init: 33, adv: 10 },
+  ],
+
+  skills: [
+    { name: 'Channelling (Fire)', char: 'wp', adv: 20, career: true, advanced: true },
+    { name: 'Language (Magick)', char: 'int', adv: 20, career: true, advanced: true },
+    { name: 'Lore (Magick)', char: 'int', adv: 20, career: true, advanced: true },
+    { name: 'Lore (Bright Order)', char: 'int', adv: 15, career: true, advanced: true },
+    { name: 'Cool', char: 'wp', adv: 15, career: true, advanced: false },
+    { name: 'Perception', char: 'i', adv: 10, career: true, advanced: false },
+    { name: 'Intuition', char: 'i', adv: 5, career: true, advanced: false },
+    { name: 'Charm', char: 'fel', adv: 10, career: true, advanced: false },
+    { name: 'Athletics', char: 'ag', adv: 0, career: false, advanced: false },
+    { name: 'Endurance', char: 't', adv: 5, career: false, advanced: false },
+  ],
+
+  talents: [
+    { name: 'Petty Magic', times: 1, desc: 'Knows the four Petty Magic spells', career: true },
+    { name: 'Arcane Magic (Fire)', times: 1, desc: 'Cast spells from the Lore of Fire', career: true },
+    { name: 'Aethyric Attunement', times: 1, desc: '+1 SL on channelling tests', career: true },
+    { name: 'Read/Write', times: 1, desc: 'Can read and write Reikspiel', career: true },
+  ],
+
+  weapons: [
+    { name: 'Quarterstaff', group: 'Two-handed', enc: 2, reach: 'Long', dmg: 'SB+3', qual: ['Defensive', 'Pummel'] },
+    { name: 'Dagger', group: 'Basic', enc: 0, reach: 'Short', dmg: 'SB+2', qual: [] },
+  ],
+  armour: [
+    { name: 'Robe', locs: ['Body', 'Arms', 'Legs'], enc: 0, ap: 0, qual: ['Practical'] },
+  ],
+  ap: { head: 0, arm_l: 0, arm_r: 0, body: 0, leg_l: 0, leg_r: 0, shield: 0 },
+
+  conditions: [],
+
+  criticals: [],
+
+  trappings: [
+    { name: 'Spellbook', enc: 1 },
+    { name: 'Inks & quills', enc: 0 },
+    { name: 'Bright Order pendant', enc: 0 },
+    { name: 'Candles ×6', enc: 0 },
+    { name: 'Salt pouch', enc: 0 },
+    { name: 'Notebook of sigils', enc: 0 },
+    { name: 'Rations (week)', enc: 1 },
+    { name: 'Robes (spare)', enc: 1 },
+  ],
+
+  party: {
+    name: 'The Eberfeld Road Wardens',
+    short: 'The party has been hired to guard the Eberfeld–Ubersreik road. Adelheid joined for the chance to burn a few cultists along the way.',
+    members: [
+      { name: 'Sigmund Braun', role: 'Roadwarden' },
+      { name: 'Brogar Grimmson', role: 'Runesmith' },
+      { name: 'Halla Stern', role: 'Anointed' },
+    ],
+  },
+
+  psychology: ['Hatred (Heretics) — burns to ash, no questions'],
+  mutations: [],
+  ambitionsShort: 'Cast Burning Blood on the cultist who killed her master',
+  ambitionsLong: 'Earn a chair at the Bright Order Colleges in Altdorf',
+  initials: 'AV',
+  accent: '#9a7d1f',
+  isCaster: true,
+};
+
+// Lightweight placeholder templates for the remaining roster entries — used by
+// the Roster grid; tapping them switches to a sparse template (no spells,
+// inherits defaults).
+const BROGAR: Character = {
+  ...SIGMUND,
+  id: 'c3',
+  name: 'Brogar Grimmson',
+  species: 'Dwarf',
+  class: 'Warrior',
+  career: 'Runesmith',
+  careerLevel: 2,
+  careerLevelName: 'Journeyman Runesmith',
+  careerRanks: [
+    { level: 1, name: 'Apprentice Runesmith', status: 'Silver 2' },
+    { level: 2, name: 'Journeyman Runesmith', status: 'Silver 3' },
+    { level: 3, name: 'Runesmith', status: 'Silver 5' },
+    { level: 4, name: 'Master Runesmith', status: 'Gold 3' },
+  ],
+  status: 'Silver 2',
+  age: 124,
+  height: '141 cm',
+  hair: 'Iron-grey, braided',
+  eyes: 'Coal',
+  motivation: 'Avenge a grudge written into the Book of Grudges',
+  xpCurrent: 80,
+  xpSpent: 920,
+  wounds: { current: 16, max: 16 },
+  corruption: 0,
+  initials: 'BG',
+  accent: '#6a5612',
+};
+
+const HALLA: Character = {
+  ...SIGMUND,
+  id: 'c4',
+  name: 'Halla Stern',
+  species: 'Human',
+  class: 'Academic',
+  career: 'Anointed Priest of Shallya',
+  careerLevel: 1,
+  careerLevelName: 'Anointed',
+  careerRanks: [
+    { level: 1, name: 'Anointed', status: 'Brass 5' },
+    { level: 2, name: 'Cleric', status: 'Silver 3' },
+    { level: 3, name: 'Priest', status: 'Silver 4' },
+    { level: 4, name: 'High Priest', status: 'Gold 2' },
+  ],
+  status: 'Brass 5',
+  age: 24,
+  height: '167 cm',
+  hair: 'Pale blonde',
+  eyes: 'Pale blue',
+  motivation: 'Tend the dying and bring mercy to the road',
+  xpCurrent: 275,
+  xpSpent: 425,
+  wounds: { current: 10, max: 11 },
+  corruption: 0,
+  initials: 'HS',
+  accent: '#3d6b3d',
+  isAnointed: true,
+};
+
+export const CHARACTER_TEMPLATES: Record<string, Character> = {
+  c1: SIGMUND,
+  c2: ADELHEID,
+  c3: BROGAR,
+  c4: HALLA,
+};
+
+export const DEFAULT_CHARACTER_ID = 'c1';
+
+/** Look up a character template, falling back to Sigmund. */
+export function getTemplate(id: string): Character {
+  return CHARACTER_TEMPLATES[id] ?? CHARACTER_TEMPLATES[DEFAULT_CHARACTER_ID];
+}
+
+// Backwards-compat default for code paths not yet ported off the static
+// CHARACTER constant. Anything new should call `useCharacter()` instead.
+export const CHARACTER: Character = SIGMUND;
 
 export const XP_COSTS = [
   { range: '0–5', cost: 25 },
@@ -231,16 +447,36 @@ export const XP_COSTS = [
 
 export type XpKind = 'gain' | 'skill' | 'char' | 'talent' | 'career';
 
-export const XP_LOG: Array<{ date: string; reason: string; amount: number; kind: XpKind }> = [
-  { date: '2026.04.14', reason: 'Ride +5 → +10', amount: -30, kind: 'skill' },
-  { date: '2026.04.14', reason: 'Initiative +5', amount: -25, kind: 'char' },
-  { date: '2026.04.10', reason: 'Session reward: Eberfeld road', amount: 200, kind: 'gain' },
-  { date: '2026.04.10', reason: 'Hardy (2nd)', amount: -200, kind: 'talent' },
-  { date: '2026.04.03', reason: 'Outdoor Survival +5 → +10', amount: -30, kind: 'skill' },
-  { date: '2026.04.03', reason: 'Session reward', amount: 150, kind: 'gain' },
-  { date: '2026.03.27', reason: 'Roadwarden — career rank 2', amount: -200, kind: 'career' },
-  { date: '2026.03.27', reason: 'Session reward', amount: 175, kind: 'gain' },
-];
+// Seeded XP log per character. The hook copies the seed into the live log on
+// first run and appends real entries from there.
+export const XP_LOG_SEED: Record<string, Array<{ date: string; reason: string; amount: number; kind: XpKind }>> = {
+  c1: [
+    { date: '2026.04.14', reason: 'Ride +5 → +10', amount: -30, kind: 'skill' },
+    { date: '2026.04.14', reason: 'Initiative +5', amount: -25, kind: 'char' },
+    { date: '2026.04.10', reason: 'Session reward: Eberfeld road', amount: 200, kind: 'gain' },
+    { date: '2026.04.10', reason: 'Hardy (2nd)', amount: -200, kind: 'talent' },
+    { date: '2026.04.03', reason: 'Outdoor Survival +5 → +10', amount: -30, kind: 'skill' },
+    { date: '2026.04.03', reason: 'Session reward', amount: 150, kind: 'gain' },
+    { date: '2026.03.27', reason: 'Roadwarden — career rank 2', amount: -200, kind: 'career' },
+    { date: '2026.03.27', reason: 'Session reward', amount: 175, kind: 'gain' },
+  ],
+  c2: [
+    { date: '2026.04.10', reason: 'Channelling (Fire) +15 → +20', amount: -50, kind: 'skill' },
+    { date: '2026.04.10', reason: 'Session reward: Eberfeld road', amount: 200, kind: 'gain' },
+    { date: '2026.04.03', reason: 'Intelligence +15 → +20', amount: -50, kind: 'char' },
+    { date: '2026.04.03', reason: 'Session reward', amount: 150, kind: 'gain' },
+  ],
+  c3: [
+    { date: '2026.04.10', reason: 'Session reward: Eberfeld road', amount: 200, kind: 'gain' },
+  ],
+  c4: [
+    { date: '2026.04.10', reason: 'Session reward: Eberfeld road', amount: 200, kind: 'gain' },
+    { date: '2026.04.03', reason: 'Pray +5 → +10', amount: -30, kind: 'skill' },
+  ],
+};
+
+// Kept exported for back-compat (existing useXp seed reads this).
+export const XP_LOG = XP_LOG_SEED.c1;
 
 export interface RosterEntry {
   id: string;
@@ -256,12 +492,19 @@ export interface RosterEntry {
   active?: boolean;
 }
 
-export const ROSTER: RosterEntry[] = [
-  { id: 'c1', name: 'Sigmund Braun', career: 'Roadwarden', level: 2, species: 'Human', status: 'Silver 3', wounds: '11/14', xp: 340, initials: 'SB', accent: '#8b2d2d', active: true },
-  { id: 'c2', name: 'Adelheid Vogt', career: 'Pyromancer', level: 3, species: 'Human', status: 'Silver 4', wounds: '9/10', xp: 120, initials: 'AV', accent: '#9a7d1f' },
-  { id: 'c3', name: 'Brogar Grimmson', career: 'Runesmith', level: 2, species: 'Dwarf', status: 'Silver 2', wounds: '16/16', xp: 80, initials: 'BG', accent: '#6a5612' },
-  { id: 'c4', name: 'Halla Stern', career: 'Anointed (Shallya)', level: 1, species: 'Human', status: 'Brass 5', wounds: '10/11', xp: 275, initials: 'HS', accent: '#3d6b3d' },
-];
+export const ROSTER: RosterEntry[] = Object.values(CHARACTER_TEMPLATES).map(c => ({
+  id: c.id,
+  name: c.name,
+  career: c.career,
+  level: c.careerLevel,
+  species: c.species,
+  status: c.status,
+  wounds: `${c.wounds.current}/${c.wounds.max}`,
+  xp: c.xpCurrent,
+  initials: c.initials,
+  accent: c.accent,
+  active: c.id === DEFAULT_CHARACTER_ID,
+}));
 
 // Standard 12 conditions in WFRP 4e.
 export const CONDITIONS = [

@@ -31,10 +31,12 @@
       "bundler": "metro",
       "favicon": "./assets/favicon.png"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "d1b367ee-e520-4be0-8946-831d8b84359a"
       }
     },
     "owner": "stofi09"

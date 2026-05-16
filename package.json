@@ -14,9 +14,11 @@
     "web": "expo start --web",
     "tsc": "tsc --noEmit",
     "icons": "node scripts/generate-icons.js",
+    "audit:ios": "node scripts/audit-ios-config.js",
     "build:ios": "eas build --platform ios --profile production",
     "build:ios:preview": "eas build --platform ios --profile preview",
-    "submit:ios": "eas submit --platform ios --profile production --latest"
+    "submit:ios": "eas submit --platform ios --profile production --latest",
+    "submit:ios:testflight": "eas build --platform ios --profile production --auto-submit"
   },
   "dependencies": {
     "@expo-google-fonts/im-fell-english": "^0.2.3",

@@ -1,33 +1,31 @@
-// Live career rank.
+// Live career rank, scoped to the active character.
 import { useCallback } from 'react';
 import { useStoredState } from './useStoredState';
-import { CHARACTER } from '@/data/character';
-
-const KEY = 'gc.career.level';
-
-const RANK_NAMES = ['Roadwarden', 'Road Sergeant', 'Mounted Sergeant', 'Captain'];
-const RANK_STATUS = ['Silver 2', 'Silver 3', 'Silver 4', 'Gold 1'];
-
-export interface CareerState {
-  level: number;
-  name: string;
-  status: string;
-}
+import { useActiveCharId, characterKey } from './useCharacter';
+import { useRoster } from './useRoster';
 
 export function useCareer() {
-  const [level, setLevel] = useStoredState<number>(KEY, CHARACTER.careerLevel);
+  const id = useActiveCharId();
+  const { get } = useRoster();
+  const tpl = get(id);
+  const ranks = tpl.careerRanks ?? [];
+  const [level, setLevel] = useStoredState<number>(
+    characterKey(id, 'career.level'),
+    tpl.careerLevel ?? 1,
+  );
 
-  /** Bump rank by 1; clamps at 4. */
   const advance = useCallback(() => {
-    setLevel(prev => Math.min(4, prev + 1));
-  }, [setLevel]);
+    setLevel(prev => Math.min(ranks.length, prev + 1));
+  }, [setLevel, ranks.length]);
 
-  const idx = Math.max(1, Math.min(4, level)) - 1;
+  const idx = Math.max(1, Math.min(ranks.length || 1, level)) - 1;
+  const cur = ranks[idx];
   return {
     level,
-    name: RANK_NAMES[idx],
-    status: RANK_STATUS[idx],
-    canAdvance: level < 4,
+    name: cur?.name ?? tpl.careerLevelName ?? '',
+    status: cur?.status ?? tpl.status ?? '',
+    ranks,
+    canAdvance: level < ranks.length,
     advance,
   };
 }

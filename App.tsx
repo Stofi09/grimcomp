@@ -72,7 +72,7 @@ export default function App() {
       case 'notes': return <NotesScreen />;
       case 'roster': return <RosterScreen onNav={setScreen} />;
       case 'settings': return <SettingsScreen />;
-      case 'newchar': return <NewCharScreen />;
+      case 'newchar': return <NewCharScreen onNav={setScreen} />;
       default: return <OverviewScreen />;
     }
   }, [screen]);
