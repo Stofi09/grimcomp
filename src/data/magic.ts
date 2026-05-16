@@ -33,7 +33,41 @@ export const LORE_OF_FIRE: Spell[] = [
   { id: 'm.burning',      name: "Burning Blood",     lore: 'Fire',  cn: 12, range: 'WPB yards',    target: '1',        duration: 'WPB rounds',              description: "The target's blood boils. Devastating but slow to cast.", damage: '+7' },
 ];
 
-export const ALL_SPELLS: Spell[] = [...PETTY_MAGIC, ...LORE_OF_FIRE];
+export const LORE_OF_LIGHT: Spell[] = [
+  { id: 'm.beacon',       name: 'Beacon of Light',   lore: 'Light', cn: 5,  range: 'You',          target: 'Self',     duration: 'WPB rounds',              description: 'You shine like a beacon; +1 SL on social tests vs daemons/undead, who must pass Cool to attack you.' },
+  { id: 'm.bolt',         name: 'Bolt of Light',     lore: 'Light', cn: 7,  range: 'WPB×10 yards', target: '1',        duration: 'Instant',                 description: 'A shaft of light skewers the target. Doubles damage against daemons and undead.', damage: '+4' },
+  { id: 'm.ward',         name: "Witch's Ward",      lore: 'Light', cn: 6,  range: 'Touch',        target: '1',        duration: 'WPB rounds',              description: 'Target gains +20 to resist hostile magic and gains 2 magic AP.' },
+  { id: 'm.purge',        name: 'Purifying Light',   lore: 'Light', cn: 8,  range: 'Touch',        target: '1',        duration: 'Instant',                 description: 'Cures 1 disease and removes 1 Corruption point from the target.' },
+  { id: 'm.sun',          name: "Pha's Protection",  lore: 'Light', cn: 4,  range: 'Touch',        target: '1',        duration: 'WPB rounds',              description: 'Target is concealed in shimmering haze; first attack against them suffers −20.' },
+];
+
+export const LORE_OF_DEATH: Spell[] = [
+  { id: 'm.drain',        name: 'Drain Life',        lore: 'Death', cn: 7,  range: 'WPB yards',    target: '1',        duration: 'Instant',                 description: 'The target ages a year; you heal SL wounds. Living targets only.', damage: '+3' },
+  { id: 'm.pall',         name: 'Pall of Darkness',  lore: 'Death', cn: 5,  range: 'WPB×4 yards',  target: 'AoE WPB',  duration: 'WPB rounds',              description: 'A choking dark mist. Everyone in it suffers −20 to sight-based tests.' },
+  { id: 'm.spirit',       name: "Spirit's Eye",      lore: 'Death', cn: 4,  range: 'You',          target: 'Self',     duration: 'WPB rounds',              description: 'See spirits, undead, and recent paths of the dead.' },
+  { id: 'm.shroud',       name: 'Shroud of Shyish',  lore: 'Death', cn: 6,  range: 'You',          target: 'Self',     duration: 'WPB rounds',              description: 'You appear dead. Undead and most beasts ignore you unless attacked.' },
+  { id: 'm.summon',       name: 'Summon Shade',      lore: 'Death', cn: 10, range: 'WPB yards',    target: '1',        duration: 'WPB rounds',              description: 'A wraithy servant manifests; obeys simple commands. Resilient to physical damage.' },
+];
+
+export const LORE_OF_LIFE: Spell[] = [
+  { id: 'm.mend',         name: 'Mend',              lore: 'Life',  cn: 5,  range: 'Touch',        target: '1',        duration: 'Instant',                 description: 'Restore SL wounds to a living target. Cannot exceed maximum wounds.' },
+  { id: 'm.cleanse',      name: 'Cleansing Touch',   lore: 'Life',  cn: 6,  range: 'Touch',        target: '1',        duration: 'Instant',                 description: 'Removes 1 disease and 1 Bleeding stack from the target.' },
+  { id: 'm.thorns',       name: 'Thorny Hide',       lore: 'Life',  cn: 7,  range: 'Touch',        target: '1',        duration: 'WPB rounds',              description: 'Target sprouts brambles; melee attackers take 1 damage per hit and risk Bleeding.' },
+];
+
+// Lookup keyed by lore name → list. Useful for both the spell-picker UI and
+// for filtering "all known spells of lore X" inside the casting screen.
+export const SPELLS_BY_LORE: Record<string, Spell[]> = {
+  Petty: PETTY_MAGIC,
+  Fire: LORE_OF_FIRE,
+  Light: LORE_OF_LIGHT,
+  Death: LORE_OF_DEATH,
+  Life: LORE_OF_LIFE,
+};
+
+export const ALL_SPELLS: Spell[] = [
+  ...PETTY_MAGIC, ...LORE_OF_FIRE, ...LORE_OF_LIGHT, ...LORE_OF_DEATH, ...LORE_OF_LIFE,
+];
 
 const BY_ID: Record<string, Spell> = Object.fromEntries(ALL_SPELLS.map(s => [s.id, s]));
 
