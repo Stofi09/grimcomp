@@ -1,17 +1,24 @@
-import React from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
+import { type Trapping } from '@/data/character';
 import { useCharacter } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
+import { useCharacterCollection } from '@/hooks/useCharacterCollection';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
 import { Counter } from '@/components/Counter';
 import { Bar } from '@/components/Bar';
 import { Button } from '@/components/Button';
+import { Icon } from '@/components/Icon';
 import { Table, TableRow, Cell } from '@/components/Table';
+import { EditSheet } from '@/components/EditSheet';
+import { TextField, NumberField } from '@/components/Fields';
 import { colors, fontFamilies } from '@/theme';
 import { tabular, layoutStyles } from '@/components/primitives';
+
+const blankTrapping = (): Trapping => ({ name: '', enc: 0 });
 
 export const TrappingsScreen: React.FC = () => {
   const { template: c } = useCharacter();
@@ -19,13 +26,54 @@ export const TrappingsScreen: React.FC = () => {
   const sb = chars.find(x => x.key === 's')?.bonus ?? 0;
   const tb = chars.find(x => x.key === 't')?.bonus ?? 0;
   const maxEnc = sb + tb;
-  const encItems = c.trappings.reduce((a, x) => a + x.enc, 0);
-  const encW = c.weapons.reduce((a, x) => a + x.enc, 0);
-  const encA = c.armour.reduce((a, x) => a + x.enc, 0);
+
+  // Live collections — weapons + armour share with CombatScreen so adding a
+  // weapon there shows up here, encumbrance is correct, etc.
+  const trappings = useCharacterCollection<Trapping>('trappings', c.trappings);
+  const weapons = useCharacterCollection<{ enc: number }>('weapons', c.weapons.map(w => ({ enc: w.enc })));
+  const armour = useCharacterCollection<{ enc: number }>('armour', c.armour.map(a => ({ enc: a.enc })));
+
+  const encItems = trappings.items.reduce((a, x) => a + (x.enc ?? 0), 0);
+  const encW = weapons.items.reduce((a, x) => a + (x.enc ?? 0), 0);
+  const encA = armour.items.reduce((a, x) => a + (x.enc ?? 0), 0);
   const enc = encItems + encW + encA;
+
+  const [editing, setEditing] = useState<{ index: number | null; draft: Trapping } | null>(null);
+  const openNew = () => setEditing({ index: null, draft: blankTrapping() });
+  const openEdit = (i: number) => setEditing({ index: i, draft: { ...trappings.items[i] } });
+
+  const save = () => {
+    if (!editing) return;
+    if (!editing.draft.name.trim()) {
+      Alert.alert('Name required', 'Give the item a name.');
+      return;
+    }
+    if (editing.index == null) trappings.add(editing.draft);
+    else trappings.update(editing.index, editing.draft);
+    setEditing(null);
+  };
+  const drop = () => {
+    if (!editing || editing.index == null) return;
+    const name = editing.draft.name;
+    trappings.remove(editing.index);
+    setEditing(null);
+    Alert.alert('Dropped', `${name} removed from inventory.`);
+  };
+
   return (
     <ScreenContainer>
-      <Hero title="Trappings" subRow={<Text style={styles.sub}>Inventory, encumbrance, and coin.</Text>} />
+      <Hero
+        title="Trappings"
+        subRow={<Text style={styles.sub}>Inventory, encumbrance, and coin.</Text>}
+        actions={
+          <Button
+            iconLeft={<Icon name="plus" size={13} color={colors.ink} />}
+            onPress={openNew}
+          >
+            New item
+          </Button>
+        }
+      />
 
       <View style={styles.row}>
         <Counter
@@ -63,7 +111,7 @@ export const TrappingsScreen: React.FC = () => {
             <View style={layoutStyles.rowBetween}><Text style={styles.muted}>Other</Text><Text style={[styles.mono]}>{encItems}</Text></View>
           </View>
           <Bar
-            value={enc / maxEnc}
+            value={maxEnc > 0 ? enc / maxEnc : 0}
             variant="brass"
             fillColorOverride={enc > maxEnc ? colors.empire : colors.brassSoft}
             style={{ marginTop: 10 }}
@@ -71,27 +119,62 @@ export const TrappingsScreen: React.FC = () => {
         </Card>
       </View>
 
-      <Section title="Items" aside={`${c.trappings.length} pieces`} />
+      <Section title="Items" aside={`${trappings.items.length} pieces`} />
       <Card flush>
         <Table>
           <TableRow header>
             <Cell header flex={3}>Item</Cell>
             <Cell header num flex={0.7}>Enc.</Cell>
-            <Cell header num flex={0.7}>Qty</Cell>
-            <Cell header flex={0.5}> </Cell>
+            <Cell header flex={0.7}> </Cell>
           </TableRow>
-          {c.trappings.map((t, i) => (
-            <TableRow key={i} last={i === c.trappings.length - 1}>
+          {trappings.items.map((t, i) => (
+            <TableRow key={`${t.name}-${i}`} last={i === trappings.items.length - 1} onPress={() => openEdit(i)}>
               <Cell flex={3} textStyle={{ fontFamily: fontFamilies.bodyMedium }}>{t.name}</Cell>
               <Cell num flex={0.7}>{t.enc}</Cell>
-              <Cell num flex={0.7} textStyle={{ fontFamily: fontFamilies.mono }}>1</Cell>
-              <Cell flex={0.5} align="right">
-                <Button variant="ghost" onPress={() => Alert.alert(t.name, 'Item actions: edit · drop · split.')}>···</Button>
+              <Cell flex={0.7} align="right">
+                <Pressable onPress={() => openEdit(i)} hitSlop={8}>
+                  <Icon name="chev" size={14} color={colors.ink3} />
+                </Pressable>
               </Cell>
             </TableRow>
           ))}
+          {trappings.items.length === 0 ? (
+            <TableRow last>
+              <Cell flex={1} textStyle={{ color: colors.ink3, fontStyle: 'italic' }}>
+                No items. Tap "New item" to add one.
+              </Cell>
+            </TableRow>
+          ) : null}
         </Table>
       </Card>
+
+      <EditSheet
+        visible={!!editing}
+        title={editing?.index == null ? 'New item' : 'Edit item'}
+        subtitle={editing?.index == null ? 'Add a trapping to this character\'s pack.' : 'Tap Save to commit, or Drop to remove from inventory.'}
+        onClose={() => setEditing(null)}
+        onSave={save}
+        destructive={editing?.index != null ? { label: 'Drop', onPress: drop } : undefined}
+      >
+        {editing ? (
+          <>
+            <TextField
+              label="Name"
+              value={editing.draft.name}
+              onChangeText={t => setEditing(s => s && ({ ...s, draft: { ...s.draft, name: t } }))}
+              placeholder="e.g. Lantern oil flask"
+            />
+            <NumberField
+              label="Encumbrance"
+              value={editing.draft.enc}
+              onChangeNumber={n => setEditing(s => s && ({ ...s, draft: { ...s.draft, enc: n } }))}
+              min={0}
+              max={20}
+              hint="0 for small items, 1 for typical gear, 2+ for bulky."
+            />
+          </>
+        ) : null}
+      </EditSheet>
     </ScreenContainer>
   );
 };
