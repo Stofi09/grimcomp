@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { useStoredState } from './useStoredState';
 import { useActiveCharId, characterKey } from './useCharacter';
 import { useRoster } from './useRoster';
+import { useXpRule } from './useSettings';
 import { XP_LOG_SEED, type XpKind, type Character } from '@/data/character';
 
 export interface XpEntry {
@@ -41,21 +42,32 @@ export function useXp() {
   const { get } = useRoster();
   const tpl = get(id);
   const [state, setState] = useStoredState<State>(characterKey(id, 'xp'), seedFor(id, tpl));
+  const [xpRule] = useXpRule();
 
   const spend = useCallback((amount: number, reason: string, kind: XpKind = 'skill'): XpResult => {
     if (amount <= 0) return { ok: false, message: 'Cost must be positive.' };
     let result: XpResult = { ok: false, message: '' };
     setState(prev => {
-      if (prev.current < amount) {
+      // Strict mode (default): refuse overdraft. Flexible mode: allow it,
+      // taking spendable into the negative — the alert tells the user that
+      // they're now in debt with the GM.
+      if (prev.current < amount && xpRule === 'strict') {
         result = { ok: false, message: `Need ${amount} XP, you only have ${prev.current}.` };
         return prev;
       }
       const entry: XpEntry = { date: today(), reason, amount: -amount, kind };
-      result = { ok: true, message: `Spent ${amount} XP on "${reason}". ${prev.current - amount} XP remaining.` };
-      return { current: prev.current - amount, spent: prev.spent + amount, log: [entry, ...prev.log] };
+      const remaining = prev.current - amount;
+      result = {
+        ok: true,
+        message:
+          remaining < 0
+            ? `Spent ${amount} XP on "${reason}". Now ${remaining} XP (overspent — GM trust mode).`
+            : `Spent ${amount} XP on "${reason}". ${remaining} XP remaining.`,
+      };
+      return { current: remaining, spent: prev.spent + amount, log: [entry, ...prev.log] };
     });
     return result;
-  }, [setState]);
+  }, [setState, xpRule]);
 
   const gain = useCallback((amount: number, reason: string, kind: XpKind = 'gain'): XpResult => {
     if (amount <= 0) return { ok: false, message: 'Amount must be positive.' };

@@ -1,49 +1,233 @@
-import React from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Alert, Share, Pressable } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScreenContainer } from './ScreenContainer';
 import { Hero } from '@/components/Hero';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
+import { Pill } from '@/components/Pill';
+import { EditSheet } from '@/components/EditSheet';
+import { useXpRule } from '@/hooks/useSettings';
+import { useRoster } from '@/hooks/useRoster';
+import { useCharacter } from '@/hooks/useCharacter';
 import { colors, fontFamilies } from '@/theme';
 
-const ROWS: Array<[string, string, string]> = [
-  ['Language', 'English', 'Hungarian translation available'],
-  ['Theme', 'Parchment (light)', 'Dark theme coming soon'],
-  ['Rulebook version', '2026.04.01', 'auto-update'],
-  ['XP rule', 'Flexible (warn, allow)', 'RAW vs. house rules'],
-  ['Export', 'JSON + PDF', 'character sheet copy'],
-  ['Data sync', 'local only (SQLite)', 'cloud sync optional'],
-];
+interface RowProps {
+  title: string;
+  hint: string;
+  value: string;
+  /** Optional right-side action — if omitted the row is read-only. */
+  right?: React.ReactNode;
+  last?: boolean;
+}
 
-export const SettingsScreen: React.FC = () => (
-  <ScreenContainer>
-    <Hero
-      title="Settings"
-      subRow={<Text style={styles.sub}>All data is stored on this device. Rulebook data is available offline.</Text>}
-    />
-
-    <Card flush style={{ marginTop: 20 }}>
-      {ROWS.map((r, i) => (
-        <View
-          key={r[0]}
-          style={[
-            styles.row,
-            i !== ROWS.length - 1 ? styles.rowBorder : null,
-          ]}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>{r[0]}</Text>
-            <Text style={styles.body}>{r[2]}</Text>
-          </View>
-          <Text style={styles.value}>{r[1]}</Text>
-          <Button variant="ghost" onPress={() => Alert.alert(r[0], `Currently: ${r[1]}\n\n${r[2]}`)}>
-            Change
-          </Button>
-        </View>
-      ))}
-    </Card>
-  </ScreenContainer>
+const Row: React.FC<RowProps> = ({ title, hint, value, right, last }) => (
+  <View
+    style={[
+      styles.row,
+      !last ? styles.rowBorder : null,
+    ]}
+  >
+    <View style={{ flex: 1 }}>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.body}>{hint}</Text>
+    </View>
+    <Text style={styles.value}>{value}</Text>
+    {right}
+  </View>
 );
+
+export const SettingsScreen: React.FC = () => {
+  const [xpRule, setXpRule] = useXpRule();
+  const { id, template } = useCharacter();
+  const { all } = useRoster();
+  const [exportSheet, setExportSheet] = useState<{ scope: 'character' | 'roster'; json: string } | null>(null);
+
+  // Build a portable JSON snapshot. Caller chooses: just the active character
+  // template + their live overlays (gc.<id>.*), or the whole roster + all
+  // overlays. We collect everything keyed under `gc.` to make import a
+  // straightforward `setItem` loop later.
+  const buildExport = async (scope: 'character' | 'roster'): Promise<string> => {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const wanted = scope === 'character'
+      ? allKeys.filter(k => k.startsWith(`gc.${id}.`) || k === 'gc.activeCharId')
+      : allKeys.filter(k => k.startsWith('gc.'));
+    const entries = await AsyncStorage.multiGet(wanted);
+    const dump: Record<string, unknown> = {
+      $schema: 'grimcomp.v1',
+      exportedAt: new Date().toISOString(),
+      scope,
+      character: scope === 'character' ? template.name : undefined,
+    };
+    for (const [k, v] of entries) {
+      if (v == null) continue;
+      try { dump[k] = JSON.parse(v); }
+      catch { dump[k] = v; }
+    }
+    return JSON.stringify(dump, null, 2);
+  };
+
+  const openExport = (scope: 'character' | 'roster') => {
+    buildExport(scope).then(json => setExportSheet({ scope, json }));
+  };
+
+  const share = async () => {
+    if (!exportSheet) return;
+    try {
+      await Share.share({
+        message: exportSheet.json,
+        title: exportSheet.scope === 'character' ? `${template.name} — Grim Companion export` : 'Grim Companion — full export',
+      });
+    } catch {
+      /* user dismissed */
+    }
+  };
+
+  const wipeAll = () => {
+    Alert.alert(
+      'Wipe all local data?',
+      'This deletes every character\'s wounds, XP, skill advances, conditions, talents, criticals, notes, and the active-character pointer. Built-in templates remain. There is no undo.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Wipe',
+          style: 'destructive',
+          onPress: async () => {
+            const keys = await AsyncStorage.getAllKeys();
+            const gcKeys = keys.filter(k => k.startsWith('gc.'));
+            await AsyncStorage.multiRemove(gcKeys);
+            Alert.alert(
+              'Wiped',
+              `${gcKeys.length} keys removed. Reload the app to see the fresh state.`,
+            );
+          },
+        },
+      ],
+    );
+  };
+
+  const rosterCount = Object.keys(all).length;
+
+  return (
+    <ScreenContainer>
+      <Hero
+        title="Settings"
+        subRow={<Text style={styles.sub}>All data is stored on this device. Rulebook data is available offline.</Text>}
+      />
+
+      <Card flush style={{ marginTop: 20 }}>
+        {/* XP rule toggle — actually used by useXp.spend */}
+        <Row
+          title="XP rule"
+          hint="Strict refuses purchases you can't afford. Flexible lets you overspend (GM trust mode)."
+          value={xpRule === 'strict' ? 'Strict (refuse overdraft)' : 'Flexible (allow overdraft)'}
+          right={
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <Pressable
+                onPress={() => setXpRule('strict')}
+                hitSlop={4}
+                style={({ pressed }) => [
+                  styles.pillBtn,
+                  xpRule === 'strict' && styles.pillBtnOn,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={[styles.pillBtnText, xpRule === 'strict' && styles.pillBtnTextOn]}>Strict</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setXpRule('flexible')}
+                hitSlop={4}
+                style={({ pressed }) => [
+                  styles.pillBtn,
+                  xpRule === 'flexible' && styles.pillBtnOn,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={[styles.pillBtnText, xpRule === 'flexible' && styles.pillBtnTextOn]}>Flexible</Text>
+              </Pressable>
+            </View>
+          }
+        />
+
+        <Row
+          title="Active character"
+          hint="Switch in the Characters screen, or create a new one."
+          value={template.name}
+        />
+
+        <Row
+          title="Roster"
+          hint="Built-in templates + characters you've created."
+          value={`${rosterCount} characters`}
+        />
+
+        <Row
+          title="Language"
+          hint="English. Hungarian translation is planned (the original mock was Hungarian)."
+          value="English"
+        />
+
+        <Row
+          title="Theme"
+          hint="Parchment light theme. Dark theme is planned."
+          value="Parchment"
+        />
+
+        <Row
+          title="Rulebook"
+          hint="WFRP 4e core book references used for spells, prayers, and miscast tables."
+          value="2026.04.01"
+        />
+
+        <Row
+          title="Export"
+          hint="Copy a JSON snapshot of the active character or the entire roster + overlays."
+          value="JSON"
+          right={
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <Button variant="ghost" onPress={() => openExport('character')}>This char</Button>
+              <Button variant="ghost" onPress={() => openExport('roster')}>All</Button>
+            </View>
+          }
+        />
+
+        <Row
+          title="Reset local data"
+          hint="Removes every gc.* key from AsyncStorage. Use this to start over."
+          value="Destructive"
+          last
+          right={
+            <Button variant="ghost" textStyle={{ color: colors.empire }} onPress={wipeAll}>
+              Wipe
+            </Button>
+          }
+        />
+      </Card>
+
+      <EditSheet
+        visible={!!exportSheet}
+        title={exportSheet?.scope === 'character' ? `Export ${template.name}` : 'Export full roster'}
+        subtitle={exportSheet
+          ? `${exportSheet.json.length.toLocaleString()} bytes · ${exportSheet.json.split('\n').length} lines`
+          : ''}
+        onClose={() => setExportSheet(null)}
+        onSave={share}
+        saveLabel="Share / copy"
+      >
+        {exportSheet ? (
+          <View style={styles.exportPreview}>
+            <Pill variant="brass" size={10}>JSON · grimcomp.v1</Pill>
+            <Text style={styles.exportText} numberOfLines={40} selectable>
+              {exportSheet.json.length > 4000
+                ? exportSheet.json.slice(0, 4000) + '\n\n…(truncated for preview — full JSON copied via Share)'
+                : exportSheet.json}
+            </Text>
+          </View>
+        ) : null}
+      </EditSheet>
+    </ScreenContainer>
+  );
+};
 
 const styles = StyleSheet.create({
   sub: { fontSize: 13, color: colors.ink3, fontFamily: fontFamilies.body },
@@ -68,10 +252,41 @@ const styles = StyleSheet.create({
     color: colors.ink3,
     marginTop: 2,
     fontFamily: fontFamilies.body,
+    lineHeight: 16,
   },
   value: {
     fontFamily: fontFamilies.mono,
     fontSize: 12,
     color: colors.ink2,
+  },
+  pillBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 4,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  pillBtnOn: {
+    backgroundColor: colors.empire,
+    borderColor: colors.empireDeep,
+  },
+  pillBtnText: {
+    fontFamily: fontFamilies.bodyMedium,
+    fontSize: 11.5,
+    color: colors.ink2,
+  },
+  pillBtnTextOn: { color: colors.bone },
+  exportPreview: { gap: 8 },
+  exportText: {
+    fontFamily: fontFamilies.mono,
+    fontSize: 10,
+    color: colors.ink2,
+    lineHeight: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    borderRadius: 4,
+    padding: 10,
   },
 });
