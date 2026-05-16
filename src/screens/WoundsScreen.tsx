@@ -1,11 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { CONDITIONS } from '@/data/character';
+import { CONDITIONS, type Critical } from '@/data/character';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
+import { useCharacterCollection } from '@/hooks/useCharacterCollection';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card, CardHead } from '@/components/Card';
@@ -18,12 +19,100 @@ import { Table, TableRow, Cell } from '@/components/Table';
 import { colors, fontFamilies } from '@/theme';
 import { tabular, layoutStyles } from '@/components/primitives';
 
+// Hit-location table for new critical rolls. Per WFRP 4e p.166 the body chart
+// uses tens-digit lookup; the simplified version below is good enough for the
+// prototype's "spawn a critical with a random location" flow.
+const LOC_FROM_ROLL = (roll: number): string => {
+  if (roll <= 10) return 'Head';
+  if (roll <= 20) return 'Right Leg';
+  if (roll <= 35) return 'Left Leg';
+  if (roll <= 50) return 'Body';
+  if (roll <= 70) return 'Right Arm';
+  if (roll <= 85) return 'Left Arm';
+  return 'Body';
+};
+
+const PREFAB_CRITICALS: Array<Omit<Critical, 'loc' | 'roll'>> = [
+  { name: 'Bruised Muscle', effect: 'Painful throb. −10 to physical tests for 1 round.', days: 2 },
+  { name: 'Crushed Bone',   effect: 'A grinding crack. −10 to all tests using that location.', days: 7 },
+  { name: 'Torn Tendon',    effect: 'Movement halved when the location is used.', days: 14 },
+  { name: 'Severed Artery', effect: 'Bleeding ×2 until staunched.', days: 21 },
+  { name: 'Deep Cut',       effect: 'Bleeding 1; cosmetic scar.', days: 5 },
+];
+
+const rollD100 = () => Math.floor(Math.random() * 100) + 1;
+
+const newCritical = (): Critical => {
+  const r = rollD100();
+  const tpl = PREFAB_CRITICALS[Math.floor(Math.random() * PREFAB_CRITICALS.length)];
+  return { loc: LOC_FROM_ROLL(r), roll: r, ...tpl };
+};
+
 export const WoundsScreen: React.FC = () => {
   const { id, template: c } = useCharacter();
   const [wounds, setWounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
   const { conds, cycle } = useConditions();
   const { list: chars } = useCharacteristics();
   const tb = chars.find(x => x.key === 't')?.bonus ?? 0;
+
+  // Live critical wounds + the shared conditions map (so "End of scene" can
+  // tick conditions down too).
+  const crits = useCharacterCollection<Critical>('criticals', c.criticals);
+  const [condMap, setCondMap] = useStoredState<Record<string, number>>(
+    characterKey(id, 'conditions'),
+    Object.fromEntries(CONDITIONS.map(t => [t, 0])),
+  );
+
+  const endOfScene = () => {
+    // Tick every active critical's heal-days down by 1; remove any that reach 0.
+    const before = crits.items.length;
+    const next = crits.items
+      .map(cr => ({ ...cr, days: Math.max(0, cr.days - 1) }))
+      .filter(cr => cr.days > 0);
+    const healed = before - next.length;
+    crits.replace(next);
+
+    // Tick down most conditions by 1 (per WFRP 4e p.169 — they fade unless
+    // sustained). Surprised always clears at scene-end.
+    let removed = 0;
+    setCondMap(prev => {
+      const out: Record<string, number> = { ...prev };
+      for (const k of Object.keys(out)) {
+        const v = out[k] ?? 0;
+        if (v <= 0) continue;
+        const dec = k === 'Surprised' ? v : 1;
+        const after = Math.max(0, v - dec);
+        if (after === 0 && v > 0) removed += 1;
+        out[k] = after;
+      }
+      return out;
+    });
+
+    Alert.alert(
+      'End of scene',
+      `Fortune refreshed.\n` +
+      `${healed} critical${healed === 1 ? '' : 's'} healed.\n` +
+      `${removed} condition${removed === 1 ? '' : 's'} cleared, the rest tick down by 1.`,
+    );
+    // Silence unused-var lint
+    void condMap;
+  };
+
+  const addCritical = () => {
+    const fresh = newCritical();
+    crits.add(fresh);
+    Alert.alert(
+      `Critical: ${fresh.name}`,
+      `Location: ${fresh.loc}\nRoll: ${fresh.roll}\n\n${fresh.effect}\n\nHeals in ${fresh.days} day${fresh.days === 1 ? '' : 's'}.`,
+    );
+  };
+
+  const resolveCritical = (index: number) => {
+    const cr = crits.items[index];
+    crits.remove(index);
+    Alert.alert('Resolved', `${cr.name} marked as healed.`);
+  };
+
   return (
     <ScreenContainer>
       <Hero
@@ -76,7 +165,7 @@ export const WoundsScreen: React.FC = () => {
             <Button
               iconLeft={<Icon name="flame" size={13} color={colors.ink} />}
               style={{ alignSelf: 'stretch' }}
-              onPress={() => Alert.alert('End of scene', 'Fortune refreshed; conditions tick down by 1.')}
+              onPress={endOfScene}
             >
               End of scene
             </Button>
@@ -100,7 +189,7 @@ export const WoundsScreen: React.FC = () => {
             <Button
               variant="primary"
               iconLeft={<Icon name="dice" size={12} color={colors.ivory} />}
-              onPress={() => Alert.alert('New critical', `Critical roll → ${Math.floor(Math.random() * 100) + 1}`)}
+              onPress={addCritical}
             >
               New critical
             </Button>
@@ -115,8 +204,8 @@ export const WoundsScreen: React.FC = () => {
             <Cell header num flex={1}>Heal days</Cell>
             <Cell header flex={0.5}> </Cell>
           </TableRow>
-          {c.criticals.map((cr, i) => (
-            <TableRow key={i} last={i === c.criticals.length - 1}>
+          {crits.items.map((cr, i) => (
+            <TableRow key={i} last={i === crits.items.length - 1}>
               <Cell flex={1}>{cr.loc}</Cell>
               <Cell num flex={0.7} textStyle={{ fontFamily: fontFamilies.mono }}>{cr.roll}</Cell>
               <Cell flex={2} textStyle={{ fontFamily: fontFamilies.bodySemibold }}>{cr.name}</Cell>
@@ -126,11 +215,18 @@ export const WoundsScreen: React.FC = () => {
                 <Button
                   variant="ghost"
                   iconLeft={<Icon name="check" size={13} color={colors.success} />}
-                  onPress={() => Alert.alert('Resolved', `${cr.name} marked as healed.`)}
+                  onPress={() => resolveCritical(i)}
                 >{''}</Button>
               </Cell>
             </TableRow>
           ))}
+          {crits.items.length === 0 ? (
+            <TableRow last>
+              <Cell flex={1} textStyle={{ color: colors.ink3, fontStyle: 'italic' }}>
+                No active criticals. End of scene ticks down healing days.
+              </Cell>
+            </TableRow>
+          ) : null}
         </Table>
       </Card>
     </ScreenContainer>
