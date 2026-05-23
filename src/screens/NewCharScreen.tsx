@@ -12,6 +12,8 @@ import { useStoredState } from '@/hooks/useStoredState';
 import { useRoster } from '@/hooks/useRoster';
 import { useCharacter } from '@/hooks/useCharacter';
 import { CHARACTER_TEMPLATES, type Character, type CharacteristicKey } from '@/data/character';
+import { useRaces } from '@/content/useContent';
+import type { Race } from '@/content/types';
 import type { ScreenId } from '@/data/nav';
 import { colors, fontFamilies } from '@/theme';
 import { layoutStyles, tabular } from '@/components/primitives';
@@ -40,8 +42,6 @@ const ARCHETYPES: Archetype[] = [
   { key: 'crafter', source: 'c3', label: 'Crafter',  blurb: 'Dwarf runesmith. Steady, runebound, wound-pool tank.', icon: 'shield' },
 ];
 
-const SPECIES = ['Human', 'Dwarf', 'Halfling', 'High Elf', 'Wood Elf'];
-
 interface Draft {
   name: string;
   species: string;
@@ -67,14 +67,15 @@ const rerollInits = (): Draft['inits'] => {
   return out;
 };
 
-/** Take an archetype's source template and apply the draft (name, species, inits). */
-const buildCharacter = (draft: Draft, newId: string): Character => {
+/** Take an archetype's source template and apply the draft (name, species,
+    inits) plus the selected race's characteristic modifiers. */
+const buildCharacter = (draft: Draft, newId: string, race: Race | undefined): Character => {
   const arch = ARCHETYPES.find(a => a.key === draft.archetypeKey) ?? ARCHETYPES[0];
   const src = CHARACTER_TEMPLATES[arch.source];
 
   const characteristics = src.characteristics.map(c => ({
     ...c,
-    init: draft.inits[c.key] ?? c.init,
+    init: (draft.inits[c.key] ?? c.init) + (race?.charModifiers?.[c.key] ?? 0),
     adv: 0,
   }));
 
@@ -94,6 +95,7 @@ const buildCharacter = (draft: Draft, newId: string): Character => {
     species: draft.species,
     initials,
     characteristics,
+    movement: race?.movement ?? src.movement,
     // Fresh-character defaults — clear out the source character's history.
     xpCurrent: 0,
     xpSpent: 0,
@@ -112,6 +114,7 @@ const buildCharacter = (draft: Draft, newId: string): Character => {
 export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
   const { add, nextId } = useRoster();
   const { setActive } = useCharacter();
+  const races = useRaces();
 
   // Wizard step + draft are persisted so the user can come back to their
   // half-finished character.
@@ -120,9 +123,10 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
 
   const arch = ARCHETYPES.find(a => a.key === draft.archetypeKey) ?? ARCHETYPES[0];
   const srcTpl = CHARACTER_TEMPLATES[arch.source];
+  const race = races.find(r => r.name === draft.species);
 
   // Preview the would-be character so the Review step shows live values.
-  const preview = buildCharacter(draft, 'preview');
+  const preview = buildCharacter(draft, 'preview', race);
 
   const canProceed = (() => {
     if (step === 0) return draft.name.trim().length > 0;
@@ -140,7 +144,7 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
       return;
     }
     const id = nextId();
-    const c = buildCharacter(draft, id);
+    const c = buildCharacter(draft, id, race);
     add(c);
     setActive(id);
     // Reset draft so the wizard is fresh next time.
@@ -220,16 +224,16 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
 
           <Text style={styles.fieldLabel}>Species</Text>
           <View style={styles.optionsRow}>
-            {SPECIES.map(sp => {
-              const on = draft.species === sp;
+            {races.map(r => {
+              const on = draft.species === r.name;
               return (
                 <Pressable
-                  key={sp}
-                  onPress={() => setDraft(d => ({ ...d, species: sp }))}
+                  key={r.id}
+                  onPress={() => setDraft(d => ({ ...d, species: r.name }))}
                   style={({ pressed }) => [styles.option, on && styles.optionOn, pressed && { opacity: 0.7 }]}
                   hitSlop={4}
                 >
-                  <Text style={[styles.optionText, on && styles.optionTextOn]}>{sp}</Text>
+                  <Text style={[styles.optionText, on && styles.optionTextOn]}>{r.name}</Text>
                 </Pressable>
               );
             })}

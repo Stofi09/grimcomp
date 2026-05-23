@@ -1,0 +1,31 @@
+{
+  "$schema": "grimcomp.content.v1",
+  "id": "core-skills",
+  "name": "Core Rulebook — Skills",
+  "version": "2026.04.01",
+  "skills": [
+    { "id": "sk.ride-horse", "name": "Ride (Horse)", "char": "ag", "advanced": false, "grouped": true, "description": "Control and ride a horse, even under duress." },
+    { "id": "sk.perception", "name": "Perception", "char": "i", "advanced": false, "grouped": false, "description": "Notice details, spot the hidden, and read a situation." },
+    { "id": "sk.melee-basic", "name": "Melee (Basic)", "char": "ws", "advanced": false, "grouped": true, "description": "Fight with common one-handed weapons and fists." },
+    { "id": "sk.ranged-bow", "name": "Ranged (Bow)", "char": "bs", "advanced": false, "grouped": true, "description": "Shoot bows and longbows accurately." },
+    { "id": "sk.outdoor-survival", "name": "Outdoor Survival", "char": "int", "advanced": false, "grouped": false, "description": "Endure and navigate the wilderness." },
+    { "id": "sk.intimidate", "name": "Intimidate", "char": "s", "advanced": false, "grouped": false, "description": "Cow others through threats and sheer presence." },
+    { "id": "sk.track", "name": "Track", "char": "i", "advanced": true, "grouped": false, "description": "Follow trails left by people and creatures." },
+    { "id": "sk.lore-heraldry", "name": "Lore (Heraldry)", "char": "fel", "advanced": true, "grouped": true, "description": "Recognise noble houses, arms, and banners." },
+    { "id": "sk.athletics", "name": "Athletics", "char": "ag", "advanced": false, "grouped": false, "description": "Run, climb, jump, and swim." },
+    { "id": "sk.animal-care", "name": "Animal Care", "char": "fel", "advanced": false, "grouped": false, "description": "Tend, calm, and treat animals." },
+    { "id": "sk.endurance", "name": "Endurance", "char": "t", "advanced": false, "grouped": false, "description": "Resist fatigue, poison, and hardship." },
+    { "id": "sk.haggle", "name": "Haggle", "char": "fel", "advanced": false, "grouped": false, "description": "Negotiate better prices in trade." },
+    { "id": "sk.channelling-fire", "name": "Channelling (Fire)", "char": "wp", "advanced": true, "grouped": true, "description": "Draw the Wind of Aqshy to power spells." },
+    { "id": "sk.language-magick", "name": "Language (Magick)", "char": "int", "advanced": true, "grouped": true, "description": "Read and speak the language of spellcraft." },
+    { "id": "sk.lore-magick", "name": "Lore (Magick)", "char": "int", "advanced": true, "grouped": true, "description": "Understand the Winds of Magic and the Colleges." },
+    { "id": "sk.lore-bright-order", "name": "Lore (Bright Order)", "char": "int", "advanced": true, "grouped": true, "description": "Know the history and secrets of the Bright College." },
+    { "id": "sk.cool", "name": "Cool", "char": "wp", "advanced": false, "grouped": false, "description": "Keep your nerve under fear and pressure." },
+    { "id": "sk.intuition", "name": "Intuition", "char": "i", "advanced": false, "grouped": false, "description": "Trust your gut to sense trouble." },
+    { "id": "sk.charm", "name": "Charm", "char": "fel", "advanced": false, "grouped": false, "description": "Win others over with warmth and wit." },
+    { "id": "sk.pray", "name": "Pray", "char": "fel", "advanced": false, "grouped": false, "description": "Invoke a deity for divine aid." },
+    { "id": "sk.heal", "name": "Heal", "char": "int", "advanced": false, "grouped": false, "description": "Treat wounds, disease, and poison." },
+    { "id": "sk.lore-theology", "name": "Lore (Theology)", "char": "int", "advanced": true, "grouped": true, "description": "Know the gods, their cults, and dogma." },
+    { "id": "sk.lore-shallya", "name": "Lore (Shallya)", "char": "int", "advanced": true, "grouped": true, "description": "Know the rites and mercy of the Goddess of Healing." }
+  ]
+}

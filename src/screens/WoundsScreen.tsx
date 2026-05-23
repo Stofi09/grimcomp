@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { CONDITIONS, type Critical } from '@/data/character';
+import { type Critical } from '@/data/character';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
@@ -51,7 +51,7 @@ const newCritical = (): Critical => {
 export const WoundsScreen: React.FC = () => {
   const { id, template: c } = useCharacter();
   const [wounds, setWounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
-  const { conds, cycle } = useConditions();
+  const { conds, cycle, names } = useConditions();
   const { list: chars } = useCharacteristics();
   const tb = chars.find(x => x.key === 't')?.bonus ?? 0;
 
@@ -60,7 +60,7 @@ export const WoundsScreen: React.FC = () => {
   const crits = useCharacterCollection<Critical>('criticals', c.criticals);
   const [condMap, setCondMap] = useStoredState<Record<string, number>>(
     characterKey(id, 'conditions'),
-    Object.fromEntries(CONDITIONS.map(t => [t, 0])),
+    Object.fromEntries(names.map(t => [t, 0])),
   );
 
   const endOfScene = () => {
@@ -175,7 +175,7 @@ export const WoundsScreen: React.FC = () => {
 
       <Section title="Conditions" aside="tap to add a stack · long-press for the rule" />
       <View style={styles.chips}>
-        {CONDITIONS.map(t => {
+        {names.map(t => {
           const n = conds[t] ?? 0;
           return <Chip key={t} label={t} count={n} on={n > 0} onPress={() => cycle(t)} />;
         })}

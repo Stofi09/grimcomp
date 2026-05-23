@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { CONDITIONS } from '@/data/character';
 import { useConditions } from '@/hooks/useConditions';
 import { useXp } from '@/hooks/useXp';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
@@ -27,7 +26,7 @@ export const OverviewScreen: React.FC = () => {
   const xp = useXp();
   const career = useCareer();
   const { get: getChar } = useCharacteristics();
-  const { conds, cycle } = useConditions();
+  const { conds, cycle, names } = useConditions();
   // Live wounds (for the segmented bar) — same key WoundsScreen writes to.
   const [wounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
 
@@ -179,7 +178,7 @@ export const OverviewScreen: React.FC = () => {
 
       <Section title="Current Conditions" aside="tap to apply · long-press for rule" />
       <View style={styles.chips}>
-        {CONDITIONS.map(t => {
+        {names.map(t => {
           const n = conds[t] ?? 0;
           return <Chip key={t} label={t} count={n} on={n > 0} onPress={() => cycle(t)} />;
         })}

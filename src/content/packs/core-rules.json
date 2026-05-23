@@ -1,0 +1,20 @@
+{
+  "$schema": "grimcomp.content.v1",
+  "id": "core-rules",
+  "name": "Core Rulebook — Rules Tables",
+  "version": "2026.04.01",
+  "conditions": [
+    "Ablaze", "Bleeding", "Blinded", "Broken", "Deafened", "Entangled",
+    "Fatigued", "Poisoned", "Prone", "Stunned", "Surprised", "Unconscious"
+  ],
+  "xpCosts": [
+    { "range": "0–5", "cost": 25 },
+    { "range": "6–10", "cost": 30 },
+    { "range": "11–15", "cost": 40 },
+    { "range": "16–20", "cost": 50 },
+    { "range": "21–25", "cost": 70 },
+    { "range": "26–30", "cost": 90 },
+    { "range": "31–35", "cost": 120 },
+    { "range": "36+", "cost": 150 }
+  ]
+}

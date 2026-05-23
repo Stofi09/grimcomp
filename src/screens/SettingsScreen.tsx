@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, Share, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Alert, Share, Pressable, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as DocumentPicker from 'expo-document-picker';
 import { ScreenContainer } from './ScreenContainer';
+import { useContentPacks } from '@/content/useContentPacks';
+import { validatePack } from '@/content/validate';
 import { Hero } from '@/components/Hero';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -41,7 +44,10 @@ export const SettingsScreen: React.FC = () => {
   const [xpRule, setXpRule] = useXpRule();
   const { id, template } = useCharacter();
   const { all } = useRoster();
+  const { packs: userPacks, add: addPack, remove: removePack, setEnabled } = useContentPacks();
   const [exportSheet, setExportSheet] = useState<{ scope: 'character' | 'roster'; json: string } | null>(null);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
 
   // Build a portable JSON snapshot. Caller chooses: just the active character
   // template + their live overlays (gc.<id>.*), or the whole roster + all
@@ -104,6 +110,41 @@ export const SettingsScreen: React.FC = () => {
         },
       ],
     );
+  };
+
+  const handleImport = (text: string, label: string) => {
+    let raw: unknown;
+    try { raw = JSON.parse(text); }
+    catch (e) {
+      Alert.alert('Invalid JSON', `${label} is not valid JSON.\n${e instanceof Error ? e.message : ''}`);
+      return;
+    }
+    const { pack, errors } = validatePack(raw);
+    if (errors.length > 0 || !pack) {
+      Alert.alert('Invalid content pack', errors.join('\n').slice(0, 800) || 'Unknown validation error.');
+      return;
+    }
+    addPack(pack);
+    Alert.alert('Pack imported', `"${pack.name}" (${pack.id}) is now active.`);
+  };
+
+  const importPack = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
+      if (res.canceled) return;
+      const asset = res.assets[0];
+      const fileRes = await fetch(asset.uri);
+      const text = await fileRes.text();
+      handleImport(text, asset.name);
+    } catch (e) {
+      Alert.alert('Import failed', e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const submitPaste = () => {
+    handleImport(pasteText, 'pasted JSON');
+    setPasteOpen(false);
+    setPasteText('');
   };
 
   const rosterCount = Object.keys(all).length;
@@ -204,6 +245,56 @@ export const SettingsScreen: React.FC = () => {
         />
       </Card>
 
+      <Card flush style={{ marginTop: 20 }}>
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Content packs</Text>
+            <Text style={styles.body}>
+              Import JSON packs of homebrew spells, prayers, races, etc. Packs override core content by id.
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <Button variant="ghost" onPress={importPack}>Import</Button>
+            <Button variant="ghost" onPress={() => setPasteOpen(true)}>Paste JSON</Button>
+          </View>
+        </View>
+
+        {userPacks.length === 0 ? (
+          <View style={[styles.row, styles.packDivider]}>
+            <Text style={styles.body}>No imported packs.</Text>
+          </View>
+        ) : (
+          userPacks.map(p => (
+            <View key={p.pack.id} style={[styles.row, styles.packDivider]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.title}>{p.pack.name}</Text>
+                <Text style={styles.body}>{p.pack.id} · v{p.pack.version}</Text>
+              </View>
+              <Pressable
+                onPress={() => setEnabled(p.pack.id, !p.enabled)}
+                hitSlop={4}
+                style={({ pressed }) => [
+                  styles.pillBtn,
+                  p.enabled && styles.pillBtnOn,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={[styles.pillBtnText, p.enabled && styles.pillBtnTextOn]}>
+                  {p.enabled ? 'Enabled' : 'Disabled'}
+                </Text>
+              </Pressable>
+              <Button
+                variant="ghost"
+                textStyle={{ color: colors.empire }}
+                onPress={() => removePack(p.pack.id)}
+              >
+                Remove
+              </Button>
+            </View>
+          ))
+        )}
+      </Card>
+
       <EditSheet
         visible={!!exportSheet}
         title={exportSheet?.scope === 'character' ? `Export ${template.name}` : 'Export full roster'}
@@ -224,6 +315,26 @@ export const SettingsScreen: React.FC = () => {
             </Text>
           </View>
         ) : null}
+      </EditSheet>
+
+      <EditSheet
+        visible={pasteOpen}
+        title="Paste content pack JSON"
+        subtitle="Paste a ContentPack JSON object. It will be validated before installing."
+        onClose={() => { setPasteOpen(false); setPasteText(''); }}
+        onSave={submitPaste}
+        saveLabel="Install"
+      >
+        <TextInput
+          multiline
+          value={pasteText}
+          onChangeText={setPasteText}
+          placeholder='{ "$schema": "grimcomp.content.v1", ... }'
+          placeholderTextColor={colors.ink4}
+          style={styles.pasteInput}
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
       </EditSheet>
     </ScreenContainer>
   );
@@ -288,5 +399,21 @@ const styles = StyleSheet.create({
     borderColor: colors.borderSoft,
     borderRadius: 4,
     padding: 10,
+  },
+  packDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+  },
+  pasteInput: {
+    minHeight: 240,
+    fontFamily: fontFamilies.mono,
+    fontSize: 11,
+    color: colors.ink2,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    borderRadius: 4,
+    padding: 10,
+    textAlignVertical: 'top',
   },
 });

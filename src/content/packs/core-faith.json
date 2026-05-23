@@ -1,0 +1,28 @@
+{
+  "$schema": "grimcomp.content.v1",
+  "id": "core-faith",
+  "name": "Core Rulebook — Faith",
+  "version": "2026.04.01",
+  "prayers": [
+    { "id": "p.blessing", "name": "Blessing of Mercy", "deity": "Shallya", "range": "Touch", "target": "1", "duration": "Instant", "description": "The target recovers 1 wound + your Willpower Bonus." },
+    { "id": "p.calm", "name": "Calm Soul", "deity": "Shallya", "range": "Touch", "target": "1", "duration": "Instant", "description": "Removes the Broken condition." },
+    { "id": "p.staunch", "name": "Staunch", "deity": "Shallya", "range": "Touch", "target": "1", "duration": "Instant", "description": "Removes 1 Bleeding stack from the target." },
+    { "id": "p.cure", "name": "Cure", "deity": "Shallya", "range": "Touch", "target": "1", "duration": "WPB rounds", "description": "Cures one disease. The target makes a Toughness test to throw off the worst of it." },
+    { "id": "p.peace", "name": "Voice of Peace", "deity": "Shallya", "range": "WPB yards", "target": "AoE WPB", "duration": "WPB rounds", "description": "Hostile creatures must pass a Cool test to attack anyone in range." },
+
+    { "id": "p.bless", "name": "Bless", "deity": "Any", "range": "Touch", "target": "1", "duration": "WPB rounds", "description": "+10 to the next test of one type the target must make." },
+    { "id": "p.fortify", "name": "Fortify", "deity": "Any", "range": "Touch", "target": "1", "duration": "WPB rounds", "description": "+1 AP to all locations on the target." }
+  ],
+  "tables": [
+    {
+      "id": "wrath",
+      "name": "Wrath of the Gods",
+      "rows": [
+        { "min": 1, "max": 25, "effect": "The deity is displeased; you gain 1 Sin point." },
+        { "min": 26, "max": 50, "effect": "A divine reprimand. Stunned 1, and prayers cost +1 SL today." },
+        { "min": 51, "max": 75, "effect": "You are struck mute. Cannot speak until end of scene." },
+        { "min": 76, "max": 100, "effect": "Faith shaken: you lose access to prayers until you atone." }
+      ]
+    }
+  ]
+}

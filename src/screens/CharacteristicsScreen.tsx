@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { XP_COSTS, type CharacteristicKey } from '@/data/character';
+import { type CharacteristicKey } from '@/data/character';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useXp } from '@/hooks/useXp';
 import { useConditions } from '@/hooks/useConditions';
+import { useXpCosts } from '@/content/useContent';
 import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -29,6 +30,7 @@ export const CharacteristicsScreen: React.FC = () => {
   const { list, get, adjust } = useCharacteristics();
   const xp = useXp();
   const { modifier: condMod } = useConditions();
+  const xpCosts = useXpCosts();
 
   const test = (key: CharacteristicKey) => {
     const c = list.find(x => x.key === key)!;
@@ -45,7 +47,7 @@ export const CharacteristicsScreen: React.FC = () => {
   const suggest = list.find(c => c.key === SUGGEST_KEY)!;
   const advNow = get(SUGGEST_KEY);
   const cost = bracket(advNow);
-  const highlightIdx = XP_COSTS.findIndex(b => b.cost === cost);
+  const highlightIdx = xpCosts.findIndex(b => b.cost === cost);
 
   const buy = (key: CharacteristicKey) => {
     const c = list.find(x => x.key === key)!;
@@ -120,10 +122,10 @@ export const CharacteristicsScreen: React.FC = () => {
               <Cell header num flex={0.6}>XP</Cell>
               <Cell header flex={1.4}>Note</Cell>
             </TableRow>
-            {XP_COSTS.map((x, i) => {
+            {xpCosts.map((x, i) => {
               const highlight = i === highlightIdx;
               return (
-                <TableRow key={x.range} last={i === XP_COSTS.length - 1} style={highlight ? styles.rowHl : null}>
+                <TableRow key={x.range} last={i === xpCosts.length - 1} style={highlight ? styles.rowHl : null}>
                   <Cell flex={1}>{x.range}</Cell>
                   <Cell num flex={0.6} textStyle={highlight ? { color: colors.brass, fontFamily: fontFamilies.bodySemibold } : null}>
                     {x.cost}

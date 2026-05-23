@@ -118,9 +118,9 @@ export interface Character {
   accent: string;
   isCaster?: boolean;          // toggles Magic screen content
   isAnointed?: boolean;        // toggles Faith screen content
-  /** Spell IDs from src/data/magic.ts (caster characters only). */
+  /** Spell IDs resolved against the content registry (caster characters only). */
   knownSpells?: string[];
-  /** Prayer IDs from src/data/faith.ts (Anointed characters only). */
+  /** Prayer IDs resolved against the content registry (Anointed characters only). */
   knownPrayers?: string[];
   /** Display labels for the Faith / Magic screen banners. */
   deity?: string;
@@ -524,17 +524,6 @@ export function getTemplate(id: string): Character {
 // CHARACTER constant. Anything new should call `useCharacter()` instead.
 export const CHARACTER: Character = SIGMUND;
 
-export const XP_COSTS = [
-  { range: '0–5', cost: 25 },
-  { range: '6–10', cost: 30 },
-  { range: '11–15', cost: 40 },
-  { range: '16–20', cost: 50 },
-  { range: '21–25', cost: 70 },
-  { range: '26–30', cost: 90 },
-  { range: '31–35', cost: 120 },
-  { range: '36+', cost: 150 },
-];
-
 export type XpKind = 'gain' | 'skill' | 'char' | 'talent' | 'career';
 
 // Seeded XP log per character. The hook copies the seed into the live log on
@@ -595,9 +584,3 @@ export const ROSTER: RosterEntry[] = Object.values(CHARACTER_TEMPLATES).map(c =>
   accent: c.accent,
   active: c.id === DEFAULT_CHARACTER_ID,
 }));
-
-// Standard 12 conditions in WFRP 4e.
-export const CONDITIONS = [
-  'Ablaze', 'Bleeding', 'Blinded', 'Broken', 'Deafened', 'Entangled',
-  'Fatigued', 'Poisoned', 'Prone', 'Stunned', 'Surprised', 'Unconscious',
-];

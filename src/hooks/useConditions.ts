@@ -3,7 +3,7 @@ import { useCallback, useMemo } from 'react';
 import { useStoredState } from './useStoredState';
 import { useActiveCharId, characterKey } from './useCharacter';
 import { useRoster } from './useRoster';
-import { CONDITIONS } from '@/data/character';
+import { useConditionList } from '@/content/useContent';
 
 export type ConditionMap = Record<string, number>;
 
@@ -22,9 +22,10 @@ export function useConditions() {
   const id = useActiveCharId();
   const { get } = useRoster();
   const tpl = get(id);
+  const conditionList = useConditionList();
 
   const seed: ConditionMap = {};
-  for (const t of CONDITIONS) seed[t] = 0;
+  for (const t of conditionList) seed[t] = 0;
   for (const c of tpl.conditions ?? []) seed[c.type] = c.stacks;
 
   const [conds, setConds] = useStoredState<ConditionMap>(characterKey(id, 'conditions'), seed);
@@ -50,5 +51,5 @@ export function useConditions() {
     return { total, parts };
   }, [conds]);
 
-  return { conds, cycle, modifier };
+  return { conds, cycle, modifier, names: conditionList };
 }

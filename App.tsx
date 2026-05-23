@@ -19,6 +19,7 @@ import {
 } from '@expo-google-fonts/jetbrains-mono';
 
 import { Shell } from '@/components/Shell';
+import { ContentProvider } from '@/content/ContentProvider';
 import { useStoredScreen } from '@/hooks/useStoredScreen';
 import { colors } from '@/theme';
 
@@ -89,9 +90,11 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
-      <Shell current={screen} onNav={setScreen}>
-        {renderScreen()}
-      </Shell>
+      <ContentProvider>
+        <Shell current={screen} onNav={setScreen}>
+          {renderScreen()}
+        </Shell>
+      </ContentProvider>
     </SafeAreaProvider>
   );
 }

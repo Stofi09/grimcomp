@@ -6,7 +6,9 @@ import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useConditions } from '@/hooks/useConditions';
 import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
-import { resolvePrayers, wrathOfTheGods, type Prayer } from '@/data/faith';
+import { useResolvePrayers, useTable } from '@/content/useContent';
+import { rollOnTable } from '@/content/tables';
+import type { Prayer } from '@/content/types';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card, CardHead } from '@/components/Card';
@@ -26,7 +28,8 @@ export const FaithScreen: React.FC = () => {
   const { modifier: condMod } = useConditions();
   const [sin, setSin] = useStoredState(characterKey(id, 'sin'), 0);
 
-  const prayers = resolvePrayers(c.knownPrayers ?? []);
+  const prayers = useResolvePrayers(c.knownPrayers ?? []);
+  const wrathTable = useTable('wrath');
   const fel = chars.find(x => x.key === 'fel')!;
   const praySkill = c.skills.find(s => s.name === 'Pray');
   const prayTarget = fel.current + (praySkill?.adv ?? 0);
@@ -37,7 +40,7 @@ export const FaithScreen: React.FC = () => {
     if (r.outcome === 'fumble') {
       // Wrath of the gods on a fumble. Adds a Sin point on top.
       const wRoll = rollD100();
-      const wrath = wrathOfTheGods(wRoll);
+      const wrath = rollOnTable(wrathTable, wRoll);
       setSin(s => s + 1);
       Alert.alert(
         `${prayer.name} — ${outcomeLabel(r.outcome)}`,

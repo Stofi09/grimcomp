@@ -7,7 +7,9 @@ import { characterKey } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useConditions } from '@/hooks/useConditions';
 import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
-import { resolveSpells, minorMiscast, majorMiscast, type Spell } from '@/data/magic';
+import { useResolveSpells, useTable } from '@/content/useContent';
+import { rollOnTable } from '@/content/tables';
+import type { Spell } from '@/content/types';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card, CardHead } from '@/components/Card';
@@ -31,6 +33,11 @@ export const MagicScreen: React.FC = () => {
   // cast or miscast.
   const [pool, setPool] = useStoredState(characterKey(id, 'magic.pool'), 0);
 
+  // Content hooks must run before the early return below.
+  const spells = useResolveSpells(c.knownSpells ?? []);
+  const miscastMinor = useTable('miscast-minor');
+  const miscastMajor = useTable('miscast-major');
+
   if (!c.isCaster) {
     return (
       <ScreenContainer>
@@ -50,7 +57,6 @@ export const MagicScreen: React.FC = () => {
     );
   }
 
-  const spells = resolveSpells(c.knownSpells ?? []);
   const wp = chars.find(x => x.key === 'wp')!;
   const intCh = chars.find(x => x.key === 'int')!;
   const wpb = wp.bonus;
@@ -93,7 +99,7 @@ export const MagicScreen: React.FC = () => {
       // stacks (interpreted loosely as "stressed caster").
       const stressed = condMod.parts.length > 0;
       const mRoll = rollD100();
-      body += `MISCAST (${mRoll}):\n${stressed ? majorMiscast(mRoll) : minorMiscast(mRoll)}`;
+      body += `MISCAST (${mRoll}):\n${rollOnTable(stressed ? miscastMajor : miscastMinor, mRoll)}`;
     } else if (reachedCN) {
       body += `→ ${spell.name} resolves!\n${spell.description}${spell.damage ? `\nDamage: ${spell.damage}` : ''}`;
     } else {
