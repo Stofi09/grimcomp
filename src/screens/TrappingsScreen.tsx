@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { type Trapping } from '@/data/character';
+import { type Trapping, type Weapon, type Armour } from '@/data/character';
 import { useCharacter } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useCharacterCollection } from '@/hooks/useCharacterCollection';
@@ -27,11 +27,13 @@ export const TrappingsScreen: React.FC = () => {
   const tb = chars.find(x => x.key === 't')?.bonus ?? 0;
   const maxEnc = sb + tb;
 
-  // Live collections — weapons + armour share with CombatScreen so adding a
-  // weapon there shows up here, encumbrance is correct, etc.
+  // Live collections — weapons + armour share their storage keys with
+  // CombatScreen, so they must seed with the *same* full shape. Seeding a
+  // trimmed `{ enc }` object here would let whichever screen mounts first
+  // cache a shape the other can't read (CombatScreen reads .qual / .locs).
   const trappings = useCharacterCollection<Trapping>('trappings', c.trappings);
-  const weapons = useCharacterCollection<{ enc: number }>('weapons', c.weapons.map(w => ({ enc: w.enc })));
-  const armour = useCharacterCollection<{ enc: number }>('armour', c.armour.map(a => ({ enc: a.enc })));
+  const weapons = useCharacterCollection<Weapon>('weapons', c.weapons);
+  const armour = useCharacterCollection<Armour>('armour', c.armour);
 
   const encItems = trappings.items.reduce((a, x) => a + (x.enc ?? 0), 0);
   const encW = weapons.items.reduce((a, x) => a + (x.enc ?? 0), 0);

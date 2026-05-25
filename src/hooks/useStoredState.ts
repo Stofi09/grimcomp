@@ -34,7 +34,18 @@ export function useStoredState<T>(key: string, initial: T) {
   // bumps it, forcing this hook to re-read from `cache`.
   const [, setTick] = useState(0);
   const [ready, setReady] = useState(cache.has(key));
+
+  // `initialRef` holds the seed for the *current* key. Per-character hooks key
+  // their storage on `characterKey(id, …)`, so switching the active character
+  // changes `key` on a still-mounted instance (the persistent Rail / AppBar).
+  // Re-anchor the seed when that happens — otherwise the newly-selected
+  // character hydrates its storage from the previous character's seed.
   const initialRef = useRef(initial);
+  const keyRef = useRef(key);
+  if (keyRef.current !== key) {
+    keyRef.current = key;
+    initialRef.current = initial;
+  }
 
   // Subscribe to cross-instance writes for this key.
   useEffect(() => {
