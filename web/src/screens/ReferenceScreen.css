@@ -1,0 +1,68 @@
+/* ReferenceScreen — rulebook category grid + recently-viewed table.
+   Ported 1:1 from the RN ReferenceScreen StyleSheet. */
+
+.ref-sub {
+  font-size: 13px;
+  color: var(--ink3);
+  font-family: var(--font-body);
+}
+
+/* four-up responsive category grid */
+.ref-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ref-cell-wrap {
+  flex-basis: 23%;
+  flex-grow: 1;
+  min-width: 160px;
+  display: flex;
+}
+
+.ref-card-btn {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  transition: transform 0.12s ease;
+}
+
+.ref-card-btn:hover .gc-card {
+  border-color: var(--brass);
+}
+
+.ref-card-btn:active {
+  opacity: 0.85;
+}
+
+/* icon + count row at the top of each card (was layoutStyles.rowBetween) */
+.ref-row-between {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ref-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink3);
+}
+
+.ref-ctitle {
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: var(--ink);
+  margin-top: 10px;
+  text-align: left;
+}
+
+.ref-csub {
+  font-size: 11px;
+  color: var(--ink3);
+  margin-top: 2px;
+  font-family: var(--font-body);
+  text-align: left;
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "grimcomp.content.v2",
+  "id": "core-talents",
+  "name": "Core Rulebook — Talents",
+  "version": "2026.04.01",
+  "talents": [
+    { "id": "tal.sure-shot", "name": "Sure Shot", "description": "Your ranged attacks ignore some of a target's Armour Points." },
+    { "id": "tal.sharp", "name": "Sharp", "description": "You are quick to notice things; bonus to relevant Perception tests." },
+    { "id": "tal.hardy", "name": "Hardy", "description": "You gain extra Wounds equal to your Toughness Bonus per rank taken." },
+    { "id": "tal.lightning-reflexes", "name": "Lightning Reflexes", "description": "Reroll one failed Initiative test per combat." },
+    { "id": "tal.menacing", "name": "Menacing", "description": "You are imposing; +10 to Intimidate tests." },
+    { "id": "tal.petty-magic", "name": "Petty Magic", "description": "You can cast the Petty Magic spells." },
+    { "id": "tal.arcane-magic-fire", "name": "Arcane Magic (Fire)", "description": "You can cast spells from the Lore of Fire." },
+    { "id": "tal.aethyric-attunement", "name": "Aethyric Attunement", "description": "+1 SL on Channelling tests." },
+    { "id": "tal.read-write", "name": "Read/Write", "description": "You can read and write the languages you speak." },
+    { "id": "tal.bless-shallya", "name": "Bless (Shallya)", "description": "You can perform the Blessings of Shallya." },
+    { "id": "tal.invoke-shallya", "name": "Invoke (Shallya)", "description": "You can invoke the Miracles of Shallya." },
+    { "id": "tal.kind-hearted", "name": "Kind-hearted", "description": "+10 to Charm tests with those in distress." }
+  ]
+}

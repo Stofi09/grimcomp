@@ -1,0 +1,182 @@
+/* SettingsScreen — stacked setting rows, content-pack manager, export/import.
+   Ported 1:1 from the RN SettingsScreen StyleSheet. */
+
+.set-sub {
+  font-size: 13px;
+  color: var(--ink3);
+  font-family: var(--font-body);
+}
+
+/* one setting row: title/hint on the left, value + optional action on the right */
+.set-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding-left: 18px;
+  padding-right: 18px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.set-row-border {
+  border-bottom: 1px solid var(--divider);
+}
+
+.set-row-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.set-title {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.set-body {
+  font-size: 11px;
+  color: var(--ink3);
+  margin-top: 2px;
+  font-family: var(--font-body);
+  line-height: 16px;
+}
+
+.set-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink2);
+}
+
+/* small segmented pill buttons (XP rule, pack enable/disable) */
+.set-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+}
+
+.set-pill-btn {
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  border-radius: 4px;
+  background-color: var(--surface);
+  border: 1px solid var(--borderSoft);
+  transition: opacity 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.set-pill-btn:hover {
+  border-color: var(--border);
+}
+
+.set-pill-btn:active {
+  opacity: 0.7;
+}
+
+.set-pill-btn--on {
+  background-color: var(--empire);
+  border-color: var(--empireDeep);
+}
+
+.set-pill-btn--on:hover {
+  border-color: var(--empireDeep);
+}
+
+.set-pill-btn-text {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 11.5px;
+  color: var(--ink2);
+}
+
+.set-pill-btn--on .set-pill-btn-text {
+  color: var(--bone);
+}
+
+/* divider above each content-pack row */
+.set-pack-divider {
+  border-top: 1px solid var(--divider);
+}
+
+/* export preview block inside the EditSheet */
+.set-export-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.set-export-text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink2);
+  line-height: 14px;
+  background-color: var(--surface);
+  border: 1px solid var(--borderSoft);
+  border-radius: 4px;
+  padding: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 560px;
+  overflow: auto;
+}
+
+/* paste-JSON textarea */
+.set-paste-input {
+  min-height: 240px;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink2);
+  background-color: var(--surface);
+  border: 1px solid var(--borderSoft);
+  border-radius: 4px;
+  padding: 10px;
+  resize: vertical;
+  vertical-align: top;
+}
+
+.set-paste-input::placeholder {
+  color: var(--ink4);
+}
+
+/* failed-pack error block */
+.set-error-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 18px;
+  padding-right: 18px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  border-top: 1px solid var(--divider);
+}
+
+.set-error-text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--empire);
+  line-height: 16px;
+  word-break: break-word;
+}
+
+/* visually-hidden file input trigger wrapper */
+.set-file-label {
+  display: inline-flex;
+}
+
+.set-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,0 +1,332 @@
+/* OverviewScreen — ported 1:1 from src/screens/OverviewScreen.tsx StyleSheet.
+   Character header, vitals grid (wounds / fate&fortune / soul), movement +
+   experience cards, condition chips, and the party roster. */
+
+/* subText: { fontSize: 13, color: ink2, fontFamily: body } */
+.ovw-sub-text {
+  font-size: 13px;
+  color: var(--ink2);
+  font-family: var(--font-body);
+}
+
+/* subSep: { color: ink4 } */
+.ovw-sub-sep {
+  color: var(--ink4);
+}
+
+/* the motivation sub-line: italic + ink3 (numberOfLines={2} in RN) */
+.ovw-sub-motivation {
+  font-style: italic;
+  color: var(--ink3);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* vitalsGrid: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' } */
+.ovw-vitals-grid {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* layoutStyles.rowBetween — row, space-between, center */
+.ovw-row-between {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* label: bodyBold 9.5 / tracking 1.6 / ink3 / uppercase */
+.ovw-label {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 1.6px;
+  color: var(--ink3);
+  text-transform: uppercase;
+}
+
+/* inline override: Wounds label color empire */
+.ovw-label--empire {
+  color: var(--empire);
+}
+
+/* inline override: Fate & Fortune label color brass */
+.ovw-label--brass {
+  color: var(--brass);
+}
+
+/* sub: { fontFamily: mono, fontSize: 10.5, color: ink3, marginTop: 3 } */
+.ovw-sub {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink3);
+  margin-top: 3px;
+  display: block;
+}
+
+/* subUpper: { fontFamily: mono, fontSize: 10.5, color: ink3, uppercase } */
+.ovw-sub-upper {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink3);
+  text-transform: uppercase;
+}
+
+/* corruption-line variant: ink3 → corruption color */
+.ovw-sub-upper--corr {
+  color: var(--corruption);
+}
+
+/* bigEmpire: { display 60 / lineHeight 56 / empire } */
+.ovw-big-empire {
+  font-family: var(--font-display);
+  font-size: 60px;
+  line-height: 56px;
+  color: var(--empire);
+}
+
+/* bigBrass: { display 48 / lineHeight 42 / brass } */
+.ovw-big-brass {
+  font-family: var(--font-display);
+  font-size: 48px;
+  line-height: 42px;
+  color: var(--brass);
+}
+
+/* bigFrac: { displayItalic 22 / ink3 } */
+.ovw-big-frac {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--ink3);
+}
+
+/* bigCap: { displayItalic 18 / ink3 } */
+.ovw-big-cap {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 18px;
+  color: var(--ink3);
+}
+
+/* refreshLink: { bodyMedium 10.5 / brass / tracking 0.4 } */
+.ovw-refresh-link {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 10.5px;
+  color: var(--brass);
+  letter-spacing: 0.4px;
+  cursor: pointer;
+}
+
+.ovw-refresh-link:hover {
+  color: var(--brassBright);
+}
+
+.ovw-refresh-link:active {
+  opacity: 0.7;
+}
+
+/* medium: { display 30 / lineHeight 30 / ink } */
+.ovw-medium {
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 30px;
+  color: var(--ink);
+}
+
+/* metaMono: { mono 10 / ink3 / tracking 0.6 } */
+.ovw-meta-mono {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink3);
+  letter-spacing: 0.6px;
+}
+
+/* inline { fontSize: 10 } applied to the two header metaMono labels */
+.ovw-meta-mono--10 {
+  font-size: 10px;
+}
+
+/* dividerLine: { height 1 / divider / marginTop 10 / marginBottom 8 } */
+.ovw-divider-line {
+  height: 1px;
+  background-color: var(--divider);
+  margin-top: 10px;
+  margin-bottom: 8px;
+}
+
+/* moveLabel: { mono 9 / tracking 1.2 / ink3 / uppercase } */
+.ovw-move-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--ink3);
+  text-transform: uppercase;
+  display: block;
+}
+
+/* moveValue: { display 24 / lineHeight 24 / ink / marginTop 2 } */
+.ovw-move-value {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 24px;
+  color: var(--ink);
+  margin-top: 2px;
+  display: block;
+}
+
+/* xpBig: { display 34 / lineHeight 30 / brass } */
+.ovw-xp-big {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 30px;
+  color: var(--brass);
+}
+
+/* muted: { ink3 / 12 / body } */
+.ovw-muted {
+  color: var(--ink3);
+  font-size: 12px;
+  font-family: var(--font-body);
+}
+
+/* chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: -4 } */
+.ovw-chips {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -4px;
+}
+
+/* twoCol: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' } */
+.ovw-two-col {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* the inline { marginTop: 12 } on twoCol */
+.ovw-mt12 {
+  margin-top: 12px;
+}
+
+/* inline rowBetween { marginTop: 8 } */
+.ovw-mt8 {
+  margin-top: 8px;
+}
+
+/* inline rowBetween { marginTop: 10 } */
+.ovw-mt10 {
+  margin-top: 10px;
+}
+
+/* the Fortune / Resolve stepper rows:
+   layoutStyles.row + { marginTop: 8, gap: 12, alignItems: 'center' } */
+.ovw-stepper-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+/* the <View style={{ flex: 1 }} /> spacers between value + stepper */
+.ovw-spacer {
+  flex: 1;
+}
+
+/* movement row: layoutStyles.row + { marginTop: 10, gap: 18 } */
+.ovw-move-row {
+  display: flex;
+  flex-direction: row;
+  margin-top: 10px;
+  gap: 18px;
+}
+
+/* layoutStyles.vr — vertical hairline rule between move cells */
+.ovw-vr {
+  width: 1px;
+  align-self: stretch;
+  background-color: var(--divider);
+}
+
+/* experience row: layoutStyles.row + { alignItems: 'baseline', gap: 10, marginTop: 8 } */
+.ovw-xp-row {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* party: { fontSize 13 / ink2 / lineHeight 20 / marginBottom 14 / body } */
+.ovw-party {
+  font-size: 13px;
+  color: var(--ink2);
+  line-height: 20px;
+  margin: 0 0 14px;
+  font-family: var(--font-body);
+}
+
+/* partyDrop: { displayItalic 38 / empire / lineHeight 36 } — drop cap */
+.ovw-party-drop {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 38px;
+  color: var(--empire);
+  line-height: 36px;
+}
+
+/* partyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 } */
+.ovw-party-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* partyMember: row / center / gap 10 / padding 8x10 / surface2 / 1px divider
+   border / radius 4 / flexBasis 30% / flexGrow 1 / minWidth 200 */
+.ovw-party-member {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background-color: var(--surface2);
+  border: 1px solid var(--divider);
+  border-radius: 4px;
+  flex-basis: 30%;
+  flex-grow: 1;
+  min-width: 200px;
+}
+
+/* the inner { minWidth: 0, flex: 1 } wrapper around name + role */
+.ovw-party-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+/* partyName: { display 14 / ink } */
+.ovw-party-name {
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: var(--ink);
+  display: block;
+}
+
+/* partyRole: { fontSize 11 / ink3 / body } */
+.ovw-party-role {
+  font-size: 11px;
+  color: var(--ink3);
+  font-family: var(--font-body);
+  display: block;
+}

@@ -1,0 +1,416 @@
+/* NewCharScreen — the four-step character-creation wizard. Ported 1:1 from the
+   RN NewCharScreen StyleSheet; RN Pressables become real <button>s, the
+   step-indicator connector lines are reproduced with absolutely-positioned
+   spans, and the rolled-stat / review grids use the same 20%-wide cells. */
+
+/* sub: { fontSize: 13, color: ink3, body } */
+.nc-sub {
+  font-size: 13px;
+  color: var(--ink3);
+  font-family: var(--font-body);
+}
+
+/* steps: { flexDirection: 'row', gap: 0, marginVertical: 24 } */
+.nc-steps {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  margin-top: 24px;
+  margin-bottom: 24px;
+}
+
+/* stepCell: { flex: 1, alignItems: 'center', position: 'relative' } */
+.nc-step-cell {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+}
+
+/* line: { height: 2, position: 'absolute', top: 14 } — left/right + colour set
+   inline per step so the connector spans between dots. */
+.nc-line {
+  height: 2px;
+  position: absolute;
+  top: 14px;
+}
+
+/* dot: { width: 28, height: 28, borderRadius: 14, center, zIndex: 2 } — the
+   backgroundColor / borderColor / borderWidth are set inline per state. */
+.nc-dot {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  border-style: solid;
+  box-sizing: border-box;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+/* dotText: { display font, fontSize: 13 } — colour set inline. */
+.nc-dot-text {
+  font-family: var(--font-display);
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* stepLabel: { marginTop: 6, fontSize: 11, color: ink3, body, center } */
+.nc-step-label {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--ink3);
+  font-family: var(--font-body);
+  text-align: center;
+}
+
+/* stepLabelCurrent: { color: ink, bodySemibold } */
+.nc-step-label--current {
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+
+/* label: { bodyBold, fontSize: 9.5, letterSpacing: 1.6, ink3, uppercase } */
+.nc-label {
+  display: block;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 1.6px;
+  color: var(--ink3);
+  text-transform: uppercase;
+}
+
+/* heading: { display, fontSize: 22, ink, marginTop: 4 } */
+.nc-heading {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--ink);
+  margin-top: 4px;
+}
+
+/* body: { ink3, fontSize: 13, marginTop: 4, body, lineHeight: 19 } */
+.nc-body {
+  display: block;
+  color: var(--ink3);
+  font-size: 13px;
+  margin-top: 4px;
+  font-family: var(--font-body);
+  line-height: 19px;
+}
+
+/* the "Press Roll stats…" placeholder: { marginTop: 14, fontStyle: 'italic' } */
+.nc-body--empty {
+  margin-top: 14px;
+  font-style: italic;
+}
+
+/* fieldLabel: { bodyBold, 9.5, ls 1.6, ink3, uppercase, mt 16, mb 6 } */
+.nc-field-label {
+  display: block;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 1.6px;
+  color: var(--ink3);
+  text-transform: uppercase;
+  margin-top: 16px;
+  margin-bottom: 6px;
+}
+
+/* input: { display, fontSize: 22, ink, borderBottom 1 borderStrong,
+   paddingVertical 8, paddingHorizontal 0 } */
+.nc-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--borderStrong);
+  border-radius: 0;
+  padding: 8px 0;
+  outline: none;
+}
+
+.nc-input::placeholder {
+  color: var(--ink4);
+}
+
+.nc-input:focus {
+  border-bottom-color: var(--brass);
+}
+
+/* optionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } */
+.nc-options-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* option: { px 12, py 7, surface, border 1 borderSoft, radius 4 } */
+.nc-option {
+  padding: 7px 12px;
+  background: var(--surface);
+  border: 1px solid var(--borderSoft);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+.nc-option:hover {
+  border-color: var(--borderStrong);
+}
+
+.nc-option:active {
+  opacity: 0.7;
+}
+
+/* optionOn: { empire bg, empireDeep border } */
+.nc-option--on {
+  background: var(--empire);
+  border-color: var(--empireDeep);
+}
+
+.nc-option--on:hover {
+  border-color: var(--empireDeep);
+}
+
+/* optionText: { bodyMedium, 12, ink2 } */
+.nc-option-text {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--ink2);
+}
+
+/* optionTextOn: { color: bone } */
+.nc-option-text--on {
+  color: var(--bone);
+}
+
+/* archGrid: { flexDirection: 'row', gap: 12, flexWrap: 'wrap', marginTop: 16 } */
+.nc-arch-grid {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+/* archCellWrap: { flex: 1, minWidth: 200 } — the button wraps a tight Card. */
+.nc-arch-cell-wrap {
+  display: flex;
+  flex: 1;
+  min-width: 200px;
+  cursor: pointer;
+  text-align: left;
+  transition: opacity 120ms ease;
+}
+
+.nc-arch-cell-wrap:active {
+  opacity: 0.7;
+}
+
+/* archCell head row mirrors layoutStyles.rowBetween. */
+.nc-arch-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* archTitle: { display, fontSize: 17, ink, marginTop: 8 } */
+.nc-arch-title {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: var(--ink);
+  margin-top: 8px;
+}
+
+/* archSub: { 12, ink3, mt 2, body, lineHeight 17 } */
+.nc-arch-sub {
+  display: block;
+  font-size: 12px;
+  color: var(--ink3);
+  margin-top: 2px;
+  font-family: var(--font-body);
+  line-height: 17px;
+}
+
+/* archMeta: { 10, mono, brass, mt 8, ls 0.6 } */
+.nc-arch-meta {
+  display: block;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--brass);
+  margin-top: 8px;
+  letter-spacing: 0.6px;
+}
+
+/* archSpecies: { 10, mono, ink3, mt 4, ls 0.4 } */
+.nc-arch-species {
+  display: block;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--ink3);
+  margin-top: 4px;
+  letter-spacing: 0.4px;
+}
+
+/* archWarn: { 10.5, bodySemibold, warning, mt 4 } */
+.nc-arch-warn {
+  display: block;
+  font-size: 10.5px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--warning);
+  margin-top: 4px;
+}
+
+/* comboWarn: { 12.5, bodyMedium, warning, mt 12, lineHeight 18 } */
+.nc-combo-warn {
+  display: block;
+  font-size: 12.5px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  color: var(--warning);
+  margin-top: 12px;
+  line-height: 18px;
+}
+
+/* the "Roll stats / Reroll" row: original is layoutStyles.row with
+   { marginTop: 14, gap: 8 } (row → alignItems center). */
+.nc-roll-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* totalLine: { body, 13, ink3, alignSelf: 'center' } */
+.nc-total-line {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink3);
+  align-self: center;
+}
+
+/* totalNum: { monoMedium, ink } */
+.nc-total-num {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* statsGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6,
+   marginTop: 16 } */
+.nc-stats-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-left: -6px;
+  margin-right: -6px;
+  margin-top: 16px;
+}
+
+/* statCell: { width: '20%', px 6, pb 12, alignItems: 'center' } */
+.nc-stat-cell {
+  display: flex;
+  flex-direction: column;
+  width: 20%;
+  box-sizing: border-box;
+  padding-left: 6px;
+  padding-right: 6px;
+  padding-bottom: 12px;
+  align-items: center;
+}
+
+/* statKey: { monoMedium, 9, ink3, ls 1.4, uppercase } */
+.nc-stat-key {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 9px;
+  color: var(--ink3);
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+/* statNum: { display, 28, ink, lineHeight 28, mt 4 } */
+.nc-stat-num {
+  font-family: var(--font-display);
+  font-size: 28px;
+  color: var(--ink);
+  line-height: 28px;
+  margin-top: 4px;
+}
+
+/* statName: { body, 10, ink3, mt 2, center } */
+.nc-stat-name {
+  font-family: var(--font-body);
+  font-size: 10px;
+  color: var(--ink3);
+  margin-top: 2px;
+  text-align: center;
+}
+
+/* review head row: layoutStyles.row with { gap: 14, marginTop: 14,
+   alignItems: 'flex-start' }. */
+.nc-review-head {
+  display: flex;
+  flex-direction: row;
+  gap: 14px;
+  margin-top: 14px;
+  align-items: flex-start;
+}
+
+/* the review name/meta column: { flex: 1 } */
+.nc-review-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+/* previewName: { displayItalic, 22, ink } */
+.nc-preview-name {
+  display: block;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--ink);
+}
+
+/* previewMeta: { body, 12, ink3, mt 2 } */
+.nc-preview-meta {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink3);
+  margin-top: 2px;
+}
+
+/* the caster/anointed line: { marginTop: 4, color: brass } */
+.nc-preview-meta--brass {
+  margin-top: 4px;
+  color: var(--brass);
+}
+
+/* bottom nav row: layoutStyles.rowBetween with { marginTop: 4 }. */
+.nc-nav-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}

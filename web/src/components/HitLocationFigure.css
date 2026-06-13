@@ -1,0 +1,6 @@
+/* HitLocationFigure — armour-points body diagram. */
+
+.hlf-figure {
+  display: block;
+  user-select: none;
+}

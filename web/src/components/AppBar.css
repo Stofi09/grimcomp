@@ -1,0 +1,99 @@
+/* AppBar — top toolbar with breadcrumb trail + quick actions.
+   Ported 1:1 from the RN AppBar StyleSheet. */
+.appbar {
+  height: 54px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding-left: 26px;
+  padding-right: 26px;
+  gap: 14px; /* space.xxl */
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 245, 210, 0.18);
+  flex: none;
+}
+
+.appbar-menu {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: -10px;
+  flex: none;
+}
+
+.appbar-crumbs {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.appbar-crumb-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.appbar-crumb {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 11.5px;
+  color: var(--ink3);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.appbar-crumb--here {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.appbar-sep {
+  color: var(--ink4);
+  font-size: 12px;
+}
+
+.appbar-spacer {
+  flex: 1;
+}
+
+.appbar-sep2 {
+  width: 1px;
+  height: 20px;
+  background: var(--divider);
+  flex: none;
+}
+
+.appbar-action {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  border-radius: 3px;
+  flex: none;
+  transition: background 0.12s ease;
+}
+
+.appbar-action:hover {
+  background: var(--surface2);
+}
+
+.appbar-action:active {
+  background: var(--surface2);
+}
+
+.appbar-action-text {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink2);
+}

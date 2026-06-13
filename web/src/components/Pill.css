@@ -1,0 +1,62 @@
+/* Pill — small rounded badge with tinted variants. */
+.gc-pill {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid;
+  align-self: flex-start;
+  box-sizing: border-box;
+}
+
+.gc-pill-text {
+  font-family: var(--font-body);
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  line-height: 16px;
+  color: inherit;
+}
+
+.gc-pill--default {
+  background-color: var(--surface2);
+  border-color: var(--borderSoft);
+  color: var(--ink2);
+}
+
+.gc-pill--empire {
+  background-color: var(--empireTint);
+  border-color: var(--empireTintBorder);
+  color: var(--empire);
+}
+
+.gc-pill--brass {
+  background-color: var(--brassTint);
+  border-color: var(--brassTintBorder);
+  color: var(--brassTintInk);
+}
+
+.gc-pill--corr {
+  background-color: var(--corrTint);
+  border-color: var(--corrTintBorder);
+  color: var(--corruption);
+}
+
+.gc-pill--success {
+  background-color: var(--successTint);
+  border-color: var(--successTintBorder);
+  color: var(--success);
+}
+
+.gc-pill--warn {
+  background-color: var(--warnTint);
+  border-color: var(--warnTintBorder);
+  color: var(--warning);
+}
+
+.gc-pill--ghost {
+  background-color: transparent;
+  border-color: var(--divider);
+  color: var(--ink2);
+}

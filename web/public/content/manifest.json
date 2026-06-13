@@ -1,0 +1,15 @@
+{
+  "$schema": "grimcomp.manifest.v1",
+  "packs": [
+    "core-rules.json",
+    "core-races.json",
+    "core-careers.json",
+    "core-skills.json",
+    "core-talents.json",
+    "core-items.json",
+    "core-magic.json",
+    "core-faith.json",
+    "core-creation.json",
+    "core-characters.json"
+  ]
+}

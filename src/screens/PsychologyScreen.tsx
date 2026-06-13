@@ -2,16 +2,25 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { useCharacter } from '@/hooks/useCharacter';
+import { useVitals } from '@/hooks/useVitals';
+import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
 import { Pill } from '@/components/Pill';
+import { Button } from '@/components/Button';
+import { Stepper } from '@/components/Stepper';
 import { Bar } from '@/components/Bar';
 import { colors, fontFamilies } from '@/theme';
 import { tabular, layoutStyles } from '@/components/primitives';
 
 export const PsychologyScreen: React.FC = () => {
   const { template: c } = useCharacter();
+  const vitals = useVitals();
+  const { list: chars } = useCharacteristics();
+  const tb = chars.find(x => x.key === 't')?.bonus ?? 0;
+  const wpb = chars.find(x => x.key === 'wp')?.bonus ?? 0;
+  const corrThresh = Math.max(1, tb + wpb);
   return (
     <ScreenContainer>
       <Hero
@@ -22,8 +31,12 @@ export const PsychologyScreen: React.FC = () => {
       <View style={styles.row}>
         <Card style={styles.cell}>
           <Text style={styles.label}>Motivation</Text>
-          <Text style={styles.title}>{c.motivation}</Text>
-          <Text style={styles.body}>Refreshes Resolve at the start of a scene</Text>
+          <Text style={styles.title}>{c.motivation || '—'}</Text>
+          <Text style={styles.body}>Acting on your Motivation refreshes Resolve to its maximum.</Text>
+          <View style={styles.motivationRow}>
+            <Button variant="ghost" onPress={vitals.refreshResolve}>Act on Motivation</Button>
+            <Text style={styles.metaMono}>Resolve {vitals.resolve}/{vitals.resilience}</Text>
+          </View>
         </Card>
         <Card style={styles.cell}>
           <Text style={styles.label}>Psychological traits</Text>
@@ -57,14 +70,17 @@ export const PsychologyScreen: React.FC = () => {
         <Card style={styles.cell}>
           <View style={layoutStyles.rowBetween}>
             <Text style={styles.label}>Corruption points</Text>
-            <Text style={styles.metaMono}>threshold 6</Text>
+            <Text style={styles.metaMono}>threshold {corrThresh} · TB+WPB</Text>
           </View>
           <Text style={[styles.bigCorr, tabular]}>
-            {c.corruption}
-            <Text style={[styles.muted, { fontSize: 18 }]}> / 6</Text>
+            {vitals.corruption}
+            <Text style={[styles.muted, { fontSize: 18 }]}> / {corrThresh}</Text>
           </Text>
-          <Bar value={c.corruption / 6} variant="corr" style={{ marginTop: 10 }} />
-          <Text style={styles.body}>At threshold: roll a mutation test.</Text>
+          <Bar value={corrThresh > 0 ? Math.min(1, vitals.corruption / corrThresh) : 0} variant="corr" style={{ marginTop: 10 }} />
+          <View style={[layoutStyles.rowBetween, { marginTop: 10 }]}>
+            <Text style={styles.body}>At threshold: roll a mutation test.</Text>
+            <Stepper value={vitals.corruption} min={0} max={99} onChange={vitals.setCorruption} />
+          </View>
         </Card>
         <Card style={styles.cell}>
           <Text style={styles.label}>Mutations</Text>
@@ -105,6 +121,7 @@ const styles = StyleSheet.create({
   },
   muted: { color: colors.ink3 },
   pillRow: { flexDirection: 'row', marginTop: 10 },
+  motivationRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   metaMono: {
     fontFamily: fontFamilies.mono,

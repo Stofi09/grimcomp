@@ -1,0 +1,70 @@
+{
+  "$schema": "grimcomp.content.v2",
+  "id": "core-careers",
+  "name": "Core Rulebook — Careers",
+  "version": "2026.04.01",
+  "careers": [
+    {
+      "id": "car.roadwarden",
+      "name": "Roadwarden",
+      "class": "Warrior",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Roadwarden", "status": "Silver 2" },
+        { "level": 2, "name": "Road Sergeant", "status": "Silver 3" },
+        {
+          "level": 3,
+          "name": "Mounted Sergeant",
+          "status": "Silver 4",
+          "requirements": [
+            { "skill": "Ride (Horse)", "min": 10 },
+            { "skill": "Perception", "min": 10 },
+            { "skill": "Melee (Basic)", "min": 10 },
+            { "skill": "Ranged (Bow)", "min": 10 },
+            { "skill": "Outdoor Survival", "min": 5 },
+            { "skill": "Intimidate", "min": 5 },
+            { "skill": "Track", "min": 5 },
+            { "skill": "Lore (Heraldry)", "min": 5 }
+          ]
+        },
+        { "level": 4, "name": "Captain", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.wizard",
+      "name": "Wizard",
+      "class": "Academic",
+      "species": ["race.human", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Wizard's Apprentice", "status": "Brass 4" },
+        { "level": 2, "name": "Wizard", "status": "Silver 3" },
+        { "level": 3, "name": "Pyromancer", "status": "Silver 4" },
+        { "level": 4, "name": "Master Wizard", "status": "Gold 2" }
+      ]
+    },
+    {
+      "id": "car.runesmith",
+      "name": "Runesmith",
+      "class": "Warrior",
+      "species": ["race.dwarf"],
+      "ranks": [
+        { "level": 1, "name": "Apprentice Runesmith", "status": "Silver 2" },
+        { "level": 2, "name": "Journeyman Runesmith", "status": "Silver 3" },
+        { "level": 3, "name": "Runesmith", "status": "Silver 5" },
+        { "level": 4, "name": "Master Runesmith", "status": "Gold 3" }
+      ]
+    },
+    {
+      "id": "car.priest-shallya",
+      "name": "Priest of Shallya",
+      "class": "Academic",
+      "species": ["race.human", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Anointed", "status": "Brass 5" },
+        { "level": 2, "name": "Cleric", "status": "Silver 3" },
+        { "level": 3, "name": "Priest", "status": "Silver 4" },
+        { "level": 4, "name": "High Priest", "status": "Gold 2" }
+      ]
+    }
+  ]
+}

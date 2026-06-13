@@ -1,0 +1,98 @@
+/* Stat — characteristic card with bonus roundel and base/adv breakdown. */
+.gc-stat {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--ivory);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px 10px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: var(--shadow-paper);
+  box-sizing: border-box;
+}
+
+/* brass glow ring for the career's suggested characteristics */
+.gc-stat--suggested {
+  border-color: var(--brass);
+  box-shadow: 0 0 0 3px rgba(138, 111, 28, 0.35), var(--shadow-paper);
+}
+
+.gc-stat-bonus {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background-color: var(--brassSoft);
+  border: 1px solid var(--brass);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: #2a2010;
+  box-sizing: border-box;
+}
+
+.gc-stat-top {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.gc-stat-key {
+  background-color: var(--surface3);
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 9.5px;
+  color: var(--ink3);
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  box-sizing: border-box;
+}
+
+.gc-stat-name {
+  font-family: var(--font-display);
+  font-size: 14.5px;
+  color: var(--ink2);
+  flex: 1;
+}
+
+.gc-stat-num {
+  font-family: var(--font-display);
+  font-size: 44px;
+  line-height: 42px;
+  color: var(--ink);
+  letter-spacing: -0.4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.gc-stat-breakdown {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.gc-stat-bd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink3);
+  letter-spacing: 0.2px;
+}
+
+.gc-stat-bd--adv {
+  color: var(--brass);
+}
+
+.gc-stat-bd-b {
+  color: var(--ink);
+  font-weight: 500;
+}

@@ -1,0 +1,69 @@
+{
+  "$schema": "grimcomp.content.v2",
+  "id": "core-races",
+  "name": "Core Rulebook — Races",
+  "version": "2026.04.01",
+  "races": [
+    {
+      "id": "race.human",
+      "name": "Human",
+      "charModifiers": {},
+      "movement": 4,
+      "fate": 2,
+      "resilience": 1,
+      "extra": 3,
+      "skills": ["sk.charm", "sk.cool", "sk.haggle"],
+      "talents": ["tal.sharp"],
+      "description": "The most numerous people of the Old World. Adaptable and ambitious, Humans are found in every career."
+    },
+    {
+      "id": "race.dwarf",
+      "name": "Dwarf",
+      "charModifiers": { "ws": 10, "t": 10, "ag": -10, "dex": 10, "wp": 20, "fel": -10 },
+      "movement": 3,
+      "fate": 0,
+      "resilience": 2,
+      "extra": 2,
+      "skills": ["sk.endurance", "sk.intimidate", "sk.cool"],
+      "talents": ["tal.hardy", "tal.read-write"],
+      "description": "Stout, stubborn, long-lived folk of the mountains. Masters of stone and steel who never forget a grudge."
+    },
+    {
+      "id": "race.halfling",
+      "name": "Halfling",
+      "charModifiers": { "ws": -10, "bs": 10, "s": -10, "dex": 10, "wp": 10, "fel": 10 },
+      "size": "Small",
+      "movement": 3,
+      "fate": 0,
+      "resilience": 2,
+      "extra": 3,
+      "skills": ["sk.charm", "sk.haggle", "sk.perception"],
+      "talents": ["tal.kind-hearted"],
+      "description": "Small, cheerful folk of the Moot. Renowned cooks with a keen eye and surprising resilience."
+    },
+    {
+      "id": "race.high-elf",
+      "name": "High Elf",
+      "charModifiers": { "ws": 10, "bs": 10, "i": 20, "ag": 10, "dex": 10, "int": 10, "wp": 10 },
+      "movement": 5,
+      "fate": 0,
+      "resilience": 0,
+      "extra": 2,
+      "skills": ["sk.perception", "sk.cool", "sk.intuition"],
+      "talents": ["tal.sharp", "tal.aethyric-attunement"],
+      "description": "Proud, ancient seafarers of Ulthuan. Graceful and quick, yet distant from the affairs of other peoples."
+    },
+    {
+      "id": "race.wood-elf",
+      "name": "Wood Elf",
+      "charModifiers": { "ws": 10, "bs": 10, "i": 20, "ag": 10, "dex": 10, "int": 10, "wp": 10 },
+      "movement": 5,
+      "fate": 0,
+      "resilience": 0,
+      "extra": 2,
+      "skills": ["sk.perception", "sk.athletics", "sk.outdoor-survival"],
+      "talents": ["tal.sure-shot", "tal.sharp"],
+      "description": "Reclusive Elves of the deep forests. Unmatched archers and trackers who guard their woodland realms fiercely."
+    }
+  ]
+}

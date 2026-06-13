@@ -11,9 +11,9 @@ import { Pill } from '@/components/Pill';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useRoster } from '@/hooks/useRoster';
 import { useCharacter } from '@/hooks/useCharacter';
-import { CHARACTER_TEMPLATES, type Character, type CharacteristicKey } from '@/data/character';
-import { useRaces } from '@/content/useContent';
-import type { Race } from '@/content/types';
+import { CHARACTER_TEMPLATES, computeMaxWounds, type Character, type CharacteristicKey } from '@/data/character';
+import { useRaces, useSkillDefs, useTalentDefs, useCareers, useContent } from '@/content/useContent';
+import type { Race, SkillDef, TalentDef, Spell, Prayer } from '@/content/types';
 import type { ScreenId } from '@/data/nav';
 import { colors, fontFamilies } from '@/theme';
 import { layoutStyles, tabular } from '@/components/primitives';
@@ -26,20 +26,24 @@ const STEPS = ['Name', 'Archetype', 'Stats', 'Review'];
 
 interface Archetype {
   key: string;
-  /** Template id to clone from. */
+  /** Template id to clone the career, gear, and capabilities from. */
   source: string;
+  /** Career id in the content pack — drives the species-eligibility check. */
+  careerId: string;
   label: string;
   blurb: string;
   icon: IconName;
 }
 
-// Archetypes mirror our four built-in templates. Cloning preserves the
-// template's class, career, careerRanks, skills, weapons, etc.
+// Archetypes mirror our four built-in templates. They preserve the template's
+// class, career, careerRanks, gear, and caster/anointed capabilities; identity
+// and the Fate/Resilience economy are generated fresh per species in
+// buildCharacter.
 const ARCHETYPES: Archetype[] = [
-  { key: 'warrior', source: 'c1', label: 'Warrior',  blurb: 'Roadwarden / soldier. Strong, tough, melee-leaning.', icon: 'sword' },
-  { key: 'wizard',  source: 'c2', label: 'Wizard',   blurb: 'Bright Order pyromancer. Casts spells, channels Aqshy.', icon: 'sparkle' },
-  { key: 'priest',  source: 'c4', label: 'Priest',   blurb: 'Anointed of Shallya. Heals, blesses, intercedes.', icon: 'flame' },
-  { key: 'crafter', source: 'c3', label: 'Crafter',  blurb: 'Dwarf runesmith. Steady, runebound, wound-pool tank.', icon: 'shield' },
+  { key: 'warrior', source: 'c1', careerId: 'car.roadwarden',     label: 'Warrior',  blurb: 'Roadwarden / soldier. Strong, tough, melee-leaning.', icon: 'sword' },
+  { key: 'wizard',  source: 'c2', careerId: 'car.wizard',         label: 'Wizard',   blurb: 'Bright Order pyromancer. Casts spells, channels Aqshy.', icon: 'sparkle' },
+  { key: 'priest',  source: 'c4', careerId: 'car.priest-shallya', label: 'Priest',   blurb: 'Anointed of Shallya. Heals, blesses, intercedes.', icon: 'flame' },
+  { key: 'crafter', source: 'c3', careerId: 'car.runesmith',      label: 'Crafter',  blurb: 'Dwarf runesmith. Steady, runebound, wound-pool tank.', icon: 'shield' },
 ];
 
 interface Draft {
@@ -67,9 +71,20 @@ const rerollInits = (): Draft['inits'] => {
   return out;
 };
 
-/** Take an archetype's source template and apply the draft (name, species,
-    inits) plus the selected race's characteristic modifiers. */
-const buildCharacter = (draft: Draft, newId: string, race: Race | undefined): Character => {
+/** Build a fresh character from an archetype + the draft (name, species,
+    rolled stats). The archetype contributes its career, gear, and caster /
+    anointed capabilities; species contributes characteristic modifiers,
+    movement, Fate/Resilience, and granted skills + talents. Identity and
+    history are generated blank rather than inherited from the sample PC. */
+const buildCharacter = (
+  draft: Draft,
+  newId: string,
+  race: Race | undefined,
+  skillDefs: SkillDef[],
+  talentDefs: TalentDef[],
+  spells: Spell[],
+  prayers: Prayer[],
+): Character => {
   const arch = ARCHETYPES.find(a => a.key === draft.archetypeKey) ?? ARCHETYPES[0];
   const src = CHARACTER_TEMPLATES[arch.source];
 
@@ -81,12 +96,51 @@ const buildCharacter = (draft: Draft, newId: string, race: Race | undefined): Ch
 
   const initials = draft.name.split(/\s+/).filter(Boolean).map(s => s[0]?.toUpperCase()).join('').slice(0, 2) || 'XX';
 
-  // Fresh wounds = SB + 2×TB + WPB
   const tens = (k: CharacteristicKey) => {
     const c = characteristics.find(x => x.key === k)!;
     return Math.floor(c.init / 10);
   };
-  const wMax = tens('s') + 2 * tens('t') + tens('wp');
+  // Hardy (granted by the archetype and/or species) adds TB per rank; a fresh
+  // character holds a single rank.
+  const hasHardy = src.talents.some(t => t.name === 'Hardy')
+    || (race?.talents ?? []).some(id => talentDefs.find(d => d.id === id)?.name === 'Hardy');
+  // Wounds = SB + 2×TB + WPB (Halflings omit SB), plus TB per Hardy rank.
+  const wMax = computeMaxWounds(tens('s'), tens('t'), tens('wp'), draft.species, hasHardy ? 1 : 0);
+
+  // Career skills come from the archetype, reset to +0 advances (fresh). Then
+  // layer on the species' granted skills (as non-career) if not already present.
+  const skills = src.skills.map(s => ({ ...s, adv: 0 }));
+  const haveSkill = new Set(skills.map(s => s.name));
+  for (const id of race?.skills ?? []) {
+    const def = skillDefs.find(d => d.id === id);
+    if (def && !haveSkill.has(def.name)) {
+      skills.push({ name: def.name, char: def.char, adv: 0, career: false, advanced: def.advanced });
+      haveSkill.add(def.name);
+    }
+  }
+
+  // Talents from the archetype (reset to a single rank) plus species talents.
+  const talents = src.talents.map(t => ({ ...t, times: 1 }));
+  const haveTalent = new Set(talents.map(t => t.name));
+  for (const id of race?.talents ?? []) {
+    const def = talentDefs.find(d => d.id === id);
+    if (def && !haveTalent.has(def.name)) {
+      talents.push({ name: def.name, times: 1, desc: def.description, career: false });
+      haveTalent.add(def.name);
+    }
+  }
+
+  // Fate & Resilience from species. The 3 (or 2) free Extra points are all
+  // allocated to Fate by default. On a fresh PC, Fortune = Fate, Resolve =
+  // Resilience.
+  const fate = (race?.fate ?? src.fate) + (race?.extra ?? 0);
+  const resilience = race?.resilience ?? src.resilience;
+
+  // Fresh casters keep only their Petty spells (apprentice level), not the
+  // sample NPC's full arcane list; fresh priests keep only Blessings
+  // (deity-agnostic), learning cult Miracles later via XP.
+  const knownSpells = (src.knownSpells ?? []).filter(id => spells.find(s => s.id === id)?.lore === 'Petty');
+  const knownPrayers = (src.knownPrayers ?? []).filter(id => prayers.find(p => p.id === id)?.deity === 'Any');
 
   return {
     ...src,
@@ -95,8 +149,16 @@ const buildCharacter = (draft: Draft, newId: string, race: Race | undefined): Ch
     species: draft.species,
     initials,
     characteristics,
+    skills,
+    talents,
+    knownSpells,
+    knownPrayers,
     movement: race?.movement ?? src.movement,
-    // Fresh-character defaults — clear out the source character's history.
+    fate,
+    fortune: fate,
+    resilience,
+    resolve: resilience,
+    // Fresh-character defaults — clear out the sample PC's history & identity.
     xpCurrent: 0,
     xpSpent: 0,
     wounds: { current: wMax, max: wMax },
@@ -107,7 +169,17 @@ const buildCharacter = (draft: Draft, newId: string, race: Race | undefined): Ch
     status: src.careerRanks[0]?.status ?? src.status,
     conditions: [],
     criticals: [],
-    talents: src.talents.map(t => ({ ...t, times: Math.max(1, t.times) })),
+    wealth: { gc: 0, ss: 0, d: 0 },
+    age: 0,
+    height: '',
+    hair: '',
+    eyes: '',
+    motivation: '',
+    ambitionsShort: '',
+    ambitionsLong: '',
+    psychology: [],
+    mutations: [],
+    party: { name: 'No party yet', short: 'Not yet part of an adventuring party.', members: [] },
   };
 };
 
@@ -115,6 +187,10 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
   const { add, nextId } = useRoster();
   const { setActive } = useCharacter();
   const races = useRaces();
+  const careers = useCareers();
+  const skillDefs = useSkillDefs();
+  const talentDefs = useTalentDefs();
+  const content = useContent();
 
   // Wizard step + draft are persisted so the user can come back to their
   // half-finished character.
@@ -125,11 +201,18 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
   const srcTpl = CHARACTER_TEMPLATES[arch.source];
   const race = races.find(r => r.name === draft.species);
 
+  // Species eligibility: each archetype maps to a career whose `species` list
+  // says who may take it. Halflings can't be Wizards, Runesmith is Dwarf-only, etc.
+  const raceName = (id: string) => races.find(r => r.id === id)?.name ?? id;
+  const allowedRaceIds = careers.find(c => c.id === arch.careerId)?.species ?? [];
+  const comboOk = !race || allowedRaceIds.length === 0 || allowedRaceIds.includes(race.id);
+
   // Preview the would-be character so the Review step shows live values.
-  const preview = buildCharacter(draft, 'preview', race);
+  const preview = buildCharacter(draft, 'preview', race, skillDefs, talentDefs, content.allSpells, content.allPrayers);
 
   const canProceed = (() => {
     if (step === 0) return draft.name.trim().length > 0;
+    if (step === 1) return comboOk;
     if (step === 2) return Object.keys(draft.inits).length === 10;
     return true;
   })();
@@ -143,8 +226,16 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
       Alert.alert('Roll your stats', 'Tap "Reroll" on the Stats step before finishing.');
       return;
     }
+    if (!comboOk) {
+      Alert.alert(
+        'Invalid combination',
+        `${arch.label} (${srcTpl.career}) isn't available to ${draft.species}. ` +
+        `Pick a different archetype, or change species in step 1.`,
+      );
+      return;
+    }
     const id = nextId();
-    const c = buildCharacter(draft, id, race);
+    const c = buildCharacter(draft, id, race, skillDefs, talentDefs, content.allSpells, content.allPrayers);
     add(c);
     setActive(id);
     // Reset draft so the wizard is fresh next time.
@@ -249,9 +340,17 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
             Pick the kind of adventurer they are. Skills, weapons, and starting talents come from this choice.
           </Text>
 
+          {!comboOk ? (
+            <Text style={styles.comboWarn}>
+              {arch.label} isn't available to {draft.species}. Pick another archetype below, or go back to step 1 to change species.
+            </Text>
+          ) : null}
+
           <View style={styles.archGrid}>
             {ARCHETYPES.map(a => {
               const on = draft.archetypeKey === a.key;
+              const allowed = careers.find(c => c.id === a.careerId)?.species ?? [];
+              const fits = !race || allowed.length === 0 || allowed.includes(race.id);
               return (
                 <Pressable
                   key={a.key}
@@ -259,7 +358,7 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
                   onPress={() => setDraft(d => ({ ...d, archetypeKey: a.key }))}
                   hitSlop={4}
                 >
-                  <Card tight style={[styles.archCell, on ? { borderColor: colors.brass } : null]}>
+                  <Card tight style={[styles.archCell, on ? { borderColor: colors.brass } : null, !fits ? { opacity: 0.5 } : null]}>
                     <View style={layoutStyles.rowBetween}>
                       <Icon name={a.icon} size={20} color={on ? colors.brass : colors.ink2} />
                       {on ? <Pill variant="brass" size={10}>PICKED</Pill> : null}
@@ -267,6 +366,8 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
                     <Text style={styles.archTitle}>{a.label}</Text>
                     <Text style={styles.archSub}>{a.blurb}</Text>
                     <Text style={styles.archMeta}>Starts as {CHARACTER_TEMPLATES[a.source].career}</Text>
+                    <Text style={styles.archSpecies}>{allowed.map(raceName).join(' · ') || 'Any species'}</Text>
+                    {!fits ? <Text style={styles.archWarn}>Not available to {draft.species}</Text> : null}
                   </Card>
                 </Pressable>
               );
@@ -512,6 +613,26 @@ const styles = StyleSheet.create({
     color: colors.brass,
     marginTop: 8,
     letterSpacing: 0.6,
+  },
+  archSpecies: {
+    fontSize: 10,
+    fontFamily: fontFamilies.mono,
+    color: colors.ink3,
+    marginTop: 4,
+    letterSpacing: 0.4,
+  },
+  archWarn: {
+    fontSize: 10.5,
+    fontFamily: fontFamilies.bodySemibold,
+    color: colors.warning,
+    marginTop: 4,
+  },
+  comboWarn: {
+    fontSize: 12.5,
+    fontFamily: fontFamilies.bodyMedium,
+    color: colors.warning,
+    marginTop: 12,
+    lineHeight: 18,
   },
   totalLine: {
     fontFamily: fontFamilies.body,

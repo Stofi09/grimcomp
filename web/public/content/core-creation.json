@@ -1,0 +1,50 @@
+{
+  "$schema": "grimcomp.content.v2",
+  "id": "core-creation",
+  "name": "Core Rulebook — Character Creation",
+  "version": "2026.04.01",
+  "creation": {
+    "statRoll": { "count": 2, "sides": 10, "plus": 20 },
+    "archetypes": [
+      {
+        "key": "warrior",
+        "label": "Warrior",
+        "blurb": "Roadwarden / soldier. Strong, tough, melee-leaning.",
+        "icon": "sword",
+        "templateId": "c1",
+        "careerId": "car.roadwarden",
+        "accent": "#8b2d2d"
+      },
+      {
+        "key": "wizard",
+        "label": "Wizard",
+        "blurb": "Bright Order pyromancer. Casts spells, channels Aqshy.",
+        "icon": "sparkle",
+        "templateId": "c2",
+        "careerId": "car.wizard",
+        "accent": "#9a7d1f"
+      },
+      {
+        "key": "priest",
+        "label": "Priest",
+        "blurb": "Anointed of Shallya. Heals, blesses, intercedes.",
+        "icon": "flame",
+        "templateId": "c4",
+        "careerId": "car.priest-shallya",
+        "accent": "#3d6b3d"
+      },
+      {
+        "key": "crafter",
+        "label": "Crafter",
+        "blurb": "Dwarf runesmith. Steady, runebound, wound-pool tank.",
+        "icon": "shield",
+        "templateId": "c3",
+        "careerId": "car.runesmith",
+        "accent": "#6a5612"
+      }
+    ],
+    "defaults": { "species": "Human", "archetype": "warrior" },
+    "pettyLore": "Petty",
+    "anyDeity": "Any"
+  }
+}

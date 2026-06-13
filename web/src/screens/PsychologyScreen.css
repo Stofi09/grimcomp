@@ -1,0 +1,114 @@
+/* PsychologyScreen — ported 1:1 from src/screens/PsychologyScreen.tsx StyleSheet. */
+
+.psy-sub {
+  font-size: 13px;
+  color: var(--ink3);
+  font-family: var(--font-body);
+}
+
+/* row: { flexDirection: 'row', gap: 12, flexWrap: 'wrap', marginTop: 20 } */
+.psy-row {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+/* label: bodyBold 9.5 / tracking 1.6 / ink3 / uppercase */
+.psy-label {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 1.6px;
+  color: var(--ink3);
+  text-transform: uppercase;
+}
+
+/* title: display 18 / ink / marginTop 6 */
+.psy-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--ink);
+  margin-top: 6px;
+}
+
+/* body: ink3 12 / marginTop 6 / lineHeight 18 */
+.psy-body {
+  color: var(--ink3);
+  font-size: 12px;
+  margin-top: 6px;
+  font-family: var(--font-body);
+  line-height: 18px;
+}
+
+.psy-muted {
+  color: var(--ink3);
+}
+
+/* pillRow: { flexDirection: 'row', marginTop: 10 } */
+.psy-pill-row {
+  display: flex;
+  flex-direction: row;
+  margin-top: 10px;
+}
+
+/* motivationRow: row / center / gap 10 / marginTop 10 / wrap */
+.psy-motivation-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+/* chips: row / wrap / gap 6 / marginTop 8 */
+.psy-chips {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* metaMono: mono 11 / ink3 */
+.psy-meta-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink3);
+}
+
+/* bigCorr: display 42 / corruption / marginTop 6 / lineHeight 42 */
+.psy-big-corr {
+  font-family: var(--font-display);
+  font-size: 42px;
+  color: var(--corruption);
+  margin-top: 6px;
+  line-height: 42px;
+}
+
+/* inner " / N" suffix: muted ink3 at 18px */
+.psy-big-corr-suffix {
+  font-size: 18px;
+}
+
+/* layoutStyles.rowBetween — row, space-between, center */
+.psy-row-between {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* mutations empty state: body, centered, paddingVertical 20 */
+.psy-clean {
+  text-align: center;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+
+.psy-mutation {
+  font-family: var(--font-body);
+  color: var(--ink);
+}

@@ -7,6 +7,7 @@ import { Rail } from './Rail';
 import { AppBar } from './AppBar';
 import type { ScreenId } from '@/data/nav';
 import { SCREEN_CRUMBS } from '@/data/nav';
+import { useCharacter } from '@/hooks/useCharacter';
 
 interface ShellProps {
   current: ScreenId;
@@ -21,7 +22,12 @@ export const Shell: React.FC<ShellProps> = ({ current, onNav, children }) => {
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
-  const crumbs = SCREEN_CRUMBS[current] ?? ['Karakter'];
+  // Character-scoped crumbs carry a placeholder name; swap in the active PC so
+  // the trail reflects whoever is selected, not the sample character.
+  const { template } = useCharacter();
+  const crumbs = (SCREEN_CRUMBS[current] ?? ['Character']).map(c =>
+    c === 'Sigmund Braun' ? template.name : c,
+  );
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right', 'bottom']}>

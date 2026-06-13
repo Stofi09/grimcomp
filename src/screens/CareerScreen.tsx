@@ -31,9 +31,11 @@ const REQS_BY_CHAR: Record<string, Array<{ name: string; min: number }>> = {
   ],
 };
 
-// XP cost to buy a career rank (WFRP 4e: 100 XP × rank number for current
-// career, but the prototype uses a flat 200 for simplicity).
-const ADVANCE_COST = 200;
+// XP to advance to the next level of the CURRENT career. WFRP 4e core p.49:
+// 100 XP to enter the next level (or a career in the same class); 200 only for
+// a brand-new career — not modelled here, since this screen only does
+// same-career rank-ups.
+const ADVANCE_COST = 100;
 
 export const CareerScreen: React.FC = () => {
   const { id, template: c } = useCharacter();
@@ -49,7 +51,9 @@ export const CareerScreen: React.FC = () => {
   const reqsForChar = REQS_BY_CHAR[id] ?? [];
   const required = reqsForChar.map(r => ({ ...r, adv: skillAdv[r.name] ?? 0 }));
   const ready = required.filter(s => s.adv >= s.min).length;
-  const ok = required.length > 0 && ready === required.length;
+  // When a character's per-rank requirements aren't modelled, don't hard-block
+  // advancement — let them spend the XP rather than be stuck forever.
+  const ok = required.length > 0 ? ready === required.length : true;
 
   // Per-rank picked talents — kept simple: the first N talents in the
   // character template are considered "taken" at the current rank.

@@ -1,0 +1,80 @@
+/* CombatScreen — weapons, armour, hit-location figure.
+   Ported 1:1 from src/screens/CombatScreen.tsx StyleSheet. */
+
+.cmb-sub {
+  font-size: 13px;
+  color: var(--ink3);
+  font-family: var(--font-body);
+}
+
+.cmb-row {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.cmb-figure-card {
+  width: 320px;
+  flex-shrink: 0;
+}
+
+.cmb-right {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 16px;
+  min-width: 360px;
+}
+
+.cmb-figure-box {
+  display: flex;
+  padding: 20px;
+  align-items: center;
+  justify-content: center;
+}
+
+.cmb-figure-foot {
+  padding: 14px 16px;
+  border-top: 1px solid var(--divider);
+}
+
+.cmb-row-between {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cmb-meta-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink3);
+  letter-spacing: 0.6px;
+}
+
+.cmb-total-mono {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.cmb-qual-row {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.cmb-weapon-name {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.cmb-weapon-name:hover {
+  color: var(--empire);
+}

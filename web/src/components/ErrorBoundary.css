@@ -1,0 +1,117 @@
+/* ErrorBoundary fallback — fills the screen content area (inside the shell
+   chrome) when a screen throws during render. Parchment-styled so it reads as
+   part of the app, not a browser crash page. Mirrors the ScreenContainer
+   scroll wrapper so it sits where the screen would have. */
+.gc-errbnd-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.gc-errbnd-content {
+  padding: 56px 36px;
+  display: flex;
+  justify-content: center;
+}
+
+.gc-errbnd-card {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  background: linear-gradient(to bottom, var(--ivory), var(--bone));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-deep);
+}
+
+.gc-errbnd-eyebrow {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 2.2px;
+  text-transform: uppercase;
+  color: var(--empire);
+}
+
+.gc-errbnd-title {
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 32px;
+  color: var(--ink);
+}
+
+.gc-errbnd-body {
+  margin-top: 12px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink2);
+}
+
+.gc-errbnd-message {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--empireTintBorder);
+  background: var(--empireTint);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 17px;
+  color: var(--ink2);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  max-height: 200px;
+}
+
+.gc-errbnd-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.gc-errbnd-btn {
+  padding: 8px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow-paper);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--ink);
+}
+
+.gc-errbnd-btn:hover {
+  background: var(--surface2);
+}
+
+.gc-errbnd-btn:active {
+  background: var(--surface3);
+  box-shadow: none;
+}
+
+.gc-errbnd-btn:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 1px;
+}
+
+.gc-errbnd-btn--primary {
+  background: var(--empire);
+  border-color: var(--empireDeep);
+  color: var(--ivory);
+}
+
+.gc-errbnd-btn--primary:hover {
+  background: var(--empireBright);
+}
+
+.gc-errbnd-btn--primary:active {
+  background: var(--empireDeep);
+}

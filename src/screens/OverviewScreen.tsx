@@ -1,18 +1,22 @@
 import React from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert, Pressable } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { useConditions } from '@/hooks/useConditions';
 import { useXp } from '@/hooks/useXp';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
+import { useTalents } from '@/hooks/useTalents';
+import { useVitals } from '@/hooks/useVitals';
 import { useCareer } from '@/hooks/useCareer';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
+import { computeMaxWounds, SMALL_SPECIES } from '@/data/character';
 import { Hero } from '@/components/Hero';
 import { Pill } from '@/components/Pill';
 import { Button } from '@/components/Button';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
 import { Bar, SegBar } from '@/components/Bar';
+import { Stepper } from '@/components/Stepper';
 import { Chip } from '@/components/Chip';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
@@ -26,6 +30,8 @@ export const OverviewScreen: React.FC = () => {
   const xp = useXp();
   const career = useCareer();
   const { get: getChar } = useCharacteristics();
+  const { list: talentList } = useTalents();
+  const vitals = useVitals();
   const { conds, cycle, names } = useConditions();
   // Live wounds (for the segmented bar) — same key WoundsScreen writes to.
   const [wounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
@@ -35,6 +41,11 @@ export const OverviewScreen: React.FC = () => {
   const wpb = Math.floor((c.characteristics.find(x => x.key === 'wp')!.init + getChar('wp')) / 10);
   const xpTotal = xp.total;
   const corrThresh = Math.max(1, tb + wpb);
+  // Max Wounds recomputed live from current bonuses (Halflings omit SB; Hardy
+  // adds TB per rank).
+  const small = SMALL_SPECIES.includes(c.species);
+  const hardyRanks = talentList.find(t => t.name === 'Hardy')?.times ?? 0;
+  const woundsMax = computeMaxWounds(sb, tb, wpb, c.species, hardyRanks);
 
   return (
     <ScreenContainer>
@@ -90,57 +101,73 @@ export const OverviewScreen: React.FC = () => {
           <View style={layoutStyles.rowBetween}>
             <View>
               <Text style={[styles.label, { color: colors.empire }]}>Wounds</Text>
-              <Text style={styles.sub}>SB {sb} + 2×TB {tb*2} + WPB {wpb} = {c.wounds.max}</Text>
+              <Text style={styles.sub}>{small ? null : `SB ${sb} + `}2×TB {tb*2} + WPB {wpb}{hardyRanks > 0 ? ` + Hardy ${hardyRanks * tb}` : ''} = {woundsMax}</Text>
             </View>
             <Text style={[styles.bigEmpire, tabular]}>
               {wounds}
-              <Text style={styles.bigFrac}>/{c.wounds.max}</Text>
+              <Text style={styles.bigFrac}>/{woundsMax}</Text>
             </Text>
           </View>
-          <SegBar total={c.wounds.max} filled={wounds} />
+          <SegBar total={woundsMax} filled={wounds} />
           <View style={[layoutStyles.rowBetween, { marginTop: 8 }]}>
             <Text style={styles.metaMono}>0 · CRITICAL</Text>
-            <Text style={styles.metaMono}>{c.wounds.max} · FULL</Text>
+            <Text style={styles.metaMono}>{woundsMax} · FULL</Text>
           </View>
         </Card>
 
         <Card style={[styles.vitalCol, { flexBasis: '28%' }]}>
-          <Text style={[styles.label, { color: colors.brass }]}>Fate & Fortune</Text>
-          <View style={[layoutStyles.row, { marginTop: 8, alignItems: 'baseline', gap: 14 }]}>
-            <View>
-              <Text style={styles.subUpper}>Fate</Text>
-              <Text style={[styles.bigBrass, tabular]}>{c.fate}</Text>
-            </View>
-            <View style={[layoutStyles.vr, { height: 50 }]} />
+          <View style={layoutStyles.rowBetween}>
+            <Text style={[styles.label, { color: colors.brass }]}>Fate & Fortune</Text>
+            <Pressable onPress={vitals.refreshFortune} hitSlop={6}>
+              <Text style={styles.refreshLink}>↻ new session</Text>
+            </Pressable>
+          </View>
+          <View style={[layoutStyles.row, { marginTop: 8, gap: 12, alignItems: 'center' }]}>
             <View>
               <Text style={styles.subUpper}>Fortune</Text>
-              <Text style={[styles.bigBrass, tabular, { opacity: 0.75 }]}>{c.fortune}</Text>
+              <Text style={[styles.bigBrass, tabular]}>
+                {vitals.fortune}<Text style={styles.bigCap}>/{vitals.fate}</Text>
+              </Text>
             </View>
+            <View style={{ flex: 1 }} />
+            <Stepper value={vitals.fortune} min={0} max={vitals.fate} onChange={vitals.setFortune} />
           </View>
           <View style={styles.dividerLine} />
-          <Text style={[styles.subText, { fontStyle: 'italic', fontSize: 10.5, color: colors.ink3 }]}>
-            Fortune refreshes at the start of each scene.
-          </Text>
+          <View style={layoutStyles.rowBetween}>
+            <Text style={styles.subUpper}>Fate · burn to cheat death</Text>
+            <Stepper value={vitals.fate} min={0} max={20} onChange={vitals.setFate} />
+          </View>
         </Card>
 
         <Card style={[styles.vitalCol, { flexBasis: '28%' }]}>
-          <Text style={styles.label}>Soul</Text>
-          <View style={styles.soulGrid}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.subUpper}>Res. / Det.</Text>
-              <Text style={[styles.medium, tabular]}>
-                {c.resilience}
-                <Text style={{ color: colors.ink3 }}>·{c.resolve}</Text>
-              </Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.subUpper, { color: colors.corruption }]}>Corruption</Text>
-              <Text style={[styles.medium, tabular, { color: colors.corruption }]}>
-                {c.corruption}<Text style={{ color: colors.ink3, fontSize: 14 }}>/{corrThresh}</Text>
-              </Text>
-            </View>
+          <View style={layoutStyles.rowBetween}>
+            <Text style={styles.label}>Soul</Text>
+            <Pressable onPress={vitals.refreshResolve} hitSlop={6}>
+              <Text style={styles.refreshLink}>↻ on motivation</Text>
+            </Pressable>
           </View>
-          <Bar value={c.corruption / corrThresh} variant="corr" style={{ marginTop: 10 }} />
+          <View style={[layoutStyles.row, { marginTop: 8, gap: 12, alignItems: 'center' }]}>
+            <View>
+              <Text style={styles.subUpper}>Resolve</Text>
+              <Text style={[styles.medium, tabular]}>
+                {vitals.resolve}<Text style={styles.bigCap}>/{vitals.resilience}</Text>
+              </Text>
+            </View>
+            <View style={{ flex: 1 }} />
+            <Stepper value={vitals.resolve} min={0} max={vitals.resilience} onChange={vitals.setResolve} />
+          </View>
+          <View style={[layoutStyles.rowBetween, { marginTop: 10 }]}>
+            <Text style={styles.subUpper}>Resilience</Text>
+            <Stepper value={vitals.resilience} min={0} max={20} onChange={vitals.setResilience} />
+          </View>
+          <View style={styles.dividerLine} />
+          <View style={layoutStyles.rowBetween}>
+            <Text style={[styles.subUpper, { color: colors.corruption }]}>
+              Corruption {vitals.corruption}/{corrThresh}
+            </Text>
+            <Stepper value={vitals.corruption} min={0} max={99} onChange={vitals.setCorruption} />
+          </View>
+          <Bar value={corrThresh > 0 ? Math.min(1, vitals.corruption / corrThresh) : 0} variant="corr" style={{ marginTop: 10 }} />
         </Card>
       </View>
 
@@ -258,6 +285,17 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.displayItalic,
     fontSize: 22,
     color: colors.ink3,
+  },
+  bigCap: {
+    fontFamily: fontFamilies.displayItalic,
+    fontSize: 18,
+    color: colors.ink3,
+  },
+  refreshLink: {
+    fontFamily: fontFamilies.bodyMedium,
+    fontSize: 10.5,
+    color: colors.brass,
+    letterSpacing: 0.4,
   },
   medium: {
     fontFamily: fontFamilies.display,

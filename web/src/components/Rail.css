@@ -1,0 +1,302 @@
+/* Rail — the parchment-tan navigation sidebar. Ported 1:1 from the RN Rail
+   StyleSheet (colors via theme.css custom properties; gradients inline). */
+.rail {
+  position: relative;
+  height: 100%;
+  border-right: 1px solid #6a5836;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  /* parchment-tan vertical gradient — matches the original LinearGradient */
+  background: linear-gradient(180deg, #d9c8a4 0%, #c9b78a 50%, #b9a472 100%);
+  flex: none;
+}
+
+/* embossed seam — inset shadow on the right edge */
+.rail-seam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 8px;
+  background: linear-gradient(90deg, rgba(40, 28, 10, 0), rgba(40, 28, 10, 0.25));
+  pointer-events: none;
+}
+
+/* hanging ribbon marker */
+.rail-ribbon {
+  position: absolute;
+  top: 0;
+  right: 24px;
+  width: 14px;
+  height: 70px;
+  background: linear-gradient(180deg, var(--empireBright) 0%, var(--empireDeep) 80%);
+  pointer-events: none;
+}
+
+.rail-inner {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-left: 14px;
+  padding-right: 14px;
+  padding-top: 18px;
+  padding-bottom: 24px;
+  scrollbar-width: none;
+}
+.rail-inner::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- brand block ---------- */
+.rail-brand {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding-left: 4px;
+  padding-right: 4px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(60, 40, 15, 0.18);
+  margin-bottom: 12px;
+}
+
+.rail-mark {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--brass);
+  background: var(--ivory);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.rail-mark-text {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--brass);
+  line-height: 24px;
+}
+
+.rail-wordmark {
+  font-family: var(--font-display);
+  font-size: 19px;
+  color: var(--ink);
+  line-height: 19px;
+}
+
+.rail-ver {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(60, 40, 15, 0.55);
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+
+/* ---------- character mini-card ---------- */
+.rail-char-card {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  margin-bottom: 14px;
+  background: var(--ivory);
+  border: 1px solid var(--borderStrong);
+  border-radius: 6px;
+  overflow: hidden;
+  transition: background 0.12s ease;
+}
+
+.rail-char-card:hover {
+  background: var(--bone);
+}
+
+.rail-char-top {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-top: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.rail-char-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.rail-name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rail-sub {
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  color: var(--ink3);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rail-vitals {
+  display: flex;
+  flex-direction: row;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+/* ---------- vital cells ---------- */
+.rail-vital {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.rail-vital--divider {
+  border-right: 1px solid var(--divider);
+}
+
+.rail-vital-label {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 8.5px;
+  letter-spacing: 1px;
+  color: var(--ink3);
+  text-transform: uppercase;
+}
+
+.rail-vital-value {
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: var(--ink);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rail-vital-sub {
+  font-size: 11px;
+  color: var(--ink3);
+}
+
+/* ---------- nav sections + items ---------- */
+.rail-section {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-top: 14px;
+  padding-bottom: 6px;
+}
+
+.rail-section-label {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 9.5px;
+  letter-spacing: 1.7px;
+  color: rgba(60, 40, 15, 0.55);
+  text-transform: uppercase;
+}
+
+.rail-section-rule {
+  flex: 1;
+  height: 1px;
+  background: rgba(60, 40, 15, 0.18);
+}
+
+.rail-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  border-radius: 3px;
+  transition: background 0.12s ease;
+}
+
+.rail-item:hover:not(.rail-item--active) {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.rail-item:active:not(.rail-item--active) {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.rail-item--active {
+  background: var(--ink);
+}
+
+.rail-item-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.rail-item-text {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink2);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.rail-item-text--active {
+  color: var(--bone);
+  font-weight: 500;
+}
+
+.rail-badge {
+  background: var(--inkSoft06);
+  border: 1px solid rgba(60, 40, 15, 0.1);
+  padding-left: 6px;
+  padding-right: 6px;
+  padding-top: 1px;
+  padding-bottom: 1px;
+  border-radius: 8px;
+  flex: none;
+}
+
+.rail-badge--active {
+  background: var(--brass);
+  border-color: var(--brass);
+}
+
+.rail-badge-text {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 9.5px;
+  color: var(--ink3);
+}
+
+.rail-badge-text--active {
+  color: var(--bone);
+}

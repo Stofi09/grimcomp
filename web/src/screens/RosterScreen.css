@@ -1,0 +1,183 @@
+/* RosterScreen — grid of character cards. Ported 1:1 from the RN RosterScreen
+   StyleSheet; RN Pressables are real <button>s, long-press delete becomes a
+   visible trash affordance plus a context-menu handler. */
+
+.rost-sub {
+  font-size: 13px;
+  color: var(--ink3);
+  font-family: var(--font-body);
+}
+
+/* grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 } */
+.rost-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* cellWrap: { flexBasis: '48%', flexGrow: 1, minWidth: 320 } */
+.rost-cell-wrap {
+  display: flex;
+  flex-basis: 48%;
+  flex-grow: 1;
+  min-width: 320px;
+}
+
+/* The whole card is the switch button; it fills its wrapper. */
+.rost-card-btn {
+  display: block;
+  width: 100%;
+  flex: 1;
+}
+
+/* row: { alignItems: 'flex-start', gap: 14 } */
+.rost-card-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+/* inner main column: { flex: 1, minWidth: 0 } */
+.rost-card-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* rowBetween for the name + pills */
+.rost-name-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rost-pills {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  flex: none;
+}
+
+.rost-name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--ink);
+  text-align: left;
+}
+
+.rost-meta {
+  display: block;
+  font-size: 12px;
+  color: var(--ink3);
+  margin-top: 2px;
+  font-family: var(--font-body);
+  text-align: left;
+}
+
+/* stats row: { gap: 18, marginTop: 12 } */
+.rost-stats-row {
+  display: flex;
+  flex-direction: row;
+  gap: 18px;
+  margin-top: 12px;
+}
+
+.rost-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.rost-meta-mono {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink3);
+  letter-spacing: 0.6px;
+}
+
+.rost-big-val {
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: var(--ink);
+}
+
+.rost-big-val--brass {
+  color: var(--brass);
+}
+
+/* { marginLeft: 'auto', alignSelf: 'center' } */
+.rost-chev {
+  margin-left: auto;
+  align-self: center;
+}
+
+/* Visible delete affordance for custom characters — top-right of the card,
+   above the switch button so its click isn't swallowed. */
+.rost-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  border: 1px solid var(--borderSoft);
+  background: var(--surface);
+  opacity: 0.55;
+  transition: opacity 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.rost-delete:hover {
+  opacity: 1;
+  border-color: var(--empireTintBorder);
+  background: var(--empireTint);
+}
+
+.rost-delete:active {
+  opacity: 0.8;
+}
+
+/* empty "New character" cell */
+.rost-empty-btn {
+  display: flex;
+  width: 100%;
+  flex: 1;
+}
+
+.rost-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  flex: 1;
+  width: 100%;
+}
+
+.rost-empty-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--ink);
+  margin-top: 6px;
+}
+
+.rost-empty-sub {
+  color: var(--ink3);
+  font-size: 12px;
+  font-family: var(--font-body);
+}
+
+/* tasteful hover on the whole switch card */
+.rost-cell-wrap .gc-card {
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.rost-card-btn:hover ~ .gc-card,
+.rost-cell-wrap:hover .gc-card {
+  box-shadow: var(--shadow-deep);
+}

@@ -36,15 +36,22 @@ export const FaithScreen: React.FC = () => {
 
   const pray = (prayer: Prayer) => {
     const r = resolveTest({ target: prayTarget, modifier: condMod.total, label: `Pray ${prayer.name}` });
+    // Wrath of the Gods: on ANY Pray test whose units die ≤ current Sin Points
+    // (WFRP 4e), regardless of pass/fail. Add +10 per Sin to the roll, then
+    // remove 1 Sin after resolving.
+    const units = r.roll % 10;
+    const wrathTriggered = sin > 0 && units <= sin;
 
-    if (r.outcome === 'fumble') {
-      // Wrath of the gods on a fumble. Adds a Sin point on top.
-      const wRoll = rollD100();
+    if (wrathTriggered) {
+      const wRoll = Math.min(100, rollD100() + 10 * sin);
       const wrath = rollOnTable(wrathTable, wRoll);
-      setSin(s => s + 1);
+      setSin(s => Math.max(0, s - 1));
+      const effectLine = r.success
+        ? `\n\nThe prayer is still answered: ${prayer.description}`
+        : `\n\nThe prayer falters.`;
       Alert.alert(
-        `${prayer.name} — ${outcomeLabel(r.outcome)}`,
-        `${formatTestResult(r)}\n\nWrath of the Gods (${wRoll}):\n${wrath}\n\n+1 Sin (${sin + 1} total).`,
+        `${prayer.name} — Wrath of the Gods`,
+        `${formatTestResult(r)}${effectLine}\n\nWrath (${wRoll}):\n${wrath}\n\n−1 Sin (now ${Math.max(0, sin - 1)}).`,
       );
       return;
     }
@@ -83,7 +90,7 @@ export const FaithScreen: React.FC = () => {
               <Button
                 variant="ghost"
                 iconLeft={<Icon name="info" size={12} color={colors.ink2} />}
-                onPress={() => Alert.alert('Sin table', 'Sin 1 → −10 to Faith. Sin 3 → harder spellcasting. Sin 5 → punitive event.')}
+                onPress={() => Alert.alert('Sin & Wrath', 'Sin accrues from breaking your cult\'s strictures. For the Anointed, any Pray test whose units die ≤ your Sin Points triggers Wrath of the Gods.')}
               >
                 Sin table
               </Button>
@@ -135,14 +142,14 @@ export const FaithScreen: React.FC = () => {
           <Text style={styles.label}>Sin</Text>
           <Text style={[styles.bigCorr, sin >= 3 ? { color: colors.empire } : null]}>{sin}</Text>
           <Text style={styles.body}>
-            Sin from broken dogma. At Sin {sin >= 5 ? 5 : sin >= 3 ? 3 : 1}+ your prayers risk Wrath of the Gods.
+            Sin from broken dogma. Each Pray test risks Wrath when the units die ≤ your Sin ({sin}).
           </Text>
           <View style={styles.controls}>
             <Stepper value={sin} min={0} max={10} onChange={setSin} />
             <Button
               variant="ghost"
               iconLeft={<Icon name="info" size={12} color={colors.ink2} />}
-              onPress={() => Alert.alert('Sin penalties', 'Sin 1 → −10 to all Pray tests.\nSin 3 → fumble on doubles, not just 96+.\nSin 5 → roll Wrath even on success.')}
+              onPress={() => Alert.alert('Sin & Wrath', 'On any Pray test, if the units die of the roll is ≤ your Sin Points, you suffer Wrath of the Gods (+10 to the Wrath roll per Sin Point). One Sin is removed after Wrath resolves. Gain Sin by breaking your cult\'s strictures.')}
             >
               Penalties
             </Button>

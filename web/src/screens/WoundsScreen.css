@@ -1,0 +1,99 @@
+/* WoundsScreen — wounds, conditions, critical injuries.
+   Ported 1:1 from src/screens/WoundsScreen.tsx StyleSheet. */
+
+.wnd-sub {
+  font-size: 13px;
+  color: var(--ink3);
+  font-family: var(--font-body);
+}
+
+.wnd-row {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wnd-flex-big {
+  flex: 2;
+  min-width: 360px;
+}
+
+.wnd-flex-small {
+  flex: 1;
+  min-width: 240px;
+}
+
+.wnd-row-between {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wnd-label {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 1.6px;
+  color: var(--ink3);
+  text-transform: uppercase;
+}
+
+.wnd-meta-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink3);
+}
+
+.wnd-current-row {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.wnd-spacer {
+  flex: 1;
+}
+
+.wnd-big-empire {
+  font-family: var(--font-display);
+  font-size: 56px;
+  line-height: 56px;
+  color: var(--empire);
+  font-variant-numeric: tabular-nums;
+}
+
+.wnd-big-frac {
+  font-size: 16px;
+  color: var(--ink3);
+}
+
+.wnd-meta-row {
+  margin-top: 8px;
+}
+
+.wnd-bar {
+  margin-top: 14px;
+}
+
+.wnd-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.wnd-action-btn {
+  align-self: stretch;
+}
+
+.wnd-chips {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 20px;
+}

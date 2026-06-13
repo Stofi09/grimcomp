@@ -1,0 +1,43 @@
+{
+  "$schema": "grimcomp.content.v2",
+  "id": "core-items",
+  "name": "Core Rulebook — Items",
+  "version": "2026.04.01",
+  "weapons": [
+    { "id": "wp.hand-weapon-sword", "name": "Hand Weapon (Sword)", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+4", "qual": ["Defensive"] },
+    { "id": "wp.longbow", "name": "Longbow", "group": "Bow", "enc": 1, "range": "90", "dmg": "4", "qual": ["Penetrating"] },
+    { "id": "wp.dagger", "name": "Dagger", "group": "Basic", "enc": 0, "reach": "Short", "dmg": "SB+2", "qual": [] },
+    { "id": "wp.quarterstaff", "name": "Quarterstaff", "group": "Two-handed", "enc": 2, "reach": "Long", "dmg": "SB+3", "qual": ["Defensive", "Pummel"] }
+  ],
+  "armour": [
+    { "id": "arm.mail-shirt", "name": "Mail Shirt", "locs": ["Body", "Arms"], "enc": 2, "ap": 2, "qual": ["Flexible"] },
+    { "id": "arm.open-helm", "name": "Open Helm", "locs": ["Head"], "enc": 1, "ap": 1, "qual": [] },
+    { "id": "arm.leather-leggings", "name": "Leather Leggings", "locs": ["Legs"], "enc": 1, "ap": 1, "qual": [] },
+    { "id": "arm.robe", "name": "Robe", "locs": ["Body", "Arms", "Legs"], "enc": 0, "ap": 0, "qual": ["Practical"] }
+  ],
+  "trappings": [
+    { "id": "tr.travel-cloak", "name": "Travel Cloak", "enc": 1 },
+    { "id": "tr.tinder-box", "name": "Tinder Box", "enc": 0 },
+    { "id": "tr.rope-10m", "name": "Rope (10m)", "enc": 1 },
+    { "id": "tr.torches", "name": "Torches ×3", "enc": 1 },
+    { "id": "tr.spare-clothing", "name": "Spare Clothing", "enc": 1 },
+    { "id": "tr.map-reikland", "name": "Map: Reikland", "enc": 0 },
+    { "id": "tr.rations-week", "name": "Rations (week)", "enc": 1 },
+    { "id": "tr.healing-draught", "name": "Healing Draught", "enc": 0 },
+    { "id": "tr.horn", "name": "Horn", "enc": 0 },
+    { "id": "tr.signet-ring", "name": "Family Signet Ring", "enc": 0 },
+    { "id": "tr.spellbook", "name": "Spellbook", "enc": 1 },
+    { "id": "tr.inks-quills", "name": "Inks & quills", "enc": 0 },
+    { "id": "tr.bright-order-pendant", "name": "Bright Order pendant", "enc": 0 },
+    { "id": "tr.candles", "name": "Candles ×6", "enc": 0 },
+    { "id": "tr.salt-pouch", "name": "Salt pouch", "enc": 0 },
+    { "id": "tr.notebook-sigils", "name": "Notebook of sigils", "enc": 0 },
+    { "id": "tr.robes-spare", "name": "Robes (spare)", "enc": 1 },
+    { "id": "tr.holy-symbol-dove", "name": "Holy symbol (dove)", "enc": 0 },
+    { "id": "tr.healing-salve", "name": "Healing salve ×3", "enc": 0 },
+    { "id": "tr.bandages", "name": "Bandages", "enc": 0 },
+    { "id": "tr.prayer-book-shallya", "name": "Prayer book of Shallya", "enc": 1 },
+    { "id": "tr.vestments", "name": "Vestments", "enc": 1 },
+    { "id": "tr.lantern", "name": "Lantern", "enc": 1 }
+  ]
+}

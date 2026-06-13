@@ -1,0 +1,143 @@
+/* CareerScreen — ported 1:1 from src/screens/CareerScreen.tsx StyleSheet.
+   The career-path timeline (2px connector line + 32px numbered dots), the
+   next-rank requirements table, and the rank-talent grid. */
+
+/* sub: { fontSize: 13, color: ink3, fontFamily: body } */
+.car-sub {
+  font-size: 13px;
+  color: var(--ink3);
+  font-family: var(--font-body);
+}
+
+/* sep: { color: ink4 } */
+.car-sep {
+  color: var(--ink4);
+}
+
+/* path: { flexDirection: 'row', position: 'relative' } */
+.car-path {
+  display: flex;
+  flex-direction: row;
+  position: relative;
+}
+
+/* pathCell: { flex: 1, paddingHorizontal: 10, alignItems: 'center',
+   position: 'relative' } */
+.car-path-cell {
+  flex: 1;
+  padding-left: 10px;
+  padding-right: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+/* line: { height: 2, position: 'absolute', top: 16 } — left/right set inline */
+.car-line {
+  height: 2px;
+  position: absolute;
+  top: 16px;
+}
+
+/* dot: { 32×32 / radius 16 / 2px border / center / marginBottom 10 / zIndex 2 } */
+.car-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  border-width: 2px;
+  border-style: solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+/* dotText: { display 15 } — color set inline */
+.car-dot-text {
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+
+/* levelName: { display 15 / ink / textAlign center } — empire override inline */
+.car-level-name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--ink);
+  text-align: center;
+}
+
+/* levelMeta: { mono 10 / ink3 / marginTop 2 } */
+.car-level-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink3);
+  margin-top: 2px;
+  text-align: center;
+}
+
+/* advanceFoot: { paddingHorizontal 16 / paddingVertical 14 /
+   borderTopWidth 1 / borderTopColor divider } */
+.car-advance-foot {
+  padding: 14px 16px;
+  border-top: 1px solid var(--divider);
+}
+
+/* layoutStyles.rowBetween */
+.car-row-between {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* label: { bodyBold 9.5 / tracking 1.6 / ink3 / uppercase } */
+.car-label {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 1.6px;
+  color: var(--ink3);
+  text-transform: uppercase;
+  display: block;
+}
+
+/* cost: { display 22 / ink / marginTop 4 } */
+.car-cost {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--ink);
+  margin-top: 4px;
+  display: block;
+}
+
+/* talentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 } */
+.car-talent-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* talentCell: { flexBasis: '23%', flexGrow: 1, minWidth: 160 } */
+.car-talent-cell {
+  flex-basis: 23%;
+  flex-grow: 1;
+  min-width: 160px;
+  display: flex;
+  text-align: left;
+  cursor: pointer;
+}
+
+.car-talent-cell:active {
+  opacity: 0.7;
+}
+
+/* talentName: { display 14 / ink } */
+.car-talent-name {
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: var(--ink);
+}

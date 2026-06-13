@@ -23,8 +23,8 @@ export const NAV: NavGroup[] = [
     items: [
       { id: 'overview', label: 'Overview', icon: 'shield' },
       { id: 'characteristics', label: 'Characteristics', icon: 'grid' },
-      { id: 'skills', label: 'Skills', icon: 'scroll', badge: '12' },
-      { id: 'talents', label: 'Talents', icon: 'star', badge: '5' },
+      { id: 'skills', label: 'Skills', icon: 'scroll' },
+      { id: 'talents', label: 'Talents', icon: 'star' },
       { id: 'career', label: 'Career', icon: 'crown' },
       { id: 'xp', label: 'XP Log', icon: 'book' },
     ],
@@ -36,7 +36,7 @@ export const NAV: NavGroup[] = [
       { id: 'wounds', label: 'Wounds & Conditions', icon: 'heart' },
       { id: 'magic', label: 'Magic', icon: 'sparkle' },
       { id: 'faith', label: 'Faith', icon: 'flame' },
-      { id: 'trappings', label: 'Trappings', icon: 'pack', badge: '10' },
+      { id: 'trappings', label: 'Trappings', icon: 'pack' },
       { id: 'psychology', label: 'Psychology', icon: 'mask' },
     ],
   },
@@ -44,7 +44,7 @@ export const NAV: NavGroup[] = [
     section: 'Rulebook',
     items: [
       { id: 'reference', label: 'Reference', icon: 'tome' },
-      { id: 'notes', label: 'Notes', icon: 'quill', badge: '7' },
+      { id: 'notes', label: 'Notes', icon: 'quill' },
     ],
   },
   {

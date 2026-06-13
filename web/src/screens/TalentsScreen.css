@@ -1,0 +1,150 @@
+/* TalentsScreen — ported 1:1 from src/screens/TalentsScreen.tsx StyleSheet.
+   A wrapping grid of talent cards with a "buy another rank" XP action, plus a
+   dashed "New talent" stub card. */
+
+/* sub: { fontSize: 13, color: ink2, fontFamily: body } */
+.tal-sub {
+  font-size: 13px;
+  color: var(--ink2);
+  font-family: var(--font-body);
+}
+
+/* sep: { color: ink4 } */
+.tal-sep {
+  color: var(--ink4);
+}
+
+/* grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 } */
+.tal-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* layoutStyles.row — flexDirection: 'row' */
+.tal-row {
+  display: flex;
+  flex-direction: row;
+}
+
+/* cell: { flexBasis: '48%', flexGrow: 1, minWidth: 280 } — for the Pressable add card */
+.tal-cell {
+  flex-basis: 48%;
+  flex-grow: 1;
+  min-width: 280px;
+  display: flex;
+}
+
+/* Pressable add card: pressed -> opacity 0.7; tasteful hover */
+.tal-add {
+  cursor: pointer;
+  text-align: left;
+}
+.tal-add:hover {
+  opacity: 0.85;
+}
+.tal-add:active {
+  opacity: 0.7;
+}
+
+/* titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' } */
+.tal-title-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* tName: displayItalic 18 / ink */
+.tal-name {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 18px;
+  color: var(--ink);
+}
+
+/* desc: ink3 12 / marginTop 6 / lineHeight 18 / body */
+.tal-desc {
+  display: block;
+  color: var(--ink3);
+  font-size: 12px;
+  margin-top: 6px;
+  line-height: 18px;
+  font-family: var(--font-body);
+}
+
+/* times column wrapper: { alignItems: 'flex-end', marginLeft: 14 } */
+.tal-times-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-left: 14px;
+}
+
+/* miniLabel: mono 9 / letterSpacing 1 / ink3 / uppercase */
+.tal-mini-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--ink3);
+  text-transform: uppercase;
+}
+
+/* times: displayItalic 24 / brass */
+.tal-times {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 24px;
+  color: var(--brass);
+}
+
+/* divider: { height: 1, backgroundColor: divider, marginVertical: 14 } */
+.tal-divider {
+  height: 1px;
+  background-color: var(--divider);
+  margin-top: 14px;
+  margin-bottom: 14px;
+}
+
+/* layoutStyles.rowBetween — row / space-between / center */
+.tal-row-between {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* next: mono 10 / ink3 / letterSpacing 0.6 */
+.tal-next {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink3);
+  letter-spacing: 0.6px;
+}
+
+/* empty: { alignItems: 'center', justifyContent: 'center', minHeight: 160 } */
+.tal-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+}
+
+/* emptyTitle: display 16 / ink / marginTop 6 */
+.tal-empty-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--ink);
+  margin-top: 6px;
+}
+
+/* emptySub: mono 10.5 / ink3 / marginTop 2 */
+.tal-empty-sub {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink3);
+  margin-top: 2px;
+}

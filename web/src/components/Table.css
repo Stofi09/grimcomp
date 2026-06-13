@@ -1,0 +1,59 @@
+/* Table / TableRow / Cell — flexbox port of the RN table primitives. */
+
+.tbl-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0;
+}
+
+.tbl-row-header {
+  background-color: var(--surface3);
+  border-bottom: 1px solid var(--border);
+}
+
+.tbl-row-divider {
+  border-bottom: 1px solid var(--divider);
+}
+
+/* Pressable rows (rendered as <button class="btn-reset">). */
+.tbl-row-press {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tbl-row-press:hover,
+.tbl-row-press:active {
+  background-color: var(--brassHighlight);
+}
+
+.tbl-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  flex: 1 1 0%;
+  min-width: 0;
+  padding: 9px 14px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.tbl-cell-header {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 1.4px;
+  color: var(--ink3);
+  text-transform: uppercase;
+}
+
+/* Declared after -header so num wins font-family/weight, as in the RN style order. */
+.tbl-cell-num {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}

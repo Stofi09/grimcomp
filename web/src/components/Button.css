@@ -1,0 +1,84 @@
+/* Button — parchment buttons with vertical-gradient variants. */
+.gc-btn {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 3px;
+  border: 1px solid;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: var(--shadow-paper);
+  box-sizing: border-box;
+}
+
+.gc-btn--large {
+  padding: 10px 18px;
+}
+
+.gc-btn-text {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+  color: inherit;
+}
+
+.gc-btn--large .gc-btn-text {
+  font-size: 13px;
+}
+
+.gc-btn-icon {
+  display: inline-flex;
+  flex-direction: column;
+}
+
+.gc-btn--default {
+  background: linear-gradient(180deg, var(--ivory), var(--surface2));
+  border-color: var(--borderStrong);
+  color: var(--ink);
+}
+
+.gc-btn--primary {
+  background: linear-gradient(180deg, var(--empireBright), var(--empireDeep));
+  border-color: var(--empireDeep);
+  color: var(--ivory);
+}
+
+.gc-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink2);
+  box-shadow: none;
+}
+
+.gc-btn--brass {
+  background: linear-gradient(180deg, var(--brassSoft), var(--brass));
+  border-color: var(--brass);
+  color: #2a2010;
+}
+
+/* web bonus — subtle hover */
+.gc-btn:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+
+.gc-btn--ghost:hover:not(:disabled) {
+  filter: none;
+  background: var(--inkSoft06);
+}
+
+/* RN pressed state: opacity 0.7 + scale 0.98 */
+.gc-btn:active:not(:disabled) {
+  opacity: 0.7;
+  transform: scale(0.98);
+}
+
+.gc-btn:disabled {
+  background: #c8b89d;
+  border-color: #8c7c64;
+  color: rgba(255, 245, 210, 0.7);
+  opacity: 0.85;
+  cursor: not-allowed;
+}

@@ -1,0 +1,81 @@
+/* TrappingsScreen — inventory, encumbrance, and coin.
+   Ported 1:1 from src/screens/TrappingsScreen.tsx StyleSheet. */
+
+.trp-sub {
+  font-size: 13px;
+  color: var(--ink3);
+  font-family: var(--font-body);
+}
+
+.trp-row {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.trp-row-between {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.trp-label {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 1.6px;
+  color: var(--ink3);
+  text-transform: uppercase;
+}
+
+/* Encumbrance counter value: { display 48, ink/empire } with nested /max. */
+.trp-enc-value {
+  font-family: var(--font-display);
+  font-size: 48px;
+}
+
+/* nested "/max" suffix: { display-italic 18, ink3 } */
+.trp-enc-frac {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 18px;
+  color: var(--ink3);
+}
+
+/* Wealth counter value: { display 28, brass } */
+.trp-wealth-value {
+  font-family: var(--font-display);
+  font-size: 28px;
+  color: var(--brass);
+}
+
+/* frac: { display-italic 14, ink3 } — the GC / SS / BP unit labels. */
+.trp-frac {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--ink3);
+}
+
+.trp-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.trp-muted {
+  color: var(--ink3);
+  font-size: 12px;
+  font-family: var(--font-body);
+}
+
+.trp-mono {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--ink);
+}

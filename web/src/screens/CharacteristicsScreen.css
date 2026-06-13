@@ -1,0 +1,194 @@
+/* CharacteristicsScreen — ported 1:1 from src/screens/CharacteristicsScreen.tsx
+   StyleSheet. The 10-stat profile grid, the cost-band table, and the suggested
+   purchase card. */
+
+/* sub: { fontSize: 13, color: ink2, fontFamily: body } */
+.chr-sub {
+  font-size: 13px;
+  color: var(--ink2);
+  font-family: var(--font-body);
+}
+
+/* sep: { color: ink4 } */
+.chr-sep {
+  color: var(--ink4);
+}
+
+/* statsGrid: { flexDirection: 'row', flexWrap: 'wrap',
+   marginHorizontal: -6, marginBottom: -12 } */
+.chr-stats-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-left: -6px;
+  margin-right: -6px;
+  margin-bottom: -12px;
+}
+
+/* statCell: { width: '20%', paddingHorizontal: 6, paddingBottom: 12 } —
+   now a container holding the tappable Stat plus a buy/undo stepper. */
+.chr-stat-cell {
+  width: 20%;
+  padding-left: 6px;
+  padding-right: 6px;
+  padding-bottom: 12px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+/* the tappable stat (rolls a test) */
+.chr-stat-test {
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.chr-stat-test:active {
+  opacity: 0.7;
+}
+
+/* the +/- buy/undo row under each stat */
+.chr-stat-buy {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chr-stat-cost {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink3);
+  white-space: nowrap;
+}
+
+/* purchaseRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 } */
+.chr-purchase-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* layoutStyles.rowBetween */
+.chr-row-between {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* the inline { alignItems: 'baseline' } override on the suggest title row */
+.chr-suggest-title-row {
+  align-items: baseline;
+}
+
+/* the { marginBottom: 6 } wrapper around the eyebrow */
+.chr-suggest-eyebrow-wrap {
+  margin-bottom: 6px;
+}
+
+/* eyebrow: { bodySemibold 10 / tracking 2.2 / brass / uppercase } */
+.chr-eyebrow {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 2.2px;
+  color: var(--brass);
+  text-transform: uppercase;
+}
+
+/* suggestTitle: { display 24 / ink } */
+.chr-suggest-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: var(--ink);
+}
+
+/* inner <Text style={{ color: brass }}>+5</Text> */
+.chr-suggest-plus {
+  color: var(--brass);
+}
+
+/* muted: { ink3 / 12 / body / lineHeight 18 } */
+.chr-muted {
+  color: var(--ink3);
+  font-size: 12px;
+  font-family: var(--font-body);
+  line-height: 18px;
+}
+
+/* the blurb under the title — inline { marginTop: 6 } */
+.chr-muted-blurb {
+  margin: 6px 0 0;
+}
+
+/* divider: { height 1 / divider / marginVertical 14 } */
+.chr-divider {
+  height: 1px;
+  background-color: var(--divider);
+  margin-top: 14px;
+  margin-bottom: 14px;
+}
+
+/* suggestRow: { flexDirection: 'row', alignItems: 'center',
+   justifyContent: 'space-around' } */
+.chr-suggest-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-around;
+}
+
+/* each NOW / AFTER / COST column — { alignItems: 'center' } */
+.chr-suggest-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* miniLabel: { mono 10 / tracking 1 / ink3 } */
+.chr-mini-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--ink3);
+}
+
+/* bigNum: { display 32 / ink / marginTop 4 } */
+.chr-big-num {
+  font-family: var(--font-display);
+  font-size: 32px;
+  color: var(--ink);
+  margin-top: 4px;
+}
+
+/* AFTER +5 value override: { color: brass } */
+.chr-big-num--brass {
+  color: var(--brass);
+}
+
+/* the inner " xp" suffix on COST — { fontSize: 14, color: ink3 } */
+.chr-cost-unit {
+  font-size: 14px;
+  color: var(--ink3);
+}
+
+/* arrow: { display 24 / brass } */
+.chr-arrow {
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: var(--brass);
+}
+
+/* the buy/other button row: layoutStyles.row + { marginTop: 14, gap: 8 } */
+.chr-buy-row {
+  display: flex;
+  flex-direction: row;
+  margin-top: 14px;
+  gap: 8px;
+}

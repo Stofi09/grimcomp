@@ -1,0 +1,123 @@
+.gc-alert-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 10, 5, 0.45);
+}
+
+.gc-alert-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 440px;
+  padding: 20px;
+  background: linear-gradient(to bottom, var(--ivory), var(--bone));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-deep);
+  outline: none;
+}
+
+.gc-alert-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 25px;
+  color: var(--ink);
+}
+
+.gc-alert-message {
+  margin-top: 8px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--ink2);
+  white-space: pre-wrap;
+}
+
+/* ≤3 buttons: right-aligned row */
+.gc-alert-buttons--row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+/* >3 buttons (action-sheet style): full-width scrollable stack */
+.gc-alert-buttons--stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 18px;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.gc-alert-buttons--stack .gc-alert-btn {
+  width: 100%;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.gc-alert-btn {
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow-paper);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--ink);
+}
+
+.gc-alert-btn:hover {
+  background: var(--surface2);
+}
+
+.gc-alert-btn:active {
+  background: var(--surface3);
+  box-shadow: none;
+}
+
+.gc-alert-btn:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 1px;
+}
+
+.gc-alert-btn--cancel {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--ink2);
+}
+
+.gc-alert-btn--cancel:hover {
+  background: var(--inkSoft06);
+}
+
+.gc-alert-btn--cancel:active {
+  background: var(--inkSoft08);
+}
+
+.gc-alert-btn--destructive {
+  background: var(--empire);
+  border-color: var(--empireDeep);
+  color: var(--ivory);
+}
+
+.gc-alert-btn--destructive:hover {
+  background: var(--empireBright);
+}
+
+.gc-alert-btn--destructive:active {
+  background: var(--empireDeep);
+}

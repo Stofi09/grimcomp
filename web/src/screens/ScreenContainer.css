@@ -1,0 +1,21 @@
+/* ScreenContainer — scroll wrapper with a centered max-width content column.
+   Mirrors the .content + .screen wrapper from the original RN ScreenContainer. */
+.sc-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sc-content {
+  padding-top: 28px; /* space.s5 */
+  padding-left: 36px;
+  padding-right: 36px;
+  padding-bottom: 56px;
+}
+
+.sc-screen {
+  max-width: 1080px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}

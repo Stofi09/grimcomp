@@ -1,0 +1,74 @@
+/*
+ * Parchment design system — single source of truth for the web app.
+ * Values mirror the original RN app's src/theme/colors.ts exactly
+ * (variable names preserve the camelCase keys of that map).
+ */
+:root {
+  /* surfaces */
+  --bg: #ece2d0;
+  --bg2: #e0d4bd;
+  --surface: #f6ecd8;
+  --surface2: #ebdfc6;
+  --surface3: #e2d4b6;
+  --border: #b9a787;
+  --borderSoft: #cdbfa3;
+  --borderStrong: #8d7a5b;
+  --divider: #d4c5a4;
+
+  /* ink */
+  --ink: #1f1812;
+  --ink2: #4a3e2f;
+  --ink3: #76654c;
+  /* --ink4 darkened from #a3927a (~2.6:1 on parchment, below WCAG AA) to reach
+     ~4.4:1 on the lightest surface. Used for de-emphasised hint text + subtle
+     separators. */
+  --ink4: #80694a;
+
+  /* accents */
+  --empire: #7d1f1f;
+  --empireDeep: #5a1313;
+  --empireBright: #a02a2a;
+  --brass: #8a6f1c;
+  --brassBright: #b8951f;
+  --brassSoft: #c9a227;
+  --gold: #d4af37;
+  --corruption: #5b3d6b;
+  --corruptionBright: #7a548c;
+  --bone: #f3e8d0;
+  --ivory: #fbf3df;
+  --candle: #d49a3a;
+
+  --success: #3a5d2c;
+  --warning: #a07810;
+  --info: #2f4f73;
+
+  /* tints */
+  --empireTint: rgba(125, 31, 31, 0.1);
+  --empireTintBorder: rgba(125, 31, 31, 0.35);
+  --brassTint: rgba(138, 111, 28, 0.12);
+  --brassTintBorder: rgba(138, 111, 28, 0.4);
+  --brassTintInk: #6a5612;
+  --corrTint: rgba(91, 61, 107, 0.1);
+  --corrTintBorder: rgba(91, 61, 107, 0.35);
+  --successTint: rgba(58, 93, 44, 0.1);
+  --successTintBorder: rgba(58, 93, 44, 0.35);
+  --warnTint: rgba(160, 120, 16, 0.12);
+  --warnTintBorder: rgba(160, 120, 16, 0.4);
+
+  --hoverHighlight: rgba(212, 175, 55, 0.05);
+  --brassHighlight: rgba(212, 175, 55, 0.08);
+
+  --inkSoft06: rgba(60, 40, 15, 0.06);
+  --inkSoft08: rgba(60, 40, 15, 0.08);
+  --inkSoft18: rgba(60, 40, 15, 0.18);
+  --inkSoft55: rgba(60, 40, 15, 0.55);
+
+  /* typography */
+  --font-display: 'IM Fell English', Georgia, serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* shadows */
+  --shadow-paper: 0 1px 4px rgba(60, 40, 15, 0.08);
+  --shadow-deep: 0 4px 12px rgba(60, 40, 15, 0.16);
+}

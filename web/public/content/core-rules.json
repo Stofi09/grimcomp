@@ -1,0 +1,165 @@
+{
+  "$schema": "grimcomp.content.v2",
+  "id": "core-rules",
+  "name": "Core Rulebook — Rules Tables",
+  "version": "2026.06.11",
+  "system": {
+    "test": {
+      "dice": { "count": 1, "sides": 100 },
+      "direction": "under",
+      "autoSuccess": { "min": 1, "max": 5 },
+      "autoFailure": { "min": 96, "max": 100 },
+      "doubles": true,
+      "sl": "floor(target / 10) - floor(roll / 10)",
+      "targetClamp": { "min": 0, "max": 100 }
+    },
+    "formulas": {
+      "bonus": "floor(value / 10)",
+      "maxWounds": "(small ? 0 : sb) + 2*tb + wpb + bonusRanks * tb",
+      "walk": "m * 2",
+      "run": "m * 4",
+      "maxEncumbrance": "sb + tb",
+      "corruptionThreshold": "max(1, tb + wpb)",
+      "restRecovery": "tb"
+    },
+    "currency": {
+      "units": [
+        { "key": "gc", "label": "GC", "factor": 240 },
+        { "key": "ss", "label": "SS", "factor": 12 },
+        { "key": "d", "label": "BP", "factor": 1 }
+      ],
+      "baseLabel": "brass"
+    },
+    "magic": {
+      "channellingSkillPrefix": "Channelling",
+      "castSkill": "Language (Magick)",
+      "channelChar": "wp",
+      "castChar": "int",
+      "minorMiscastTable": "miscast-minor",
+      "majorMiscastTable": "miscast-major"
+    },
+    "faith": {
+      "praySkill": "Pray",
+      "prayChar": "fel",
+      "wrathTable": "wrath",
+      "wrathBonusPerSin": 10
+    },
+    "combat": {
+      "rangedGroupPattern": "bow|cross|sling|throw|gun|fire",
+      "meleeChar": "ws",
+      "rangedChar": "bs",
+      "meleeSkillPattern": "Melee ({group})",
+      "rangedSkillPattern": "Ranged ({group})"
+    }
+  },
+  "conditions": [
+    { "name": "Ablaze", "maxStacks": 2, "description": "You are on fire and take damage each round until the flames are put out." },
+    { "name": "Bleeding", "maxStacks": 2, "description": "An open wound drains you, costing Wounds each round until staunched." },
+    { "name": "Blinded", "maxStacks": 2, "description": "You cannot see, failing tests that rely on sight and fighting at a penalty." },
+    { "name": "Broken", "maxStacks": 2, "description": "Your nerve has failed; you flee or cower and cannot take aggressive actions." },
+    { "name": "Deafened", "maxStacks": 2, "description": "You cannot hear, failing tests that rely on sound." },
+    { "name": "Entangled", "maxStacks": 2, "description": "You are caught or grappled and cannot move until you break free." },
+    { "name": "Fatigued", "maxStacks": 2, "penalty": -10, "description": "You are tired, suffering a penalty to all tests until you rest." },
+    { "name": "Poisoned", "maxStacks": 2, "description": "A toxin courses through you, costing Wounds each round until it passes." },
+    { "name": "Prone", "maxStacks": 2, "description": "You are knocked down and must spend an action to stand." },
+    { "name": "Stunned", "maxStacks": 2, "penalty": -10, "description": "You are dazed and reeling, suffering a penalty and unable to act effectively." },
+    { "name": "Surprised", "maxStacks": 2, "penalty": -20, "clearsAtSceneEnd": true, "description": "You were caught off guard and cannot react until the surprise passes." },
+    { "name": "Unconscious", "maxStacks": 2, "description": "You are knocked out and helpless until you recover your senses." }
+  ],
+  "xpRules": {
+    "characteristicAdvances": [
+      { "min": 0, "max": 5, "cost": 25 },
+      { "min": 6, "max": 10, "cost": 30 },
+      { "min": 11, "max": 15, "cost": 40 },
+      { "min": 16, "max": 20, "cost": 50 },
+      { "min": 21, "max": 25, "cost": 70 },
+      { "min": 26, "max": 30, "cost": 90 },
+      { "min": 31, "max": 35, "cost": 120 },
+      { "min": 36, "max": 40, "cost": 150 },
+      { "min": 41, "max": 45, "cost": 190 },
+      { "min": 46, "max": 999, "cost": 230 }
+    ],
+    "skillAdvances": [
+      { "min": 0, "max": 5, "cost": 10 },
+      { "min": 6, "max": 10, "cost": 15 },
+      { "min": 11, "max": 15, "cost": 20 },
+      { "min": 16, "max": 20, "cost": 30 },
+      { "min": 21, "max": 25, "cost": 40 },
+      { "min": 26, "max": 30, "cost": 60 },
+      { "min": 31, "max": 35, "cost": 80 },
+      { "min": 36, "max": 40, "cost": 110 },
+      { "min": 41, "max": 45, "cost": 140 },
+      { "min": 46, "max": 999, "cost": 180 }
+    ],
+    "talentCostPerRank": 100,
+    "careerAdvanceCost": 100,
+    "nonCareerSkillMultiplier": 2,
+    "quickAwards": [50, 100, 150, 200],
+    "buyStep": 5
+  },
+  "characteristics": [
+    { "key": "ws", "name": "Weapon Skill", "short": "WS" },
+    { "key": "bs", "name": "Ballistic Skill", "short": "BS" },
+    { "key": "s", "name": "Strength", "short": "S" },
+    { "key": "t", "name": "Toughness", "short": "T" },
+    { "key": "i", "name": "Initiative", "short": "I" },
+    { "key": "ag", "name": "Agility", "short": "Ag" },
+    { "key": "dex", "name": "Dexterity", "short": "Dex" },
+    { "key": "int", "name": "Intelligence", "short": "Int" },
+    { "key": "wp", "name": "Willpower", "short": "WP" },
+    { "key": "fel", "name": "Fellowship", "short": "Fel" }
+  ],
+  "hitLocations": [
+    { "min": 1, "max": 10, "key": "head", "label": "Head" },
+    { "min": 11, "max": 20, "key": "leg_r", "label": "Right Leg" },
+    { "min": 21, "max": 35, "key": "leg_l", "label": "Left Leg" },
+    { "min": 36, "max": 50, "key": "body", "label": "Body" },
+    { "min": 51, "max": 70, "key": "arm_r", "label": "Right Arm" },
+    { "min": 71, "max": 85, "key": "arm_l", "label": "Left Arm" },
+    { "min": 86, "max": 100, "key": "body", "label": "Body" }
+  ],
+  "figureLabels": {
+    "head": "FEJ",
+    "body": "TEST",
+    "arm_l": "B. KAR",
+    "arm_r": "J. KAR",
+    "leg_l": "B. LÁB",
+    "leg_r": "J. LÁB"
+  },
+  "criticals": [
+    { "name": "Bruised Muscle", "effect": "Painful throb. −10 to physical tests for 1 round.", "days": 2 },
+    { "name": "Crushed Bone", "effect": "A grinding crack. −10 to all tests using that location.", "days": 7 },
+    { "name": "Torn Tendon", "effect": "Movement halved when the location is used.", "days": 14 },
+    { "name": "Severed Artery", "effect": "Bleeding ×2 until staunched.", "days": 21 },
+    { "name": "Deep Cut", "effect": "Bleeding 1; cosmetic scar.", "days": 5 }
+  ],
+  "woundsRules": {
+    "smallSizes": ["Small"],
+    "bonusTalent": "Hardy"
+  },
+  "noteSeeds": {
+    "notes": [
+      { "cat": "Sin", "title": "Sin thresholds and penalties", "src": "official", "body": "Sin 1 → −10 Faith. Sin 3 → harder spellcasting. Sin 5 → punitive event." },
+      { "cat": "Miscast", "title": "Minor Miscast table", "src": "official", "body": "Roll d100, apply the listed effect. The GM may flavour it." },
+      { "cat": "Miscast", "title": "Major Miscast table", "src": "official", "body": "Corruption point and additional consequences." },
+      { "cat": "Fear", "title": "Fear & Terror thresholds", "src": "official", "body": "WP test; on failure the Broken condition." },
+      { "cat": "House", "title": "Our group: 1 Fate per scene", "src": "local", "body": "A Fate refreshes at the start of every scene to keep things moving." },
+      { "cat": "GM", "title": "Eberfeld road encounters", "src": "local", "body": "Encounter table for the Eberfeld–Ubersreik road." },
+      { "cat": "Sin", "title": "Sigmund's personal Sin list", "src": "local", "body": "Specific deeds that count as Sin for a Sigmar follower." }
+    ],
+    "categories": [
+      { "value": "Sin", "label": "Sin" },
+      { "value": "Miscast", "label": "Miscast" },
+      { "value": "Channelling", "label": "Channelling" },
+      { "value": "Fear", "label": "Fear" },
+      { "value": "Corruption", "label": "Corruption" },
+      { "value": "Mutation", "label": "Mutation" },
+      { "value": "House", "label": "House rule" },
+      { "value": "GM", "label": "GM" }
+    ],
+    "srcOptions": [
+      { "value": "local", "label": "House" },
+      { "value": "official", "label": "Official" }
+    ]
+  }
+}

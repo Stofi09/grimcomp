@@ -1,0 +1,159 @@
+/* EditSheet — centred modal sheet over a dimmed backdrop. */
+
+.esh-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-color: rgba(15, 10, 5, 0.45);
+}
+
+.esh-backdrop-tap {
+  position: absolute;
+  inset: 0;
+  cursor: default;
+}
+
+.esh-sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90%;
+  background: linear-gradient(to bottom, var(--ivory), var(--bone));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgba(60, 40, 15, 0.35);
+  outline: none;
+}
+
+.esh-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px 10px;
+  border-bottom: 1px solid var(--divider);
+  flex: none;
+}
+
+.esh-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.esh-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--ink);
+}
+
+.esh-subtitle {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink3);
+  margin-top: 2px;
+}
+
+.esh-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  background-color: var(--surface2);
+  transform: rotate(45deg); /* turns the "plus" icon into an "x" */
+  cursor: pointer;
+  flex: none;
+}
+
+.esh-close:hover {
+  background-color: var(--surface3);
+}
+
+.esh-close:active {
+  opacity: 0.6;
+}
+
+.esh-body {
+  padding: 14px 20px;
+  max-height: 480px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.esh-footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-top: 1px solid var(--divider);
+  flex: none;
+}
+
+.esh-footer-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+
+/* Footer buttons — mirror the RN Button ghost/primary variants. */
+.esh-btn {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+}
+
+.esh-btn:active:not(:disabled) {
+  opacity: 0.7;
+  transform: scale(0.98);
+}
+
+.esh-btn-ghost {
+  background-color: transparent;
+  color: var(--ink2);
+}
+
+.esh-btn-ghost:hover {
+  background-color: var(--inkSoft06);
+}
+
+.esh-btn-destructive {
+  color: var(--empire);
+}
+
+.esh-btn-primary {
+  background: linear-gradient(to bottom, var(--empireBright), var(--empireDeep));
+  border-color: var(--empireDeep);
+  color: var(--ivory);
+  box-shadow: var(--shadow-paper);
+}
+
+.esh-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.esh-btn-primary:disabled {
+  background: #c8b89d;
+  border-color: #8c7c64;
+  color: rgba(255, 245, 210, 0.7);
+  opacity: 0.85;
+  cursor: default;
+  filter: none;
+}

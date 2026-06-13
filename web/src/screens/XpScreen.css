@@ -1,0 +1,17 @@
+/* XpScreen — ported 1:1 from src/screens/XpScreen.tsx StyleSheet.
+   Award-XP hero action, three summary counters, and the gain/spend log table. */
+
+/* sub: { fontSize: 13, color: ink3, fontFamily: body } */
+.xp-sub {
+  font-size: 13px;
+  color: var(--ink3);
+  font-family: var(--font-body);
+}
+
+/* row: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' } */
+.xp-row {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  flex-wrap: wrap;
+}

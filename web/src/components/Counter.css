@@ -1,0 +1,68 @@
+/* Counter — labelled big-number card (Fate, Resilience, XP, ...). */
+.gc-counter {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  padding: 14px 16px;
+  background-color: var(--ivory);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: var(--shadow-paper);
+  box-sizing: border-box;
+}
+
+.gc-counter--feature {
+  padding: 18px 20px;
+}
+
+.gc-counter-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.gc-counter-label {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 1.6px;
+  color: var(--ink3);
+  text-transform: uppercase;
+}
+
+.gc-counter--fate .gc-counter-label {
+  color: var(--brass);
+}
+
+.gc-counter--empire .gc-counter-label {
+  color: var(--empire);
+}
+
+.gc-counter-sub {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink3);
+  margin-top: 3px;
+  letter-spacing: 0.2px;
+}
+
+.gc-counter-value {
+  font-family: var(--font-display);
+  font-size: 48px;
+  line-height: 48px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.gc-counter--fate .gc-counter-value {
+  color: var(--brass);
+}
+
+.gc-counter--empire .gc-counter-value {
+  color: var(--empire);
+}
+
+.gc-counter--corr .gc-counter-value {
+  color: var(--corruption);
+}

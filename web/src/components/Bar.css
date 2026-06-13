@@ -1,0 +1,57 @@
+/* Bar — horizontal progress track with vertical-gradient fill. */
+.gc-bar {
+  height: 8px;
+  background-color: var(--surface3);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--divider);
+  box-sizing: border-box;
+}
+
+.gc-bar--lg {
+  height: 14px;
+}
+
+.gc-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.gc-bar-fill--empire {
+  background: linear-gradient(180deg, var(--empireBright), var(--empireDeep));
+}
+
+.gc-bar-fill--brass {
+  background: linear-gradient(180deg, var(--brassSoft), var(--brass));
+}
+
+.gc-bar-fill--success {
+  background: linear-gradient(180deg, #4d7a3a, var(--success));
+}
+
+.gc-bar-fill--corr {
+  background: linear-gradient(180deg, var(--corruptionBright), var(--corruption));
+}
+
+/* SegBar — segmented cells, filled left to right. */
+.gc-segbar {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  height: 18px;
+}
+
+.gc-segbar-cell {
+  flex: 1;
+  background-color: var(--surface3);
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.gc-segbar-cell--on {
+  border-color: var(--empireDeep);
+  background: linear-gradient(180deg, var(--empireBright), var(--empireDeep));
+}

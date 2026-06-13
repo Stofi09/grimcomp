@@ -54,6 +54,8 @@ export interface Race {
   name: string;
   /** Flat modifiers applied to rolled starting characteristic values. */
   charModifiers: Partial<Record<CharacteristicKey, number>>;
+  /** Size band. "Small" species (Halflings) omit SB from their Wounds. */
+  size?: string;
   movement: number;
   fate: number;
   resilience: number;

@@ -1,0 +1,47 @@
+/* SkillsScreen — ported 1:1 from the RN SkillsScreen StyleSheet.
+   Career + Other skill tables with an XP-economy Stepper per row. */
+
+/* sub: { fontSize: 13, color: ink2, fontFamily: body } */
+.skl-sub {
+  font-size: 13px;
+  color: var(--ink2);
+  font-family: var(--font-body);
+}
+
+/* sep: { color: ink4 } */
+.skl-sep {
+  color: var(--ink4);
+}
+
+/* nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' } */
+.skl-name-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* skillName: { fontFamily: bodyMedium, fontSize: 12, color: ink } */
+.skl-name {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+/* purchaseCell: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' } */
+.skl-purchase-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* cost: { fontFamily: mono, fontSize: 10, color: ink3 } */
+.skl-cost {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink3);
+}

@@ -71,6 +71,31 @@ export const MagicScreen: React.FC = () => {
 
   const channel = () => {
     const r = resolveTest({ target: channelTarget, modifier: condMod.total, label: 'Channelling' });
+    const isDouble = r.roll >= 11 && r.roll <= 99 && Math.floor(r.roll / 10) === (r.roll % 10);
+
+    if (isDouble) {
+      // A double while channelling is a Miscast. A successful (Critical) channel
+      // is a Minor Miscast that still banks its SL; a failed double is a fumble →
+      // Major Miscast and the pool is lost.
+      const mRoll = rollD100();
+      if (r.success) {
+        const slGain = Math.max(0, r.sl);
+        const newPool = pool + slGain;
+        setPool(newPool);
+        Alert.alert(
+          'Channelling — Minor Miscast',
+          `${formatTestResult(r)}\n\nMISCAST (${mRoll}):\n${rollOnTable(miscastMinor, mRoll)}\n\nPool still gained ${slGain} SL → ${newPool} total.`,
+        );
+      } else {
+        setPool(0);
+        Alert.alert(
+          'Channelling — Major Miscast',
+          `${formatTestResult(r)}\n\nMISCAST (${mRoll}):\n${rollOnTable(miscastMajor, mRoll)}\n\nChannelling pool lost.`,
+        );
+      }
+      return;
+    }
+
     const slGain = Math.max(0, r.sl);
     const newPool = pool + slGain;
     if (r.success) setPool(newPool);
@@ -92,14 +117,18 @@ export const MagicScreen: React.FC = () => {
     const usedPool = pool;
     setPool(0); // Pool spends regardless of success.
 
+    // A double on the casting roll is a Miscast (WFRP 4e), whether or not the
+    // spell goes off — not merely a fumble (96–00).
+    const isDouble = r.roll >= 11 && r.roll <= 99 && Math.floor(r.roll / 10) === (r.roll % 10);
+
     let body = `${formatTestResult(r)}\n\nChannelling pool used: +${usedPool} SL\nTotal SL: ${totalSl}\nNeeded: ${spell.cn}\n\n`;
 
-    if (r.outcome === 'fumble') {
-      // Miscast. Severity scales with whether the caster already had condition
-      // stacks (interpreted loosely as "stressed caster").
-      const stressed = condMod.parts.length > 0;
+    if (isDouble) {
       const mRoll = rollD100();
-      body += `MISCAST (${mRoll}):\n${rollOnTable(stressed ? miscastMajor : miscastMinor, mRoll)}`;
+      body += `MISCAST (${mRoll}):\n${rollOnTable(miscastMinor, mRoll)}`;
+      if (reachedCN) {
+        body += `\n\n…the spell still resolves: ${spell.description}${spell.damage ? `\nDamage: ${spell.damage}` : ''}`;
+      }
     } else if (reachedCN) {
       body += `→ ${spell.name} resolves!\n${spell.description}${spell.damage ? `\nDamage: ${spell.damage}` : ''}`;
     } else {

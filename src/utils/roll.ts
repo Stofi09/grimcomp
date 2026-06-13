@@ -91,10 +91,9 @@ export function resolveTest(input: RollInput): RollResult {
     success = false;
   }
 
-  // SL formula per WFRP 4e core p.151: success → (target tens − roll tens);
-  // failure → −(roll tens − target tens). On crit success / fumble bands the
-  // SL still reads off the same delta.
-  const sl = success ? tens(effective) - tens(roll) : tens(effective) - tens(roll);
+  // SL per WFRP 4e core p.151: (target tens − roll tens). Positive on success,
+  // negative on failure; the same delta is read on the crit/fumble bands.
+  const sl = tens(effective) - tens(roll);
 
   return {
     label: input.label,

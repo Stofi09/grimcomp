@@ -183,9 +183,9 @@ const SIGMUND: Character = {
     { name: 'Outdoor Survival', char: 'int', adv: 10, career: true, advanced: false },
     { name: 'Intimidate', char: 's', adv: 5, career: true, advanced: false },
     { name: 'Track', char: 'i', adv: 5, career: true, advanced: true },
-    { name: 'Lore (Heraldry)', char: 'fel', adv: 0, career: true, advanced: true },
+    { name: 'Lore (Heraldry)', char: 'int', adv: 0, career: true, advanced: true },
     { name: 'Athletics', char: 'ag', adv: 5, career: false, advanced: false },
-    { name: 'Animal Care', char: 'fel', adv: 5, career: false, advanced: false },
+    { name: 'Animal Care', char: 'int', adv: 5, career: false, advanced: false },
     { name: 'Endurance', char: 't', adv: 10, career: false, advanced: false },
     { name: 'Haggle', char: 'fel', adv: 0, career: false, advanced: false },
   ],
@@ -518,6 +518,25 @@ export const DEFAULT_CHARACTER_ID = 'c1';
 /** Look up a character template, falling back to Sigmund. */
 export function getTemplate(id: string): Character {
   return CHARACTER_TEMPLATES[id] ?? CHARACTER_TEMPLATES[DEFAULT_CHARACTER_ID];
+}
+
+/** Species whose Small size excludes Strength Bonus from the Wounds total. */
+export const SMALL_SPECIES = ['Halfling'];
+
+/**
+ * Live maximum Wounds from current characteristic bonuses (WFRP 4e):
+ * SB + 2×TB + WPB. Small species (Halflings) omit the Strength Bonus.
+ * The Hardy talent adds TB per rank taken.
+ */
+export function computeMaxWounds(
+  sb: number,
+  tb: number,
+  wpb: number,
+  species: string,
+  hardyRanks = 0,
+): number {
+  const small = SMALL_SPECIES.includes(species);
+  return (small ? 0 : sb) + 2 * tb + wpb + hardyRanks * tb;
 }
 
 // Backwards-compat default for code paths not yet ported off the static

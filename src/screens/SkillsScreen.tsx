@@ -18,13 +18,15 @@ import { Icon } from '@/components/Icon';
 import { Table, TableRow, Cell } from '@/components/Table';
 import { colors, fontFamilies } from '@/theme';
 
-// XP cost band for the *next* +5, given current adv (career skills only).
-// Source: WFRP 4e core book p.49.
-const careerBracket = (adv: number) =>
-  adv < 5 ? 25 : adv < 10 ? 30 : adv < 15 ? 40 : adv < 20 ? 50 : adv < 25 ? 70 : adv < 30 ? 90 : adv < 35 ? 120 : 150;
+// Per-advance (+1) Skill XP cost (WFRP 4e core p.48). Skills are CHEAPER than
+// characteristics and follow their own curve, keyed to advances already bought.
+const perSkillAdvance = (adv: number) =>
+  adv < 5 ? 10 : adv < 10 ? 15 : adv < 15 ? 20 : adv < 20 ? 30 : adv < 25 ? 40 : adv < 30 ? 60 : adv < 35 ? 80 : adv < 40 ? 110 : adv < 45 ? 140 : 180;
 
-// Non-career: +5 surcharge stacks on top.
-const otherBracket = (adv: number) => careerBracket(adv) + 5;
+// A +5 purchase is five advances within one band, so it costs five times the
+// per-advance rate. Non-career advances cost double the listed rate (core p.48).
+const careerBracket = (adv: number) => 5 * perSkillAdvance(adv);
+const otherBracket = (adv: number) => 2 * careerBracket(adv);
 
 export const SkillsScreen: React.FC = () => {
   const { id, template: c } = useCharacter();
@@ -108,7 +110,7 @@ export const SkillsScreen: React.FC = () => {
         career
       />
 
-      <Section title="Other" aside="+5 xp surcharge" />
+      <Section title="Other" aside="2× cost · non-career" />
       <SkillTable
         skills={c.skills.filter(s => !s.career)}
         advances={advances}

@@ -18,9 +18,14 @@ import { Table, TableRow, Cell } from '@/components/Table';
 import { colors, fontFamilies } from '@/theme';
 import { tabular, layoutStyles } from '@/components/primitives';
 
-// XP cost band given current adv. WFRP 4e core p.49.
-const bracket = (adv: number) =>
-  adv < 5 ? 25 : adv < 10 ? 30 : adv < 15 ? 40 : adv < 20 ? 50 : adv < 25 ? 70 : adv < 30 ? 90 : adv < 35 ? 120 : 150;
+// Per-advance (+1) XP cost from the WFRP 4e table (core p.48–49), keyed by how
+// many advances have already been bought.
+const perAdvance = (adv: number) =>
+  adv < 5 ? 25 : adv < 10 ? 30 : adv < 15 ? 40 : adv < 20 ? 50 : adv < 25 ? 70 : adv < 30 ? 90 : adv < 35 ? 120 : adv < 40 ? 150 : adv < 45 ? 190 : 230;
+
+// A purchase raises the characteristic by +5 — five advances, all within the
+// same band — so it costs five times the per-advance rate.
+const stepCost = (adv: number) => 5 * perAdvance(adv);
 
 // The screen's "suggested" focus is always Weapon Skill — the design picked it
 // for the Roadwarden, and it remains the cheapest path to rank 3 requirements.
@@ -46,14 +51,14 @@ export const CharacteristicsScreen: React.FC = () => {
 
   const suggest = list.find(c => c.key === SUGGEST_KEY)!;
   const advNow = get(SUGGEST_KEY);
-  const cost = bracket(advNow);
-  const highlightIdx = xpCosts.findIndex(b => b.cost === cost);
+  const cost = stepCost(advNow);
+  const highlightIdx = xpCosts.findIndex(b => b.cost === perAdvance(advNow));
 
   const buy = (key: CharacteristicKey) => {
     const c = list.find(x => x.key === key)!;
     const cur = get(key);
     const next = cur + 5;
-    const cost = bracket(cur);
+    const cost = stepCost(cur);
     const reason = `${c.name} +${cur} → +${next}`;
     const r = xp.spend(cost, reason, 'char');
     if (!r.ok) {
@@ -70,7 +75,7 @@ export const CharacteristicsScreen: React.FC = () => {
     const buttons = list
       .filter(c => c.key !== SUGGEST_KEY)
       .map(c => ({
-        text: `${c.name} (+${c.adv} → +${c.adv + 5}) · ${bracket(c.adv)} XP`,
+        text: `${c.name} (+${c.adv} → +${c.adv + 5}) · ${stepCost(c.adv)} XP`,
         onPress: () => buy(c.key),
       }));
     Alert.alert(
@@ -111,11 +116,11 @@ export const CharacteristicsScreen: React.FC = () => {
         ))}
       </View>
 
-      <Section title="Buy advances" aside="XP cost tables" />
+      <Section title="Buy advances" aside="per advance · +5 = five advances" />
 
       <View style={styles.purchaseRow}>
         <Card flush style={styles.costCard}>
-          <CardHead title="Cost bands" meta="advance · xp" />
+          <CardHead title="Cost bands" meta="per advance · xp" />
           <Table>
             <TableRow header>
               <Cell header flex={1}>Advance</Cell>

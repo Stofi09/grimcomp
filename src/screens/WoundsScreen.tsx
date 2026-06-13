@@ -1,11 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
-import { type Critical } from '@/data/character';
+import { computeMaxWounds, SMALL_SPECIES, type Critical } from '@/data/character';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
+import { useTalents } from '@/hooks/useTalents';
+import { useVitals } from '@/hooks/useVitals';
 import { useCharacterCollection } from '@/hooks/useCharacterCollection';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -53,7 +55,16 @@ export const WoundsScreen: React.FC = () => {
   const [wounds, setWounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
   const { conds, cycle, names } = useConditions();
   const { list: chars } = useCharacteristics();
+  const { list: talentList } = useTalents();
+  const vitals = useVitals();
   const tb = chars.find(x => x.key === 't')?.bonus ?? 0;
+  const sb = chars.find(x => x.key === 's')?.bonus ?? 0;
+  const wpb = chars.find(x => x.key === 'wp')?.bonus ?? 0;
+  // Max Wounds recomputed live from current bonuses (Halflings omit SB; Hardy
+  // adds TB per rank).
+  const small = SMALL_SPECIES.includes(c.species);
+  const hardyRanks = talentList.find(t => t.name === 'Hardy')?.times ?? 0;
+  const woundsMax = computeMaxWounds(sb, tb, wpb, c.species, hardyRanks);
 
   // Live critical wounds + the shared conditions map (so "End of scene" can
   // tick conditions down too).
@@ -64,6 +75,8 @@ export const WoundsScreen: React.FC = () => {
   );
 
   const endOfScene = () => {
+    // Fortune refreshes back up to Fate at a new session/scene.
+    vitals.refreshFortune();
     // Tick every active critical's heal-days down by 1; remove any that reach 0.
     const before = crits.items.length;
     const next = crits.items
@@ -90,7 +103,7 @@ export const WoundsScreen: React.FC = () => {
 
     Alert.alert(
       'End of scene',
-      `Fortune refreshed.\n` +
+      `Fortune refreshed to ${vitals.fate}.\n` +
       `${healed} critical${healed === 1 ? '' : 's'} healed.\n` +
       `${removed} condition${removed === 1 ? '' : 's'} cleared, the rest tick down by 1.`,
     );
@@ -124,15 +137,15 @@ export const WoundsScreen: React.FC = () => {
         <Card style={[styles.flexBig]}>
           <View style={layoutStyles.rowBetween}>
             <Text style={styles.label}>Current wounds</Text>
-            <Text style={styles.metaMono}>max {c.wounds.max} = SB + 2×TB + WPB</Text>
+            <Text style={styles.metaMono}>max {woundsMax} = {small ? '' : 'SB + '}2×TB + WPB{hardyRanks > 0 ? ' + Hardy' : ''}</Text>
           </View>
           <View style={[layoutStyles.row, { gap: 16, marginTop: 10, alignItems: 'baseline' }]}>
             <Text style={[styles.bigEmpire, tabular]}>{wounds}</Text>
-            <Text style={styles.bigFrac}>/ {c.wounds.max}</Text>
+            <Text style={styles.bigFrac}>/ {woundsMax}</Text>
             <View style={{ flex: 1 }} />
-            <Stepper value={wounds} min={0} max={c.wounds.max} onChange={setWounds} />
+            <Stepper value={wounds} min={0} max={woundsMax} onChange={setWounds} />
           </View>
-          <Bar value={wounds / c.wounds.max} variant="empire" large style={{ marginTop: 14 }} />
+          <Bar value={woundsMax > 0 ? wounds / woundsMax : 0} variant="empire" large style={{ marginTop: 14 }} />
           <View style={[layoutStyles.rowBetween, { marginTop: 8 }]}>
             <Text style={styles.metaMono}>0 · roll critical</Text>
             <Text style={styles.metaMono}>max · full health</Text>
@@ -146,7 +159,7 @@ export const WoundsScreen: React.FC = () => {
               iconLeft={<Icon name="heart" size={13} color={colors.ink} />}
               style={{ alignSelf: 'stretch' }}
               onPress={() => {
-                setWounds(w => Math.min(c.wounds.max, w + tb));
+                setWounds(w => Math.min(woundsMax, w + tb));
                 Alert.alert('Rest', `Recovered ${tb} wounds (TB).`);
               }}
             >
@@ -156,7 +169,7 @@ export const WoundsScreen: React.FC = () => {
               iconLeft={<Icon name="dice" size={13} color={colors.ink} />}
               style={{ alignSelf: 'stretch' }}
               onPress={() => {
-                setWounds(w => Math.min(c.wounds.max, w + 4));
+                setWounds(w => Math.min(woundsMax, w + 4));
                 Alert.alert('Healing Draught', 'Recovered 4 wounds.');
               }}
             >
