@@ -3,6 +3,7 @@ import { ScreenContainer } from './ScreenContainer';
 import { useCharacter } from '@/hooks/useCharacter';
 import { useVitals } from '@/hooks/useVitals';
 import { useDerived } from '@/hooks/useDerived';
+import { useCapabilities } from '@/content/useContent';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
@@ -16,12 +17,19 @@ export const PsychologyScreen: React.FC = () => {
   const { template: c } = useCharacter();
   const vitals = useVitals();
   const corrThresh = useDerived().corruptionThreshold;
+  const caps = useCapabilities();
 
   return (
     <ScreenContainer>
       <Hero
         title="Psychology"
-        subRow={<span className="psy-sub">Motivation, ambitions, mutations, and the corruption of Chaos.</span>}
+        subRow={
+          <span className="psy-sub">
+            {caps.psychologyCorruption
+              ? 'Motivation, ambitions, mutations, and the corruption of Chaos.'
+              : 'Motivation, ambitions, and psychology.'}
+          </span>
+        }
       />
 
       <div className="psy-row">
@@ -61,36 +69,40 @@ export const PsychologyScreen: React.FC = () => {
         </Card>
       </div>
 
-      <Section title="Corruption & Mutation" />
-      <div className="psy-row">
-        <Card style={{ flex: 1, minWidth: 280 }}>
-          <div className="psy-row-between">
-            <span className="psy-label">Corruption points</span>
-            <span className="psy-meta-mono">threshold {corrThresh} · TB+WPB</span>
+      {caps.psychologyCorruption ? (
+        <>
+          <Section title="Corruption & Mutation" />
+          <div className="psy-row">
+            <Card style={{ flex: 1, minWidth: 280 }}>
+              <div className="psy-row-between">
+                <span className="psy-label">Corruption points</span>
+                <span className="psy-meta-mono">threshold {corrThresh} · TB+WPB</span>
+              </div>
+              <span className="psy-big-corr tabular">
+                {vitals.corruption}
+                <span className="psy-muted psy-big-corr-suffix"> / {corrThresh}</span>
+              </span>
+              <Bar
+                value={corrThresh > 0 ? Math.min(1, vitals.corruption / corrThresh) : 0}
+                variant="corr"
+                style={{ marginTop: 10 }}
+              />
+              <div className="psy-row-between" style={{ marginTop: 10 }}>
+                <span className="psy-body">At threshold: roll a mutation test.</span>
+                <Stepper value={vitals.corruption} min={0} max={99} onChange={vitals.setCorruption} />
+              </div>
+            </Card>
+            <Card style={{ flex: 1, minWidth: 280 }}>
+              <span className="psy-label">Mutations</span>
+              {c.mutations.length === 0 ? (
+                <span className="psy-body psy-clean">— clean —</span>
+              ) : (
+                c.mutations.map((m, i) => <span key={i} className="psy-mutation">{m.name}</span>)
+              )}
+            </Card>
           </div>
-          <span className="psy-big-corr tabular">
-            {vitals.corruption}
-            <span className="psy-muted psy-big-corr-suffix"> / {corrThresh}</span>
-          </span>
-          <Bar
-            value={corrThresh > 0 ? Math.min(1, vitals.corruption / corrThresh) : 0}
-            variant="corr"
-            style={{ marginTop: 10 }}
-          />
-          <div className="psy-row-between" style={{ marginTop: 10 }}>
-            <span className="psy-body">At threshold: roll a mutation test.</span>
-            <Stepper value={vitals.corruption} min={0} max={99} onChange={vitals.setCorruption} />
-          </div>
-        </Card>
-        <Card style={{ flex: 1, minWidth: 280 }}>
-          <span className="psy-label">Mutations</span>
-          {c.mutations.length === 0 ? (
-            <span className="psy-body psy-clean">— clean —</span>
-          ) : (
-            c.mutations.map((m, i) => <span key={i} className="psy-mutation">{m.name}</span>)
-          )}
-        </Card>
-      </div>
+        </>
+      ) : null}
     </ScreenContainer>
   );
 };

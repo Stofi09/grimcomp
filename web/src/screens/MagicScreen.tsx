@@ -5,7 +5,7 @@ import { useStoredState } from '@/hooks/useStoredState';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useConditions } from '@/hooks/useConditions';
 import { resolveTest, outcomeLabel, formatTestResult, isDouble } from '@/utils/roll';
-import { useResolveSpells, useTable, useSystemRules, useCreation } from '@/content/useContent';
+import { useResolveSpells, useTable, useSystemRules, useCreation, useCapabilities } from '@/content/useContent';
 import { rollOnTable, rollForTable } from '@/content/tables';
 import type { Spell } from '@/content/types';
 import { Alert } from '@/ui/alert';
@@ -26,6 +26,7 @@ export const MagicScreen: React.FC = () => {
   const { modifier: condMod } = useConditions();
   const system = useSystemRules();
   const magic = system.magic;
+  const caps = useCapabilities();
   const creation = useCreation();
 
   // Channelling pool — SL accumulated from successful Channelling tests.
@@ -38,9 +39,11 @@ export const MagicScreen: React.FC = () => {
   const miscastMinor = useTable(magic.minorMiscastTable);
   const miscastMajor = useTable(magic.majorMiscastTable);
 
-  // A double on a channel/cast roll triggers a miscast — only in systems that
-  // model doubles at all.
-  const miscastDouble = (roll: number): boolean => !!system.test.doubles && isDouble(roll);
+  // A double on a channel/cast roll triggers a miscast — only when the system
+  // models doubles AND the magicMiscastOnDouble capability is on. Both channel()
+  // and cast() route through this, so one gate covers every miscast path.
+  const miscastDouble = (roll: number): boolean =>
+    caps.magicMiscastOnDouble && !!system.test.doubles && isDouble(roll);
 
   if (!c.isCaster) {
     return (

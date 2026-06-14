@@ -7,7 +7,7 @@ import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useDerived } from '@/hooks/useDerived';
 import { useVitals } from '@/hooks/useVitals';
 import { useCharacterCollection } from '@/hooks/useCharacterCollection';
-import { useHitLocations, useCriticals, useConditionList, useSystemRules } from '@/content/useContent';
+import { useHitLocations, useCriticals, useConditionList, useSystemRules, useCapabilities } from '@/content/useContent';
 import type { HitLocationRow, CriticalDef } from '@/content/types';
 import { Alert } from '@/ui/alert';
 import { Hero } from '@/components/Hero';
@@ -48,6 +48,7 @@ export const WoundsScreen: React.FC = () => {
   const prefabCriticals = useCriticals();
   const conditionDefs = useConditionList();
   const { formulas } = useSystemRules();
+  const caps = useCapabilities();
 
   // Max Wounds and the rest-recovery amount are recomputed live by the system
   // formulas (small species and the bonus talent feed in as formula vars).
@@ -103,10 +104,12 @@ export const WoundsScreen: React.FC = () => {
 
   const addCritical = () => {
     const fresh = newCritical(hitLocations, prefabCriticals);
+    if (!caps.combatHitLocations) fresh.loc = '';
     crits.add(fresh);
+    const locLine = caps.combatHitLocations ? `Location: ${fresh.loc}\n` : '';
     Alert.alert(
       `Critical: ${fresh.name}`,
-      `Location: ${fresh.loc}\nRoll: ${fresh.roll}\n\n${fresh.effect}\n\nHeals in ${fresh.days} day${fresh.days === 1 ? '' : 's'}.`,
+      `${locLine}Roll: ${fresh.roll}\n\n${fresh.effect}\n\nHeals in ${fresh.days} day${fresh.days === 1 ? '' : 's'}.`,
     );
   };
 
@@ -189,7 +192,7 @@ export const WoundsScreen: React.FC = () => {
         })}
       </div>
 
-      <Section title="Critical Wounds" aside="d100 + hit location" />
+      <Section title="Critical Wounds" aside={caps.combatHitLocations ? 'd100 + hit location' : 'd100'} />
       <Card flush>
         <CardHead
           title="Active critical wounds"
@@ -205,7 +208,7 @@ export const WoundsScreen: React.FC = () => {
         />
         <Table>
           <TableRow header>
-            <Cell header flex={1}>Location</Cell>
+            {caps.combatHitLocations ? <Cell header flex={1}>Location</Cell> : null}
             <Cell header num flex={0.7}>Roll</Cell>
             <Cell header flex={2}>Wound</Cell>
             <Cell header flex={3}>Effect</Cell>
@@ -214,7 +217,7 @@ export const WoundsScreen: React.FC = () => {
           </TableRow>
           {crits.items.map((cr, i) => (
             <TableRow key={i} last={i === crits.items.length - 1}>
-              <Cell flex={1}>{cr.loc}</Cell>
+              {caps.combatHitLocations ? <Cell flex={1}>{cr.loc}</Cell> : null}
               <Cell num flex={0.7} textStyle={{ fontFamily: 'var(--font-mono)' }}>{cr.roll}</Cell>
               <Cell flex={2} textStyle={{ fontFamily: 'var(--font-body)', fontWeight: 600 }}>{cr.name}</Cell>
               <Cell flex={3} textStyle={{ color: colors.ink3 }}>{cr.effect}</Cell>

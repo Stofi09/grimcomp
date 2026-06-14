@@ -6,7 +6,7 @@ import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useCharacterCollection } from '@/hooks/useCharacterCollection';
-import { useFigureLabels, useSystemRules, useCharacteristicDefs, useWeapons } from '@/content/useContent';
+import { useFigureLabels, useSystemRules, useCharacteristicDefs, useWeapons, useCapabilities } from '@/content/useContent';
 import type { CombatRules } from '@/content/types';
 import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
 import { charVars, evalFormula } from '@/utils/formula';
@@ -86,6 +86,7 @@ export const CombatScreen: React.FC = () => {
   const { modifier: condMod } = useConditions();
   const system = useSystemRules();
   const combat = system.combat;
+  const caps = useCapabilities();
   const charDefs = useCharacteristicDefs();
   const weaponDefs = useWeapons();
   const figureLabels = { ...DEFAULT_FIGURE_LABELS, ...useFigureLabels() };
@@ -200,15 +201,21 @@ export const CombatScreen: React.FC = () => {
     <ScreenContainer>
       <Hero
         title="Combat"
-        subRow={<span className="cmb-sub">Weapons, armour, and hit locations.</span>}
+        subRow={
+          <span className="cmb-sub">
+            {caps.combatHitLocations ? 'Weapons, armour, and hit locations.' : 'Weapons and armour.'}
+          </span>
+        }
       />
 
       <div className="cmb-row">
         <Card flush style={{ width: 320, flexShrink: 0 }}>
-          <CardHead title="Hit Locations" />
-          <div className="cmb-figure-box">
-            <HitLocationFigure ap={ap} labels={figureLabels} />
-          </div>
+          <CardHead title={caps.combatHitLocations ? 'Hit Locations' : 'Armour'} />
+          {caps.combatHitLocations ? (
+            <div className="cmb-figure-box">
+              <HitLocationFigure ap={ap} labels={figureLabels} />
+            </div>
+          ) : null}
           <div className="cmb-figure-foot">
             <div className="cmb-row-between">
               <span className="cmb-meta-mono">TOTAL AP</span>
