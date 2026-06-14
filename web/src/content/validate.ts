@@ -10,6 +10,8 @@
 import {
   CONTENT_SCHEMA,
   CONTENT_SCHEMA_V1,
+  SCREEN_KINDS,
+  SCREEN_ENABLED_WHEN_VARS,
   type ConditionDef,
   type ContentPack,
   type XpCostBand,
@@ -38,6 +40,18 @@ const KNOWN_KEYS = new Set([
   'characteristics', 'races', 'careers', 'skills', 'talents', 'weapons',
   'armour', 'trappings', 'hitLocations', 'figureLabels', 'criticals',
   'woundsRules', 'deities', 'creation', 'characters', 'xpLogSeeds', 'noteSeeds',
+  'screens', 'screenGroups', 'resources', 'capabilities',
+]);
+
+/** Known capability flags (others warn — likely a typo). */
+const CAPABILITY_KEYS = new Set<string>([
+  'faithWrath', 'magicMiscastOnDouble', 'combatHitLocations', 'psychologyCorruption',
+]);
+
+// Identifiers a screen `enabledWhen` predicate may reference (the documented
+// vars plus the formula language's built-in functions). Anything else warns.
+const SCREEN_ENABLED_WHEN_IDENTS = new Set<string>([
+  ...SCREEN_ENABLED_WHEN_VARS, 'floor', 'ceil', 'round', 'abs', 'min', 'max',
 ]);
 
 /**
@@ -570,6 +584,127 @@ export function validatePack(raw: unknown): ValidationResult {
       };
       checkOptions(ns.categories, 'noteSeeds.categories');
       checkOptions(ns.srcOptions, 'noteSeeds.srcOptions');
+    }
+  }
+
+  // screenGroups: [{ id, label }].
+  if (raw.screenGroups !== undefined) {
+    if (!Array.isArray(raw.screenGroups)) {
+      push('"screenGroups" must be an array.');
+    } else {
+      raw.screenGroups.forEach((g, i) => {
+        const w = `screenGroups[${i}]`;
+        if (!isObject(g)) { push(`${w} must be an object.`); return; }
+        if (!isString(g.id)) push(`${w} missing string "id".`);
+        if (!isString(g.label)) push(`${w} missing string "label".`);
+      });
+    }
+  }
+
+  // screens: [{ id, kind, label, group, icon?, enabledWhen?, hideFromNav?, badge? }].
+  if (raw.screens !== undefined) {
+    if (!Array.isArray(raw.screens)) {
+      push('"screens" must be an array.');
+    } else {
+      const ids = new Set<string>();
+      raw.screens.forEach((s, i) => {
+        const w = `screens[${i}]`;
+        if (!isObject(s)) { push(`${w} must be an object.`); return; }
+        if (!isString(s.id)) {
+          push(`${w} missing string "id".`);
+        } else if (ids.has(s.id)) {
+          push(`Duplicate id "${s.id}" within "screens".`);
+        } else {
+          ids.add(s.id);
+        }
+        if (!isString(s.kind)) push(`${w} missing string "kind".`);
+        else if (!(SCREEN_KINDS as readonly string[]).includes(s.kind)) {
+          push(`${w} has unknown kind "${s.kind}".`);
+        }
+        if (!isString(s.label)) push(`${w} missing string "label".`);
+        if (!isString(s.group)) push(`${w} missing string "group".`);
+        if (s.icon !== undefined && !isString(s.icon)) push(`${w} "icon" must be a string.`);
+        if (s.badge !== undefined && !isString(s.badge)) push(`${w} "badge" must be a string.`);
+        if (s.hideFromNav !== undefined && typeof s.hideFromNav !== 'boolean') {
+          push(`${w} "hideFromNav" must be a boolean.`);
+        }
+        if (s.enabledWhen !== undefined) {
+          if (!isString(s.enabledWhen)) {
+            push(`${w} "enabledWhen" must be a formula string.`);
+          } else {
+            try {
+              compileFormula(s.enabledWhen);
+            } catch (e) {
+              push(`${w} "enabledWhen": ${e instanceof Error ? e.message : 'invalid formula.'}`);
+            }
+            // Unknown identifiers compile fine but evaluate to 0 at runtime,
+            // silently hiding the screen — warn so typos are caught.
+            const idents = s.enabledWhen.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? [];
+            for (const ident of idents) {
+              if (!SCREEN_ENABLED_WHEN_IDENTS.has(ident)) {
+                warnings.push(
+                  `${w} "enabledWhen" references unknown variable "${ident}" (evaluates to 0). Allowed: ${SCREEN_ENABLED_WHEN_VARS.join(', ')}.`,
+                );
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+
+  // capabilities: { faithWrath?: boolean, … }.
+  if (raw.capabilities !== undefined) {
+    if (!isObject(raw.capabilities)) {
+      push('"capabilities" must be an object.');
+    } else {
+      for (const [k, v] of Object.entries(raw.capabilities)) {
+        if (!CAPABILITY_KEYS.has(k)) {
+          warnings.push(`"capabilities" has unknown flag "${k}" — ignored.`);
+        } else if (typeof v !== 'boolean') {
+          push(`"capabilities.${k}" must be a boolean.`);
+        }
+      }
+    }
+  }
+
+  // resources: [{ id, label, capBy?, refreshTo? }].
+  if (raw.resources !== undefined) {
+    if (!Array.isArray(raw.resources)) {
+      push('"resources" must be an array.');
+    } else {
+      const ids = new Set<string>();
+      raw.resources.forEach((r, i) => {
+        const w = `resources[${i}]`;
+        if (!isObject(r)) { push(`${w} must be an object.`); return; }
+        if (!isString(r.id)) {
+          push(`${w} missing string "id".`);
+        } else if (ids.has(r.id)) {
+          push(`Duplicate id "${r.id}" within "resources".`);
+        } else {
+          ids.add(r.id);
+        }
+        if (!isString(r.label)) push(`${w} missing string "label".`);
+        if (r.capBy !== undefined && !isString(r.capBy)) push(`${w} "capBy" must be a string.`);
+        if (r.refreshTo !== undefined && r.refreshTo !== 'cap') push(`${w} "refreshTo" must be "cap".`);
+      });
+      // capBy must point at a real pool, or the cap silently behaves as 0.
+      raw.resources.forEach((r, i) => {
+        if (isObject(r) && isString(r.capBy) && !ids.has(r.capBy)) {
+          warnings.push(`resources[${i}] "capBy" references unknown resource "${r.capBy}".`);
+        }
+      });
+    }
+  }
+
+  // A declared-but-empty (or entirely hidden) screens section would otherwise
+  // yield an empty rail with no feedback. The registry falls back to the
+  // built-in nav for an empty array; warn either way so the author knows.
+  if (Array.isArray(raw.screens)) {
+    if (raw.screens.length === 0) {
+      warnings.push('"screens" is empty — the built-in navigation will be used instead.');
+    } else if (!raw.screens.some(s => isObject(s) && s.hideFromNav !== true)) {
+      warnings.push('"screens" has no visible (non-hidden) entries — the rail will be empty.');
     }
   }
 

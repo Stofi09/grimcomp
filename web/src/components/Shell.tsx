@@ -4,14 +4,13 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { RAIL_BREAKPOINT, RAIL_WIDTH } from '@/theme';
 import { Rail } from './Rail';
 import { AppBar } from './AppBar';
-import type { ScreenId } from '@/data/nav';
-import { SCREEN_CRUMBS } from '@/data/nav';
+import { useNavModel } from '@/content/useContent';
 import { useCharacter } from '@/hooks/useCharacter';
 import './Shell.css';
 
 interface ShellProps {
-  current: ScreenId;
-  onNav: (id: ScreenId) => void;
+  current: string;
+  onNav: (id: string) => void;
   children: React.ReactNode;
 }
 
@@ -58,7 +57,8 @@ export const Shell: React.FC<ShellProps> = ({ current, onNav, children }) => {
   // Character-scoped crumbs carry a placeholder token; swap in the active PC so
   // the trail reflects whoever is selected, not the sample character.
   const { template } = useCharacter();
-  const crumbs = (SCREEN_CRUMBS[current] ?? ['Character']).map(c =>
+  const navModel = useNavModel();
+  const crumbs = (navModel.crumbs[current] ?? ['Character']).map(c =>
     c === '$NAME' ? template.name : c,
   );
 

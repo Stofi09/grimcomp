@@ -1,25 +1,23 @@
 // Persists the active screen across reloads.
-// Mirrors the prototype's `localStorage.getItem('gc_screen')` behaviour.
+// Mirrors the prototype's `localStorage.getItem('gc_screen')` behaviour, but the
+// valid ids and the default landing screen now come from the resolved nav model
+// (so a pack that renames/removes/adds screens stays consistent).
 import { useCallback } from 'react';
 import { useStoredState } from './useStoredState';
-import { NAV, type ScreenId } from '@/data/nav';
+import type { NavModel } from '@/data/nav';
 
 const KEY = 'gc.screen';
 
-// Valid ids come from the nav model itself (flattened groups) plus 'newchar',
-// which is reachable from the Roster screen but deliberately absent from NAV.
-const VALID: ReadonlyArray<ScreenId> = Array.from(
-  new Set<ScreenId>([...NAV.flatMap(g => g.items.map(i => i.id)), 'newchar']),
-);
-
 /**
- * Returns `[ready, screen, setScreen]`. Validates the persisted value and
- * falls back to `initial` if the stored id is unknown.
+ * Returns `[ready, screen, setScreen]`. Validates the persisted value against
+ * the nav model's ids and falls back to its landing screen if the stored id is
+ * unknown (e.g. a pack dropped that screen).
  */
-export function useStoredScreen(initial: ScreenId = 'overview') {
-  const [stored, setStored, ready] = useStoredState<ScreenId>(KEY, initial);
-  // Guard against corrupted storage (e.g. someone wrote a non-ScreenId).
-  const screen: ScreenId = (VALID as ReadonlyArray<string>).includes(stored) ? stored : initial;
-  const setScreen = useCallback((next: ScreenId) => setStored(next), [setStored]);
+export function useStoredScreen(navModel: NavModel) {
+  const fallback = navModel.defaultScreenId;
+  const [stored, setStored, ready] = useStoredState<string>(KEY, fallback);
+  // Guard against corrupted storage or a screen that no longer exists.
+  const screen = navModel.allIds.includes(stored) ? stored : fallback;
+  const setScreen = useCallback((next: string) => setStored(next), [setStored]);
   return [ready, screen, setScreen] as const;
 }

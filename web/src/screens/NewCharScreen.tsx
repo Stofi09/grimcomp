@@ -21,12 +21,11 @@ import type {
   CharacteristicDef, WoundsRules, CreationConfig, SystemRules,
 } from '@/content/types';
 import { charVars, evalFormula } from '@/utils/formula';
-import type { ScreenId } from '@/data/nav';
 import { colors } from '@/theme';
 import './NewCharScreen.css';
 
 interface Props {
-  onNav: (id: ScreenId) => void;
+  onNav: (id: string) => void;
 }
 
 const STEPS = ['Name', 'Archetype', 'Stats', 'Review'];

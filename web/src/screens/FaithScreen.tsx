@@ -5,7 +5,7 @@ import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useConditions } from '@/hooks/useConditions';
 import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
-import { useResolvePrayers, useTable, useDeities, useSystemRules, useCreation } from '@/content/useContent';
+import { useResolvePrayers, useTable, useDeities, useSystemRules, useCreation, useCapabilities } from '@/content/useContent';
 import { rollOnTable, rollForTable } from '@/content/tables';
 import type { Prayer } from '@/content/types';
 import { Alert } from '@/ui/alert';
@@ -26,6 +26,7 @@ export const FaithScreen: React.FC = () => {
   const { modifier: condMod } = useConditions();
   const system = useSystemRules();
   const faith = system.faith;
+  const caps = useCapabilities();
   const creation = useCreation();
   const [sin, setSin] = useStoredState(characterKey(id, 'sin'), 0);
 
@@ -47,7 +48,7 @@ export const FaithScreen: React.FC = () => {
     // (WFRP 4e), regardless of pass/fail. Add the configured bonus per Sin to
     // the wrath roll, then remove 1 Sin after resolving.
     const units = r.roll % 10;
-    const wrathTriggered = sin > 0 && units <= sin;
+    const wrathTriggered = caps.faithWrath && sin > 0 && units <= sin;
 
     if (wrathTriggered) {
       const wRoll = Math.min(100, rollForTable(wrathTable) + faith.wrathBonusPerSin * sin);
@@ -105,7 +106,12 @@ export const FaithScreen: React.FC = () => {
               <Button
                 variant="ghost"
                 iconLeft={<Icon name="info" size={12} color={colors.ink2} />}
-                onPress={() => Alert.alert('Sin & Wrath', 'Sin accrues from breaking your cult\'s strictures. For the Anointed, any Pray test whose units die ≤ your Sin Points triggers Wrath of the Gods.')}
+                onPress={() => Alert.alert(
+                  caps.faithWrath ? 'Sin & Wrath' : 'Sin',
+                  caps.faithWrath
+                    ? 'Sin accrues from breaking your cult\'s strictures. For the Anointed, any Pray test whose units die ≤ your Sin Points triggers Wrath of the Gods.'
+                    : 'Sin accrues from breaking your cult\'s strictures. Thresholds may carry penalties.',
+                )}
               >
                 Sin table
               </Button>
@@ -162,14 +168,21 @@ export const FaithScreen: React.FC = () => {
           <span className="fth-label">Sin</span>
           <span className="fth-big-corr" style={sin >= 3 ? { color: colors.empire } : undefined}>{sin}</span>
           <span className="fth-body">
-            Sin from broken dogma. Each Pray test risks Wrath when the units die ≤ your Sin ({sin}).
+            {caps.faithWrath
+              ? `Sin from broken dogma. Each Pray test risks Wrath when the units die ≤ your Sin (${sin}).`
+              : 'Sin from broken dogma. Thresholds carry penalties.'}
           </span>
           <div className="fth-controls">
             <Stepper value={sin} min={0} max={10} onChange={setSin} />
             <Button
               variant="ghost"
               iconLeft={<Icon name="info" size={12} color={colors.ink2} />}
-              onPress={() => Alert.alert('Sin & Wrath', 'On any Pray test, if the units die of the roll is ≤ your Sin Points, you suffer Wrath of the Gods (+10 to the Wrath roll per Sin Point). One Sin is removed after Wrath resolves. Gain Sin by breaking your cult\'s strictures.')}
+              onPress={() => Alert.alert(
+                caps.faithWrath ? 'Sin & Wrath' : 'Sin',
+                caps.faithWrath
+                  ? 'On any Pray test, if the units die of the roll is ≤ your Sin Points, you suffer Wrath of the Gods (+10 to the Wrath roll per Sin Point). One Sin is removed after Wrath resolves. Gain Sin by breaking your cult\'s strictures.'
+                  : 'Gain Sin by breaking your cult\'s strictures. Thresholds carry penalties.',
+              )}
             >
               Penalties
             </Button>

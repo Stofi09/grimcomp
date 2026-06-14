@@ -1,6 +1,7 @@
 import type * as React from 'react';
 import { colors, RAIL_WIDTH } from '@/theme';
-import { NAV, type ScreenId } from '@/data/nav';
+import { navVars } from '@/data/nav';
+import { useNavModel } from '@/content/useContent';
 import { useXp } from '@/hooks/useXp';
 import { useCareer } from '@/hooks/useCareer';
 import { useDerived } from '@/hooks/useDerived';
@@ -11,18 +12,22 @@ import { Avatar } from './Avatar';
 import './Rail.css';
 
 interface RailProps {
-  current: ScreenId;
-  onNav: (id: ScreenId) => void;
+  current: string;
+  onNav: (id: string) => void;
   onClose?: () => void;
   width?: number;
 }
 
 export const Rail: React.FC<RailProps> = ({ current, onNav, onClose, width = RAIL_WIDTH }) => {
   const { id, template: c } = useCharacter();
+  const navModel = useNavModel();
   const xp = useXp();
   const career = useCareer();
   const { maxWounds } = useDerived();
   const [wounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
+  // Per-character nav gating (e.g. Magic only for casters) is content-declared
+  // via each item's `enabledWhen`, evaluated against these vars.
+  const vars = navVars(c);
 
   return (
     <div className="rail" style={{ width }}>
@@ -58,18 +63,18 @@ export const Rail: React.FC<RailProps> = ({ current, onNav, onClose, width = RAI
           </div>
         </button>
 
-        {NAV.map(group => (
-          <div key={group.section}>
+        {navModel.groups.map(group => (
+          <div key={group.id}>
             <div className="rail-section">
-              <span className="rail-section-label">{group.section}</span>
+              <span className="rail-section-label">{group.label}</span>
               <span className="rail-section-rule" />
             </div>
             {group.items
-              // Hide capability-gated screens the character can't use: Magic
-              // only for casters, Faith only for the Anointed. Their detail
-              // screens still render a reference-only empty state if reached
-              // directly (e.g. via a restored screen), so nothing breaks.
-              .filter(it => (it.id !== 'magic' || c.isCaster) && (it.id !== 'faith' || c.isAnointed))
+              // Hide items whose enabledWhen predicate is false for this
+              // character (e.g. Magic only for casters). Gated screens still
+              // render a reference-only empty state if reached directly, so
+              // nothing breaks.
+              .filter(it => !it.enabledWhen || it.enabledWhen(vars) !== 0)
               .map(it => {
               const active = current === it.id;
               return (

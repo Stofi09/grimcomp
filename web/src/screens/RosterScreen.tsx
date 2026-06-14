@@ -3,7 +3,6 @@ import { ScreenContainer } from './ScreenContainer';
 import { useCharacter } from '@/hooks/useCharacter';
 import { useRoster } from '@/hooks/useRoster';
 import { FALLBACK_CHARACTER_ID } from '@/data/character';
-import type { ScreenId } from '@/data/nav';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
@@ -16,7 +15,7 @@ import { colors } from '@/theme';
 import './RosterScreen.css';
 
 interface Props {
-  onNav: (id: ScreenId) => void;
+  onNav: (id: string) => void;
 }
 
 const DEFAULT_PARTY_NAME = 'The Eberfeld Road Wardens';

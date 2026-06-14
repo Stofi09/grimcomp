@@ -47,7 +47,11 @@ export async function loadBundledPacks(): Promise<{ packs: ContentPack[]; errors
       const res = await fetch(`${base()}content/${file}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const raw: unknown = await res.json();
-      const { pack, errors: packErrors } = validatePack(raw);
+      const { pack, errors: packErrors, warnings } = validatePack(raw);
+      // Non-fatal warnings (e.g. a typo'd enabledWhen var that silently hides a
+      // screen) aren't surfaced in the UI for bundled packs, so log them — these
+      // are the project's own packs, caught at dev time.
+      for (const w of warnings) console.warn(`[content] ${file}: ${w}`);
       if (pack) {
         packs.push(pack);
       } else {

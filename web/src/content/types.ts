@@ -396,6 +396,82 @@ export const CONTENT_SCHEMA_V1 = 'grimcomp.content.v1';
 export const MANIFEST_SCHEMA = 'grimcomp.manifest.v1';
 
 /**
+ * Built-in screen component types a pack's `screens` may instantiate. A pack
+ * chooses, orders, labels, groups, and gates these — it cannot inject arbitrary
+ * React, so the set is fixed in code. (Runtime array so the validator can check
+ * an authored `kind` against it.)
+ */
+export const SCREEN_KINDS = [
+  'overview', 'characteristics', 'skills', 'talents', 'career', 'xp',
+  'combat', 'wounds', 'magic', 'faith', 'trappings', 'psychology',
+  'reference', 'notes', 'roster', 'settings', 'newchar',
+] as const;
+export type ScreenKind = typeof SCREEN_KINDS[number];
+
+/**
+ * Variables a screen's `enabledWhen` predicate may reference. Kept small and
+ * fixed on purpose: unknown identifiers evaluate to 0 (silently hiding a
+ * screen), so the validator warns when a predicate references anything else.
+ */
+export const SCREEN_ENABLED_WHEN_VARS = ['isCaster', 'isAnointed', 'careerLevel'] as const;
+
+/** One nav entry authored by a content pack. */
+export interface ScreenDef {
+  /** Stable id (storage key + route). Unique within the pack. */
+  id: string;
+  /** Which built-in screen component renders it. */
+  kind: ScreenKind;
+  label: string;
+  /** Icon name; an unrecognised value falls back to a default glyph. */
+  icon?: string;
+  /** A screenGroups id; an unknown group lands in a trailing "More" section. */
+  group: string;
+  /** Formula over SCREEN_ENABLED_WHEN_VARS; omit to always show in the rail. */
+  enabledWhen?: string;
+  /** Reachable via onNav but not listed in the rail (like the New Character flow). */
+  hideFromNav?: boolean;
+  badge?: string;
+}
+
+/** A rail section header. Order here defines section order. */
+export interface ScreenGroupDef {
+  id: string;
+  label: string;
+}
+
+/**
+ * A tracked hero-resource pool (Fate/Fortune, Resilience/Resolve, Corruption in
+ * WFRP — Sanity, Stress, spell slots, etc. in other systems). The set is
+ * data-defined; `capBy`/`refreshTo` model the WFRP paired-pool mechanic where a
+ * permanent pool caps a spendable one (Fortune ≤ Fate) that refreshes to it.
+ */
+export interface ResourceDef {
+  id: string;
+  label: string;
+  /** Another resource id whose current value caps this one (e.g. Fortune ≤ Fate). */
+  capBy?: string;
+  /** What a "refresh" resets this resource to. 'cap' = its capBy pool's value. */
+  refreshTo?: 'cap';
+}
+
+/**
+ * Toggles for WFRP-specific sub-mechanics ("rituals"). Each defaults to on (the
+ * WFRP behaviour); a pack sets one false to drop that mechanic while keeping the
+ * screen — e.g. a magic system with spells but no Miscast-on-doubles. These are
+ * SUBTRACTIVE: they hide/disable WFRP procedures, they don't synthesise new ones.
+ */
+export interface Capabilities {
+  /** Faith: a Pray roll can trigger Wrath of the Gods (scaled by Sin). */
+  faithWrath?: boolean;
+  /** Magic: doubles on a channel/cast roll cause a Miscast. */
+  magicMiscastOnDouble?: boolean;
+  /** Combat: damage resolves against a hit-location table + per-location armour. */
+  combatHitLocations?: boolean;
+  /** Psychology: Corruption accrues toward a mutation threshold. */
+  psychologyCorruption?: boolean;
+}
+
+/**
  * A unit of loadable game content. Bundled core packs live in public/content
  * (fetched at runtime); user-imported packs are stored under `gc.content.packs`.
  * Every section is optional so a pack can carry just spells, just races, etc.
@@ -432,6 +508,15 @@ export interface ContentPack {
   characters?: Character[];
   xpLogSeeds?: Record<string, XpEntry[]>;
   noteSeeds?: NoteSeedsConfig;
+  /** Pack-authored navigation: which screens exist, their order/labels/icons/
+      grouping/gating. Omit to use the built-in WFRP nav unchanged. */
+  screens?: ScreenDef[];
+  screenGroups?: ScreenGroupDef[];
+  /** Tracked hero-resource pools. Omit to use the built-in WFRP set
+      (Fate/Fortune, Resilience/Resolve, Corruption). */
+  resources?: ResourceDef[];
+  /** Toggle WFRP sub-mechanics off (all default on). Overlaid field-by-field. */
+  capabilities?: Capabilities;
 }
 
 /** Shape of public/content/manifest.json. */

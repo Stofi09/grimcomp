@@ -8,11 +8,18 @@ import type {
   Spell, Prayer, RollTable, XpCostRow, XpRules,
   Race, Career, SkillDef, TalentDef, WeaponDef, ArmourDef, TrappingDef,
   ConditionDef, CharacteristicDef, CreationConfig, HitLocationRow,
-  HitLocationKey, CriticalDef, WoundsRules, Deity, SystemRules,
+  HitLocationKey, CriticalDef, WoundsRules, Deity, SystemRules, ResourceDef,
+  Capabilities,
 } from './types';
+import type { NavModel } from '@/data/nav';
 
 export function useContent(): ContentRegistry {
   return useContext(ContentContext);
+}
+
+/** The resolved navigation model (rail sections, routing table, breadcrumbs). */
+export function useNavModel(): NavModel {
+  return useContent().navModel;
 }
 
 export function useResolveSpells(ids: string[]): Spell[] {
@@ -105,6 +112,16 @@ export function useWoundsRules(): WoundsRules {
 
 export function useCharacteristicDefs(): CharacteristicDef[] {
   return useContent().characteristics;
+}
+
+/** The tracked hero-resource pool definitions (drives useVitals). */
+export function useResources(): ResourceDef[] {
+  return useContent().resources;
+}
+
+/** WFRP sub-mechanic toggles (faithWrath, magicMiscastOnDouble, …). */
+export function useCapabilities(): Required<Capabilities> {
+  return useContent().capabilities;
 }
 
 export function useNoteSeeds() {

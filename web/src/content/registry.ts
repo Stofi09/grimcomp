@@ -13,11 +13,13 @@ import type {
   Race, Career, SkillDef, TalentDef, WeaponDef, ArmourDef, TrappingDef,
   ConditionDef, XpRules, XpCostBand, CharacteristicDef, CreationConfig,
   HitLocationRow, HitLocationKey, CriticalDef, WoundsRules, Deity,
-  NoteSeedsConfig, XpEntry, SystemRules, SystemOverlay,
+  NoteSeedsConfig, XpEntry, SystemRules, SystemOverlay, ScreenDef, ScreenGroupDef,
+  ResourceDef, Capabilities,
 } from './types';
 import { xpCostRowsToBands } from './validate';
 import { DEFAULT_TEST_RULES } from '@/utils/roll';
 import type { Character } from '@/data/character';
+import { type NavModel, buildDefaultNavModel, resolveNavModel } from '@/data/nav';
 
 /** The canonical 10-characteristic roster, in canonical order. */
 export const DEFAULT_CHARACTERISTICS: CharacteristicDef[] = [
@@ -70,6 +72,24 @@ const DEFAULT_WOUNDS_RULES: WoundsRules = {
   smallSizes: ['Small'],
   bonusTalent: 'Hardy',
 };
+
+/** All WFRP sub-mechanics on by default; a pack overlays individual flags off. */
+export const DEFAULT_CAPABILITIES: Required<Capabilities> = {
+  faithWrath: true,
+  magicMiscastOnDouble: true,
+  combatHitLocations: true,
+  psychologyCorruption: true,
+};
+
+/** WFRP 4e hero-resource pools: Fortune refreshes to (and is capped by) Fate;
+    Resolve to Resilience; Corruption is an uncapped accrual. */
+export const DEFAULT_RESOURCES: ResourceDef[] = [
+  { id: 'fate', label: 'Fate' },
+  { id: 'fortune', label: 'Fortune', capBy: 'fate', refreshTo: 'cap' },
+  { id: 'resilience', label: 'Resilience' },
+  { id: 'resolve', label: 'Resolve', capBy: 'resilience', refreshTo: 'cap' },
+  { id: 'corruption', label: 'Corruption' },
+];
 
 /**
  * Baseline game-system mechanics — WFRP 4e. Packs overlay any subset via the
@@ -165,6 +185,8 @@ export class ContentRegistry {
   private _conditions: ConditionDef[] = [];
   private _xpRules: XpRules = { ...DEFAULT_XP_RULES };
   private _characteristics: CharacteristicDef[] = [...DEFAULT_CHARACTERISTICS];
+  private _resources: ResourceDef[] = [...DEFAULT_RESOURCES];
+  private _capabilities: Required<Capabilities> = { ...DEFAULT_CAPABILITIES };
   private _hitLocations: HitLocationRow[] = [];
   private _figureLabels: Partial<Record<HitLocationKey, string>> = {};
   private _criticals: CriticalDef[] = [];
@@ -180,6 +202,11 @@ export class ContentRegistry {
   private _creation: CreationConfig | undefined;
   private _noteSeeds: NoteSeedsConfig | undefined;
   private _xpLogSeeds: Record<string, XpEntry[]> = {};
+  private _screens: ScreenDef[] | undefined;
+  private _screenGroups: ScreenGroupDef[] | undefined;
+  // Built once in the constructor (compiling enabledWhen predicates) so reads
+  // are cheap — the nav model never changes for a given registry instance.
+  private readonly _navModel: NavModel;
 
   constructor(packs: ContentPack[]) {
     this.packs = packs;
@@ -207,6 +234,14 @@ export class ContentRegistry {
       if (pack.characteristics) {
         this._characteristics = pack.characteristics;
       }
+      if (pack.resources) {
+        this._resources = pack.resources;
+      }
+      // Overlay each flag the pack sets (false is meaningful, so a plain merge —
+      // not the null-delete convention).
+      if (pack.capabilities) {
+        this._capabilities = { ...this._capabilities, ...pack.capabilities };
+      }
       if (pack.hitLocations) {
         this._hitLocations = pack.hitLocations;
       }
@@ -224,6 +259,12 @@ export class ContentRegistry {
       }
       if (pack.noteSeeds) {
         this._noteSeeds = pack.noteSeeds;
+      }
+      if (pack.screens) {
+        this._screens = pack.screens;
+      }
+      if (pack.screenGroups) {
+        this._screenGroups = pack.screenGroups;
       }
 
       // system: each subsection overlays field-by-field onto prior values, so
@@ -250,6 +291,13 @@ export class ContentRegistry {
         this._xpLogSeeds = { ...this._xpLogSeeds, ...pack.xpLogSeeds };
       }
     }
+
+    // Resolve the nav once: a pack-authored `screens` section, or the built-in
+    // WFRP nav when none is declared. An empty array falls back to the default
+    // (a pack that declares zero screens would otherwise yield an empty rail).
+    this._navModel = this._screens && this._screens.length > 0
+      ? resolveNavModel(this._screens, this._screenGroups)
+      : buildDefaultNavModel();
   }
 
   private normalizeConditions(raw: Array<ConditionDef | string>): ConditionDef[] {
@@ -361,6 +409,16 @@ export class ContentRegistry {
     return this._characteristics;
   }
 
+  /** The tracked hero-resource pool definitions (WFRP default unless overridden). */
+  get resources(): ResourceDef[] {
+    return this._resources;
+  }
+
+  /** WFRP sub-mechanic toggles (all on unless a pack turns one off). */
+  get capabilities(): Required<Capabilities> {
+    return this._capabilities;
+  }
+
   get creation(): CreationConfig | undefined {
     return this._creation;
   }
@@ -407,5 +465,12 @@ export class ContentRegistry {
 
   get xpLogSeeds(): Record<string, XpEntry[]> {
     return this._xpLogSeeds;
+  }
+
+  /** Resolved navigation model — the rail sections, routing table, breadcrumbs,
+      and landing screen. Pack-authored when a `screens` section is present,
+      otherwise the built-in WFRP nav. */
+  get navModel(): NavModel {
+    return this._navModel;
   }
 }

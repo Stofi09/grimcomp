@@ -1,63 +1,25 @@
-import { useCallback } from 'react';
 import { ContentProvider, useContentStatus } from '@/content/ContentProvider';
-import { useContent } from '@/content/useContent';
+import { useContent, useNavModel } from '@/content/useContent';
 import { useStoredScreen } from '@/hooks/useStoredScreen';
 import { useActiveCharId } from '@/hooks/useCharacter';
 import { Shell } from '@/components/Shell';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AlertHost } from '@/ui/alert';
-
-import { OverviewScreen } from '@/screens/OverviewScreen';
-import { CharacteristicsScreen } from '@/screens/CharacteristicsScreen';
-import { SkillsScreen } from '@/screens/SkillsScreen';
-import { TalentsScreen } from '@/screens/TalentsScreen';
-import { CareerScreen } from '@/screens/CareerScreen';
-import { XpScreen } from '@/screens/XpScreen';
-import { CombatScreen } from '@/screens/CombatScreen';
-import { WoundsScreen } from '@/screens/WoundsScreen';
-import { MagicScreen } from '@/screens/MagicScreen';
-import { FaithScreen } from '@/screens/FaithScreen';
-import { TrappingsScreen } from '@/screens/TrappingsScreen';
-import { PsychologyScreen } from '@/screens/PsychologyScreen';
-import { ReferenceScreen } from '@/screens/ReferenceScreen';
-import { NotesScreen } from '@/screens/NotesScreen';
-import { RosterScreen } from '@/screens/RosterScreen';
-import { SettingsScreen } from '@/screens/SettingsScreen';
-import { NewCharScreen } from '@/screens/NewCharScreen';
+import { SCREEN_COMPONENTS } from '@/screens/ScreenRegistry';
 
 import './App.css';
 
 // Inner app — lives under ContentProvider so it can read content load status
 // and the registry. While packs are loading it shows the parchment splash;
-// once loaded it renders the Shell + active screen.
+// once loaded it renders the Shell + active screen. Which screens exist, their
+// order/labels/gating, and the landing screen all come from the resolved nav
+// model (the built-in WFRP nav unless a pack ships a `screens` section).
 function AppInner() {
-  const [, screen, setScreen] = useStoredScreen('overview');
+  const navModel = useNavModel();
+  const [, screen, setScreen] = useStoredScreen(navModel);
   const activeCharId = useActiveCharId();
   const status = useContentStatus();
   const registry = useContent();
-
-  const renderScreen = useCallback(() => {
-    switch (screen) {
-      case 'overview': return <OverviewScreen />;
-      case 'characteristics': return <CharacteristicsScreen />;
-      case 'skills': return <SkillsScreen />;
-      case 'talents': return <TalentsScreen />;
-      case 'career': return <CareerScreen />;
-      case 'xp': return <XpScreen />;
-      case 'combat': return <CombatScreen />;
-      case 'wounds': return <WoundsScreen />;
-      case 'magic': return <MagicScreen />;
-      case 'faith': return <FaithScreen />;
-      case 'trappings': return <TrappingsScreen />;
-      case 'psychology': return <PsychologyScreen />;
-      case 'reference': return <ReferenceScreen />;
-      case 'notes': return <NotesScreen />;
-      case 'roster': return <RosterScreen onNav={setScreen} />;
-      case 'settings': return <SettingsScreen />;
-      case 'newchar': return <NewCharScreen onNav={setScreen} />;
-      default: return <OverviewScreen />;
-    }
-  }, [screen, setScreen]);
 
   // Content failed to load AND nothing usable came through — surface the pack
   // errors on the splash so misconfigured packs are debuggable. A registry that
@@ -83,6 +45,13 @@ function AppInner() {
     );
   }
 
+  // Look the active screen up by id (a screen gated out of the rail is still
+  // routable — its component shows its own empty state). Fall back to the
+  // landing screen, then Overview, so a stale/unknown id can never blank out.
+  const item = navModel.itemsById[screen] ?? navModel.itemsById[navModel.defaultScreenId];
+  const Screen = (item ? SCREEN_COMPONENTS[item.kind] : SCREEN_COMPONENTS.overview)
+    ?? SCREEN_COMPONENTS.overview;
+
   // The boundary wraps only the screen content — the rail / app-bar live in
   // Shell, outside `children`, so they stay interactive if a screen throws.
   // resetKey clears a caught error whenever the user navigates to another
@@ -90,7 +59,7 @@ function AppInner() {
   return (
     <Shell current={screen} onNav={setScreen}>
       <ErrorBoundary resetKey={`${screen}:${activeCharId}`}>
-        {renderScreen()}
+        <Screen onNav={setScreen} />
       </ErrorBoundary>
     </Shell>
   );
