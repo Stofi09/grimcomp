@@ -22,6 +22,7 @@ import { NotesScreen } from './NotesScreen';
 import { RosterScreen } from './RosterScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { NewCharScreen } from './NewCharScreen';
+import { ContentScreen } from './ContentScreen';
 
 // Props every screen is rendered with. Most ignore onNav; Roster/NewChar use it
 // to navigate. Components that accept no props are assignable here (the extra
@@ -48,4 +49,5 @@ export const SCREEN_COMPONENTS: Record<ScreenKind, ComponentType<ScreenComponent
   roster: RosterScreen,
   settings: SettingsScreen,
   newchar: NewCharScreen,
+  content: ContentScreen,
 };

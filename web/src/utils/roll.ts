@@ -109,7 +109,10 @@ export function resolveTest(input: RollInput, rules: TestRules = DEFAULT_TEST_RU
   }
 
   const hasSl = typeof rules.sl === 'string' && rules.sl.length > 0;
-  const sl = hasSl ? evalFormula(rules.sl as string, { roll, target: effective }) : 0;
+  let sl = hasSl ? evalFormula(rules.sl as string, { roll, target: effective }) : 0;
+  // SL's sign must agree with the outcome. An auto-failure band (e.g. rolling
+  // 96–100 against a high target) can otherwise yield a positive SL on a fumble.
+  if (hasSl && !success && sl > 0) sl = -sl;
 
   return {
     label: input.label,

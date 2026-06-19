@@ -189,6 +189,19 @@ export function evalFormula(src: string, vars: Record<string, number>): number {
   return fn(vars);
 }
 
+/** Like evalFormula but never throws. An invalid formula — e.g. from a tampered
+    or otherwise unvalidated pack — yields `fallback` instead of crashing the
+    React tree that evaluates it at render time. */
+export function evalFormulaSafe(
+  src: string, vars: Record<string, number>, fallback = 0,
+): number {
+  try {
+    return evalFormula(src, vars);
+  } catch {
+    return fallback;
+  }
+}
+
 /**
  * Build the standard formula vars from a characteristic list. Each entry
  * contributes its current value under its key ("s" → 45) and short name

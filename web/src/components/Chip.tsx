@@ -35,6 +35,8 @@ export const Chip: React.FC<ChipProps> = ({ label, count, on, onPress }) => {
     <button
       type="button"
       className={isOn ? 'btn-reset gc-chip gc-chip--on' : 'btn-reset gc-chip'}
+      aria-pressed={isOn}
+      aria-label={cur > 0 ? `${label}, ${cur}` : label}
       onClick={handle}
     >
       <span className="gc-chip-label">{label}</span>

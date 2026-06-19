@@ -1,0 +1,36 @@
+name: rn-ci
+
+# Type-check the React Native (Expo) app on changes to its sources. The web app
+# has its own workflow (web-ci.yml); this guards the native side, which would
+# otherwise get no CI at all. The root tsconfig excludes web/, so this checks the
+# RN tree only.
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'App.tsx'
+      - 'tsconfig.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/rn-ci.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'App.tsx'
+      - 'tsconfig.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/rn-ci.yml'
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run tsc

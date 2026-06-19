@@ -225,6 +225,7 @@ export const WoundsScreen: React.FC = () => {
               <Cell flex={0.5} align="right">
                 <Button
                   variant="ghost"
+                  ariaLabel={`Mark "${cr.name}" healed`}
                   iconLeft={<Icon name="check" size={13} color={colors.success} />}
                   onPress={() => resolveCritical(i)}
                 >{''}</Button>

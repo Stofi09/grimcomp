@@ -2,7 +2,7 @@
   "$schema": "grimcomp.content.v2",
   "id": "core-rules",
   "name": "Core Rulebook — Rules Tables",
-  "version": "2026.06.11",
+  "version": "2026.06.17",
   "system": {
     "test": {
       "dice": { "count": 1, "sides": 100 },
@@ -127,11 +127,24 @@
     "leg_r": "J. LÁB"
   },
   "criticals": [
-    { "name": "Bruised Muscle", "effect": "Painful throb. −10 to physical tests for 1 round.", "days": 2 },
-    { "name": "Crushed Bone", "effect": "A grinding crack. −10 to all tests using that location.", "days": 7 },
-    { "name": "Torn Tendon", "effect": "Movement halved when the location is used.", "days": 14 },
-    { "name": "Severed Artery", "effect": "Bleeding ×2 until staunched.", "days": 21 },
-    { "name": "Deep Cut", "effect": "Bleeding 1; cosmetic scar.", "days": 5 }
+    { "name": "Bruised Muscle", "effect": "Painful throb. −10 to tests using the struck location for 1 round.", "days": 2 },
+    { "name": "Deep Cut", "effect": "A clean wound. Bleeding 1; a cosmetic scar remains.", "days": 5 },
+    { "name": "Concussion", "effect": "Ringing skull. Stunned 1 and −10 to mental tests until healed.", "days": 4 },
+    { "name": "Broken Nose", "effect": "Eyes water uncontrollably. −10 to sight-based Perception until healed.", "days": 6 },
+    { "name": "Fractured Bone", "effect": "A grinding crack. −10 to all tests using the struck location until set.", "days": 7 },
+    { "name": "Dislocated Shoulder", "effect": "The arm hangs useless until reset; no two-handed weapons.", "days": 9 },
+    { "name": "Cracked Ribs", "effect": "Every breath stabs. −10 to Strength- and Agility-based tests.", "days": 10 },
+    { "name": "Torn Tendon", "effect": "Movement halved whenever the struck location is used.", "days": 14 },
+    { "name": "Smashed Knee", "effect": "The leg buckles. Movement halved; Prone on any hard move.", "days": 16 },
+    { "name": "Mangled Hand", "effect": "Fingers crushed. −20 to tests needing that hand's grip.", "days": 18 },
+    { "name": "Severed Finger", "effect": "Gone for good. −10 to fine Dexterity work until tended.", "days": 20 },
+    { "name": "Severed Artery", "effect": "Blood sheets out. Bleeding 2 until staunched, then Bleeding 1.", "days": 21 },
+    { "name": "Ruptured Organ", "effect": "Internal bleeding. Bleeding 1 and −10 to all tests until treated.", "days": 25 },
+    { "name": "Shattered Leg", "effect": "The bone is splintered. Cannot run; Movement quartered until set.", "days": 28 },
+    { "name": "Punctured Lung", "effect": "Wheezing agony. Fatigued 1 that rest cannot remove until healed.", "days": 30 },
+    { "name": "Gouged Eye", "effect": "Sight lost on one side. −20 to ranged attacks and sight Perception.", "days": 35 },
+    { "name": "Skull Fracture", "effect": "A caved-in crack. Unconscious now; −10 to all tests for weeks.", "days": 40 },
+    { "name": "Lost Limb", "effect": "The struck limb is severed. Bleeding 3; the loss is permanent.", "days": 45 }
   ],
   "woundsRules": {
     "smallSizes": ["Small"],

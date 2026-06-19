@@ -76,6 +76,9 @@ export interface Character {
   id: string;
   name: string;
   species: string;
+  /** Stable race id, set at creation. Survives a race rename — `species` is the
+      display name, resolved by id first and falling back to name for legacy data. */
+  raceId?: string;
   class: string;
   career: string;             // currently-occupied career name
   careerLevel: number;

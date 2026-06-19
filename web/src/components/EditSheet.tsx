@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { colors } from '@/theme';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { Icon } from './Icon';
 import './EditSheet.css';
 
@@ -48,6 +49,9 @@ export const EditSheet: React.FC<EditSheetProps> = ({
       previouslyFocused?.focus();
     };
   }, [visible]);
+
+  // Keep Tab focus inside the sheet while it is open.
+  useFocusTrap(sheetRef, visible);
 
   if (!visible) return null;
 

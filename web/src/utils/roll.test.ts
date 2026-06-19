@@ -101,3 +101,15 @@ describe('isDouble / diceLabel / rollDice', () => {
     }
   });
 });
+
+describe('resolveTest — SL sign agrees with the outcome', () => {
+  it('never reports a positive SL on an auto-failure fumble', () => {
+    // 96 ≤ target 100 would pass, and the SL formula gives
+    // floor(100/10) − floor(96/10) = +1, but the 96–100 auto-fail band forces a
+    // fumble — the success level must not stay positive.
+    const r = resolveTest({ target: 100, forceRoll: 96 });
+    expect(r.outcome).toBe('fumble');
+    expect(r.success).toBe(false);
+    expect(r.sl).toBe(-1);
+  });
+});

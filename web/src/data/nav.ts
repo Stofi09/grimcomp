@@ -57,6 +57,7 @@ export const NAV: NavGroup[] = [
     section: 'System',
     items: [
       { id: 'roster', label: 'Characters', icon: 'users' },
+      { id: 'content', label: 'Content', icon: 'scroll' },
       { id: 'settings', label: 'Settings', icon: 'gear' },
     ],
   },
@@ -80,6 +81,7 @@ export const SCREEN_CRUMBS: Record<ScreenId, string[]> = {
   reference: ['Rulebook', 'Reference'],
   notes: ['Rulebook', 'Notes'],
   roster: ['System', 'Characters'],
+  content: ['System', 'Content'],
   settings: ['System', 'Settings'],
   newchar: ['System', 'Characters', 'New Character'],
 };

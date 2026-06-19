@@ -65,14 +65,17 @@ export const SkillsScreen: React.FC = () => {
       }
       setAdvances(prev => ({ ...prev, [skill.name]: next }));
     } else if (next < current) {
-      // Refund the bracket the user is leaving (the last +5 they bought).
+      // Refund the bracket the user is leaving (the last +5 they bought). Only
+      // step the advance down when the refund actually credited XP — otherwise
+      // (e.g. stepping a template-granted skill below its starting level, which
+      // was never purchased) we'd silently drop the rank for nothing.
       const refund = bracket(rules, next);
-      const reason = `${skill.name} +${current} → +${next}`;
-      xp.refund(refund, `${skill.name} +${next} → +${current}`, 'skill');
+      const r = xp.refund(refund, `${skill.name} +${next} → +${current}`, 'skill');
+      if (!r.ok) {
+        Alert.alert("Can't refund", r.message);
+        return;
+      }
       setAdvances(prev => ({ ...prev, [skill.name]: next }));
-      // Best-effort feedback for the refund.
-      // (Skip an alert to keep stepper feel snappy.)
-      void reason;
     }
   }, [rules, xp, setAdvances]);
 
@@ -198,6 +201,7 @@ const SkillTable: React.FC<SkillTableProps> = ({ skills, advances, onChange, tot
             <Cell flex={0.4} align="right">
               <Button
                 variant="ghost"
+                ariaLabel={`Test ${s.name}`}
                 iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
                 onPress={() => {
                   const r = resolveTest({ target: tot, modifier: condMod.total, label: s.name }, system.test);

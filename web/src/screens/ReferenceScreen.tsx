@@ -22,7 +22,12 @@ const RECENT: Array<[string, string, string]> = [
 export const ReferenceScreen: React.FC = () => {
   const reg = useContent();
   const loreCount = new Set(reg.allSpells.map(s => s.lore)).size;
-  const deityCount = new Set(reg.allPrayers.map(p => p.deity)).size;
+  // Count declared deities from the roster, not distinct prayer deities — the
+  // latter includes the generic "Any" blessing bucket (creation.anyDeity).
+  const deityCount = reg.allDeities.length;
+  // Core-book version tracks the loaded core-rules pack, so a pack bump updates
+  // this line automatically (like the counts below).
+  const coreVersion = reg.packs.find(p => p.id === 'core-rules')?.version;
 
   // Counts come straight from the loaded content registry, so importing a
   // content pack updates this screen automatically. Critical Wounds reads the
@@ -45,7 +50,7 @@ export const ReferenceScreen: React.FC = () => {
     <ScreenContainer>
       <Hero
         title="Reference"
-        subRow={<span className="ref-sub">WFRP 4e core book · version 2026.04.01 · offline</span>}
+        subRow={<span className="ref-sub">WFRP 4e core book{coreVersion ? ` · version ${coreVersion}` : ''} · offline</span>}
         actions={
           <Button
             iconLeft={<Icon name="search" size={13} color={colors.ink} />}

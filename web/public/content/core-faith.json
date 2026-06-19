@@ -2,16 +2,45 @@
   "$schema": "grimcomp.content.v2",
   "id": "core-faith",
   "name": "Core Rulebook — Faith",
-  "version": "2026.04.01",
+  "version": "2026.06.17",
   "prayers": [
+    { "id": "p.bless", "name": "Bless", "deity": "Any", "range": "Touch", "target": "1", "duration": "WPB rounds", "description": "+10 to the next test of one type the target must make." },
+    { "id": "p.fortify", "name": "Fortify", "deity": "Any", "range": "Touch", "target": "1", "duration": "WPB rounds", "description": "+1 AP to all locations on the target." },
+    { "id": "p.bless-battle", "name": "Blessing of Battle", "deity": "Any", "range": "Touch", "target": "1", "duration": "WPB rounds", "description": "The target adds +1 SL to their first successful melee attack." },
+    { "id": "p.bless-courage", "name": "Blessing of Courage", "deity": "Any", "range": "WPB yards", "target": "AoE WPB", "duration": "WPB rounds", "description": "Allies in range are immune to Fear and may reroll a failed Cool test." },
+    { "id": "p.bless-tenacity", "name": "Blessing of Tenacity", "deity": "Any", "range": "Touch", "target": "1", "duration": "Instant", "description": "Remove one stack of Fatigued, Stunned, or Prone from the target." },
+    { "id": "p.bless-hardiness", "name": "Blessing of Hardiness", "deity": "Any", "range": "Touch", "target": "1", "duration": "WPB rounds", "description": "The target gains temporary Wounds equal to your Willpower Bonus." },
+    { "id": "p.bless-wisdom", "name": "Blessing of Wisdom", "deity": "Any", "range": "Touch", "target": "1", "duration": "WPB rounds", "description": "+10 to the target's next Intelligence-based test." },
+    { "id": "p.bless-righteous", "name": "Blessing of Righteousness", "deity": "Any", "range": "Touch", "target": "1", "duration": "WPB rounds", "description": "The target's attacks count as magical and gain +1 SL against the unholy." },
+
     { "id": "p.blessing", "name": "Blessing of Mercy", "deity": "Shallya", "range": "Touch", "target": "1", "duration": "Instant", "description": "The target recovers 1 wound + your Willpower Bonus." },
     { "id": "p.calm", "name": "Calm Soul", "deity": "Shallya", "range": "Touch", "target": "1", "duration": "Instant", "description": "Removes the Broken condition." },
     { "id": "p.staunch", "name": "Staunch", "deity": "Shallya", "range": "Touch", "target": "1", "duration": "Instant", "description": "Removes 1 Bleeding stack from the target." },
     { "id": "p.cure", "name": "Cure", "deity": "Shallya", "range": "Touch", "target": "1", "duration": "WPB rounds", "description": "Cures one disease. The target makes a Toughness test to throw off the worst of it." },
     { "id": "p.peace", "name": "Voice of Peace", "deity": "Shallya", "range": "WPB yards", "target": "AoE WPB", "duration": "WPB rounds", "description": "Hostile creatures must pass a Cool test to attack anyone in range." },
 
-    { "id": "p.bless", "name": "Bless", "deity": "Any", "range": "Touch", "target": "1", "duration": "WPB rounds", "description": "+10 to the next test of one type the target must make." },
-    { "id": "p.fortify", "name": "Fortify", "deity": "Any", "range": "Touch", "target": "1", "duration": "WPB rounds", "description": "+1 AP to all locations on the target." }
+    { "id": "p.sig-heart", "name": "Heart of the Comet", "deity": "Sigmar", "range": "You", "target": "Self", "duration": "WPB rounds", "description": "Sigmar's courage fills you; +1 SL on melee attacks and immunity to Fear." },
+    { "id": "p.sig-soulfire", "name": "Soulfire", "deity": "Sigmar", "range": "WPB yards", "target": "AoE WPB", "duration": "Instant", "description": "Holy fire scours the unholy; daemons and undead in range take damage and may flee.", "damage": "+4" },
+    { "id": "p.sig-hammer", "name": "Hammer of Sigmar", "deity": "Sigmar", "range": "Touch", "target": "1 weapon", "duration": "WPB rounds", "description": "A weapon blazes with twin-tailed light; +2 Damage and counts as magical.", "damage": "+2" },
+    { "id": "p.sig-comet", "name": "Comet of Sigmar", "deity": "Sigmar", "range": "WPB×10 yards", "target": "AoE WPB", "duration": "Instant", "description": "A blazing comet falls upon the foe, smiting all beneath it.", "damage": "+6" },
+
+    { "id": "p.ulr-wolf", "name": "Heart of the Wolf", "deity": "Ulric", "range": "You", "target": "Self", "duration": "WPB rounds", "description": "The fury of the wolf is yours; +1 SL on attacks and you ignore the Prone of a Charge." },
+    { "id": "p.ulr-winter", "name": "Winter's Bite", "deity": "Ulric", "range": "WPB yards", "target": "1", "duration": "Instant", "description": "A blast of killing frost; the target takes damage and may be slowed.", "damage": "+4" },
+
+    { "id": "p.mor-rest", "name": "Last Rites", "deity": "Morr", "range": "Touch", "target": "1", "duration": "Instant", "description": "Commend a soul to Morr; the body cannot be raised as undead." },
+    { "id": "p.mor-dream", "name": "Walk of Dreams", "deity": "Morr", "range": "Touch", "target": "1", "duration": "WPB hours", "description": "Send the target into prophetic sleep; they wake with an omen or a glimpsed truth." },
+
+    { "id": "p.myr-shield", "name": "Shield of Myrmidia", "deity": "Myrmidia", "range": "Touch", "target": "1", "duration": "WPB rounds", "description": "A shimmering aegis; the target gains +2 AP on all locations against the first hit each round." },
+    { "id": "p.myr-tactics", "name": "Tactical Insight", "deity": "Myrmidia", "range": "WPB yards", "target": "AoE WPB", "duration": "WPB rounds", "description": "Allies act with one mind; each gains +1 SL on a single tactical test." },
+
+    { "id": "p.ver-truth", "name": "Speak the Truth", "deity": "Verena", "range": "WPB yards", "target": "1", "duration": "WPB rounds", "description": "The target cannot knowingly speak a lie while the blessing holds." },
+    { "id": "p.ver-justice", "name": "Verena's Balance", "deity": "Verena", "range": "You", "target": "Self", "duration": "WPB rounds", "description": "Clarity of judgement; +10 to tests of reason, law, and seeing through deceit." },
+
+    { "id": "p.ran-luck", "name": "Ranald's Luck", "deity": "Ranald", "range": "Touch", "target": "1", "duration": "WPB rounds", "description": "Fortune favours the target; they may reroll one failed test before the blessing fades." },
+    { "id": "p.ran-coin", "name": "The Trickster's Coin", "deity": "Ranald", "range": "You", "target": "Self", "duration": "WPB rounds", "description": "Sleight and misdirection come easily; +1 SL on Sleight of Hand and on tests to deceive." },
+
+    { "id": "p.taal-stride", "name": "Forest Stride", "deity": "Taal", "range": "Touch", "target": "1", "duration": "WPB hours", "description": "The wilds part for the target; they move through undergrowth without penalty and leave no trail." },
+    { "id": "p.taal-roar", "name": "Beast's Roar", "deity": "Taal", "range": "WPB yards", "target": "AoE WPB", "duration": "WPB rounds", "description": "A primal bellow; beasts in range cower or flee unless they pass Willpower." }
   ],
   "deities": [
     {
@@ -25,6 +54,42 @@
       "name": "Shallya",
       "epithet": "Goddess of Mercy",
       "dogma": "Dogma: tend the dying, forgive the repentant, never deal a killing blow except against Chaos."
+    },
+    {
+      "id": "ulric",
+      "name": "Ulric",
+      "epithet": "God of Winter, War, and Wolves",
+      "dogma": "Dogma: show no weakness, never use missile weapons against a worthy foe, win by strength of arm."
+    },
+    {
+      "id": "morr",
+      "name": "Morr",
+      "epithet": "God of Death and Dreams",
+      "dogma": "Dogma: honour the dead, destroy the undead, never deny a soul its rest."
+    },
+    {
+      "id": "myrmidia",
+      "name": "Myrmidia",
+      "epithet": "Goddess of Strategy and War",
+      "dogma": "Dogma: fight with discipline and honour, lead from the front, study the art of war."
+    },
+    {
+      "id": "verena",
+      "name": "Verena",
+      "epithet": "Goddess of Learning and Justice",
+      "dogma": "Dogma: seek the truth, share knowledge, uphold the law without fear or favour."
+    },
+    {
+      "id": "ranald",
+      "name": "Ranald",
+      "epithet": "The Trickster, God of Luck",
+      "dogma": "Dogma: rob the rich and proud, never betray a fellow rogue, keep your wits and your humour."
+    },
+    {
+      "id": "taal",
+      "name": "Taal",
+      "epithet": "God of Nature and the Wild",
+      "dogma": "Dogma: respect the wilderness, take only what you need, protect the beasts of field and forest."
     }
   ],
   "tables": [

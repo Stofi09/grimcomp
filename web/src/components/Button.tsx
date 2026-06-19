@@ -13,6 +13,8 @@ interface ButtonProps {
   onPress?: () => void;
   style?: React.CSSProperties;
   textStyle?: React.CSSProperties;
+  /** Accessible name — required for icon-only buttons with no text children. */
+  ariaLabel?: string;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -25,6 +27,7 @@ export const Button: React.FC<ButtonProps> = ({
   onPress,
   style,
   textStyle,
+  ariaLabel,
 }) => {
   const cls = ['btn-reset', 'gc-btn', `gc-btn--${variant}`, large && 'gc-btn--large']
     .filter(Boolean)
@@ -35,6 +38,7 @@ export const Button: React.FC<ButtonProps> = ({
       className={cls}
       style={style}
       disabled={disabled}
+      aria-label={ariaLabel}
       onClick={disabled ? undefined : onPress}
     >
       {iconLeft ? <span className="gc-btn-icon">{iconLeft}</span> : null}

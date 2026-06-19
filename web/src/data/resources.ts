@@ -13,7 +13,10 @@ type Pools = Record<string, number>;
     from the template's like-named field (0 when the template lacks it). */
 export function seedResources(defs: ResourceDef[], template: Record<string, number>): Pools {
   const seed: Pools = {};
-  for (const d of defs) seed[d.id] = template[d.id] ?? 0;
+  for (const d of defs) {
+    const v = template[d.id];
+    seed[d.id] = Number.isFinite(v) ? v : 0;
+  }
   return seed;
 }
 
@@ -26,11 +29,26 @@ export function setResourceValue(
   defs: ResourceDef[], state: Pools, id: string, n: number,
 ): Pools {
   const def = defs.find(d => d.id === id);
-  let val = Math.max(0, n);
+  // Reject non-finite input (NaN/Infinity) so it can never be persisted or
+  // silently defeat the clamp comparisons below.
+  const num = Number.isFinite(n) ? n : 0;
+  let val = Math.max(0, num);
   if (def?.capBy) val = Math.min(val, state[def.capBy] ?? 0);
   const next: Pools = { ...state, [id]: val };
-  for (const d of defs) {
-    if (d.capBy === id && (next[d.id] ?? 0) > val) next[d.id] = val;
+  // Re-clamp dependents transitively: lowering a cap source cascades through
+  // chains (e.g. c capBy b capBy a). Iterate to a fixpoint, bounded by the
+  // number of defs to stay safe against an accidental capBy cycle.
+  for (let pass = 0; pass < defs.length; pass += 1) {
+    let changed = false;
+    for (const d of defs) {
+      if (!d.capBy) continue;
+      const cap = next[d.capBy] ?? 0;
+      if ((next[d.id] ?? 0) > cap) {
+        next[d.id] = cap;
+        changed = true;
+      }
+    }
+    if (!changed) break;
   }
   return next;
 }

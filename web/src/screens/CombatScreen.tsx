@@ -51,8 +51,17 @@ const DEFAULT_FIGURE_LABELS = {
 } as const;
 
 // Weapon group → test characteristic and skill name, per system.combat config.
-const charForWeapon = (w: Weapon, combat: CombatRules): string =>
-  new RegExp(combat.rangedGroupPattern, 'i').test(w.group) ? combat.rangedChar : combat.meleeChar;
+const charForWeapon = (w: Weapon, combat: CombatRules): string => {
+  // A pack-authored pattern may be an invalid regex; fall back to melee rather
+  // than throwing during render.
+  let ranged = false;
+  try {
+    ranged = new RegExp(combat.rangedGroupPattern, 'i').test(w.group);
+  } catch {
+    ranged = false;
+  }
+  return ranged ? combat.rangedChar : combat.meleeChar;
+};
 
 const skillForWeapon = (w: Weapon, combat: CombatRules): string => {
   const pattern = charForWeapon(w, combat) === combat.rangedChar
@@ -271,6 +280,7 @@ export const CombatScreen: React.FC = () => {
                   <Cell flex={0.5} align="right">
                     <Button
                       variant="ghost"
+                      ariaLabel={`Roll attack with ${w.name}`}
                       iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
                       onPress={() => attack(w)}
                     >{''}</Button>

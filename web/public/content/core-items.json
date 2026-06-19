@@ -2,16 +2,32 @@
   "$schema": "grimcomp.content.v2",
   "id": "core-items",
   "name": "Core Rulebook — Items",
-  "version": "2026.04.01",
+  "version": "2026.06.17",
   "weapons": [
     { "id": "wp.hand-weapon-sword", "name": "Hand Weapon (Sword)", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+4", "qual": ["Defensive"] },
-    { "id": "wp.longbow", "name": "Longbow", "group": "Bow", "enc": 1, "range": "90", "dmg": "4", "qual": ["Penetrating"] },
+    { "id": "wp.mace", "name": "Mace", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+4", "qual": ["Pummel"] },
+    { "id": "wp.warhammer", "name": "Warhammer", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+5", "qual": ["Pummel"] },
     { "id": "wp.dagger", "name": "Dagger", "group": "Basic", "enc": 0, "reach": "Short", "dmg": "SB+2", "qual": [] },
-    { "id": "wp.quarterstaff", "name": "Quarterstaff", "group": "Two-handed", "enc": 2, "reach": "Long", "dmg": "SB+3", "qual": ["Defensive", "Pummel"] }
+    { "id": "wp.quarterstaff", "name": "Quarterstaff", "group": "Two-Handed", "enc": 2, "reach": "Long", "dmg": "SB+3", "qual": ["Defensive", "Pummel"] },
+    { "id": "wp.greatsword", "name": "Greatsword", "group": "Two-Handed", "enc": 3, "reach": "Long", "dmg": "SB+5", "qual": ["Hack", "Defensive"] },
+    { "id": "wp.halberd", "name": "Halberd", "group": "Polearm", "enc": 3, "reach": "Long", "dmg": "SB+4", "qual": ["Hack"] },
+    { "id": "wp.spear", "name": "Spear", "group": "Polearm", "enc": 2, "reach": "Very Long", "dmg": "SB+3", "qual": ["Defensive"] },
+    { "id": "wp.longbow", "name": "Longbow", "group": "Bow", "enc": 1, "range": "90", "dmg": "4", "qual": ["Penetrating"] },
+    { "id": "wp.crossbow", "name": "Crossbow", "group": "Crossbow", "enc": 1, "range": "60", "dmg": "5", "qual": ["Reload"] },
+    { "id": "wp.sling", "name": "Sling", "group": "Sling", "enc": 0, "range": "60", "dmg": "3", "qual": ["Reload"] },
+    { "id": "wp.throwing-axe", "name": "Throwing Axe", "group": "Throwing", "enc": 1, "range": "SBx3", "dmg": "SB+3", "qual": [] },
+    { "id": "wp.pistol", "name": "Pistol", "group": "Gunpowder", "enc": 1, "range": "20", "dmg": "8", "qual": ["Reload", "Dangerous"] }
   ],
   "armour": [
+    { "id": "arm.leather-jack", "name": "Leather Jack", "locs": ["Body", "Arms"], "enc": 1, "ap": 1, "qual": ["Flexible"] },
     { "id": "arm.mail-shirt", "name": "Mail Shirt", "locs": ["Body", "Arms"], "enc": 2, "ap": 2, "qual": ["Flexible"] },
+    { "id": "arm.gromril-mail-shirt", "name": "Gromril Mail Shirt", "locs": ["Body", "Arms"], "enc": 2, "ap": 3, "qual": ["Flexible"] },
+    { "id": "arm.plate-breastplate", "name": "Plate Breastplate", "locs": ["Body"], "enc": 3, "ap": 5, "qual": [] },
+    { "id": "arm.plate-vambraces", "name": "Plate Vambraces", "locs": ["Arms"], "enc": 1, "ap": 5, "qual": [] },
+    { "id": "arm.plate-leggings", "name": "Plate Leggings", "locs": ["Legs"], "enc": 2, "ap": 5, "qual": [] },
     { "id": "arm.open-helm", "name": "Open Helm", "locs": ["Head"], "enc": 1, "ap": 1, "qual": [] },
+    { "id": "arm.steel-helm", "name": "Steel Helm", "locs": ["Head"], "enc": 1, "ap": 2, "qual": [] },
+    { "id": "arm.mail-coif", "name": "Mail Coif", "locs": ["Head"], "enc": 1, "ap": 2, "qual": [] },
     { "id": "arm.leather-leggings", "name": "Leather Leggings", "locs": ["Legs"], "enc": 1, "ap": 1, "qual": [] },
     { "id": "arm.robe", "name": "Robe", "locs": ["Body", "Arms", "Legs"], "enc": 0, "ap": 0, "qual": ["Practical"] }
   ],
@@ -19,7 +35,10 @@
     { "id": "tr.travel-cloak", "name": "Travel Cloak", "enc": 1 },
     { "id": "tr.tinder-box", "name": "Tinder Box", "enc": 0 },
     { "id": "tr.rope-10m", "name": "Rope (10m)", "enc": 1 },
+    { "id": "tr.grappling-hook", "name": "Grappling Hook", "enc": 1 },
     { "id": "tr.torches", "name": "Torches ×3", "enc": 1 },
+    { "id": "tr.lantern", "name": "Lantern", "enc": 1 },
+    { "id": "tr.backpack", "name": "Backpack", "enc": 0 },
     { "id": "tr.spare-clothing", "name": "Spare Clothing", "enc": 1 },
     { "id": "tr.map-reikland", "name": "Map: Reikland", "enc": 0 },
     { "id": "tr.rations-week", "name": "Rations (week)", "enc": 1 },
@@ -38,6 +57,11 @@
     { "id": "tr.bandages", "name": "Bandages", "enc": 0 },
     { "id": "tr.prayer-book-shallya", "name": "Prayer book of Shallya", "enc": 1 },
     { "id": "tr.vestments", "name": "Vestments", "enc": 1 },
-    { "id": "tr.lantern", "name": "Lantern", "enc": 1 }
+    { "id": "tr.lockpicks", "name": "Lock picks", "enc": 0 },
+    { "id": "tr.disguise-kit", "name": "Disguise kit", "enc": 1 },
+    { "id": "tr.playing-cards", "name": "Marked playing cards", "enc": 0 },
+    { "id": "tr.smoke-pellets", "name": "Smoke pellets ×3", "enc": 0 },
+    { "id": "tr.rune-tools", "name": "Rune tools & punches", "enc": 1 },
+    { "id": "tr.book-of-grudges", "name": "Personal Book of Grudges", "enc": 1 }
   ]
 }

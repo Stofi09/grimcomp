@@ -1,4 +1,5 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import './alert.css';
 
 // API-compatible replacement for React Native's Alert.alert.
@@ -118,6 +119,9 @@ export function AlertHost() {
       document.body.style.overflow = previousOverflow;
     };
   }, [open]);
+
+  // Keep Tab focus inside the alert sheet while it is up.
+  useFocusTrap(sheetRef, open);
 
   if (current === null) return null;
 

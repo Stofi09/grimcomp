@@ -38,3 +38,30 @@ describe('ContentRegistry — resources', () => {
     expect(r.resources.map(x => x.id)).toEqual(['hp']);
   });
 });
+
+describe('ContentRegistry — overrides & deletions (in-app editing)', () => {
+  it('a later pack overrides an entry by id', () => {
+    const r = new ContentRegistry([
+      pack({ talents: [{ id: 't1', name: 'Original', description: 'a' }] }),
+      pack({ talents: [{ id: 't1', name: 'Overridden', description: 'b' }] }),
+    ]);
+    expect(r.allTalentDefs.find(t => t.id === 't1')?.name).toBe('Overridden');
+    expect(r.allTalentDefs).toHaveLength(1);
+  });
+
+  it('a deletions tombstone removes a bundled entry', () => {
+    const r = new ContentRegistry([
+      pack({ careers: [{ id: 'c1', name: 'Soldier', class: 'Warrior', species: [], ranks: [] }] }),
+      pack({ deletions: { careers: ['c1'] } }),
+    ]);
+    expect(r.getCareer('c1')).toBeUndefined();
+    expect(r.allCareers).toHaveLength(0);
+  });
+
+  it('deletion is applied after merge, so a tombstone beats an override of the same id', () => {
+    const r = new ContentRegistry([
+      pack({ talents: [{ id: 't1', name: 'X', description: '' }], deletions: { talents: ['t1'] } }),
+    ]);
+    expect(r.allTalentDefs.find(t => t.id === 't1')).toBeUndefined();
+  });
+});

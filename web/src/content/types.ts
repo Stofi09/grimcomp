@@ -404,7 +404,7 @@ export const MANIFEST_SCHEMA = 'grimcomp.manifest.v1';
 export const SCREEN_KINDS = [
   'overview', 'characteristics', 'skills', 'talents', 'career', 'xp',
   'combat', 'wounds', 'magic', 'faith', 'trappings', 'psychology',
-  'reference', 'notes', 'roster', 'settings', 'newchar',
+  'reference', 'notes', 'roster', 'settings', 'newchar', 'content',
 ] as const;
 export type ScreenKind = typeof SCREEN_KINDS[number];
 
@@ -517,7 +517,20 @@ export interface ContentPack {
   resources?: ResourceDef[];
   /** Toggle WFRP sub-mechanics off (all default on). Overlaid field-by-field. */
   capabilities?: Capabilities;
+  /** Tombstones: per id-keyed section, ids to REMOVE after all packs merge.
+      Lets a user pack delete a bundled entry (the merge is otherwise additive). */
+  deletions?: Partial<Record<string, string[]>>;
 }
+
+/** The id-keyed entity sections the in-app content editor can create/edit/delete. */
+export const EDITABLE_SECTIONS = [
+  'spells', 'prayers', 'races', 'careers', 'skills', 'talents',
+  'weapons', 'armour', 'trappings', 'deities',
+] as const;
+export type EditableSection = typeof EDITABLE_SECTIONS[number];
+
+/** Pack id reserved for edits made in-app via the Content screen. */
+export const USER_EDITS_PACK_ID = 'user-edits';
 
 /** Shape of public/content/manifest.json. */
 export interface ContentManifest {

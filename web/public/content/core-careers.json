@@ -2,32 +2,90 @@
   "$schema": "grimcomp.content.v2",
   "id": "core-careers",
   "name": "Core Rulebook — Careers",
-  "version": "2026.04.01",
+  "version": "2026.06.17",
   "careers": [
     {
-      "id": "car.roadwarden",
-      "name": "Roadwarden",
-      "class": "Warrior",
+      "id": "car.apothecary",
+      "name": "Apothecary",
+      "class": "Academic",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "Apprentice Apothecary", "status": "Brass 3" },
+        { "level": 2, "name": "Apothecary", "status": "Silver 1" },
+        { "level": 3, "name": "Master Apothecary", "status": "Silver 3" },
+        { "level": 4, "name": "Apothecary-General", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.engineer",
+      "name": "Engineer",
+      "class": "Academic",
       "species": ["race.human", "race.dwarf", "race.halfling"],
       "ranks": [
-        { "level": 1, "name": "Roadwarden", "status": "Silver 2" },
-        { "level": 2, "name": "Road Sergeant", "status": "Silver 3" },
-        {
-          "level": 3,
-          "name": "Mounted Sergeant",
-          "status": "Silver 4",
-          "requirements": [
-            { "skill": "Ride (Horse)", "min": 10 },
-            { "skill": "Perception", "min": 10 },
-            { "skill": "Melee (Basic)", "min": 10 },
-            { "skill": "Ranged (Bow)", "min": 10 },
-            { "skill": "Outdoor Survival", "min": 5 },
-            { "skill": "Intimidate", "min": 5 },
-            { "skill": "Track", "min": 5 },
-            { "skill": "Lore (Heraldry)", "min": 5 }
-          ]
-        },
-        { "level": 4, "name": "Captain", "status": "Gold 1" }
+        { "level": 1, "name": "Student Engineer", "status": "Silver 2" },
+        { "level": 2, "name": "Engineer", "status": "Silver 4" },
+        { "level": 3, "name": "Master Engineer", "status": "Gold 1" },
+        { "level": 4, "name": "Chartered Engineer", "status": "Gold 2" }
+      ]
+    },
+    {
+      "id": "car.lawyer",
+      "name": "Lawyer",
+      "class": "Academic",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "Student Lawyer", "status": "Silver 2" },
+        { "level": 2, "name": "Lawyer", "status": "Silver 4" },
+        { "level": 3, "name": "Barrister-at-Law", "status": "Gold 1" },
+        { "level": 4, "name": "Judge", "status": "Gold 2" }
+      ]
+    },
+    {
+      "id": "car.nun",
+      "name": "Nun",
+      "class": "Academic",
+      "species": ["race.human"],
+      "ranks": [
+        { "level": 1, "name": "Novitiate", "status": "Brass 2" },
+        { "level": 2, "name": "Nun", "status": "Silver 1" },
+        { "level": 3, "name": "Abbess", "status": "Silver 4" },
+        { "level": 4, "name": "Prioress General", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.physician",
+      "name": "Physician",
+      "class": "Academic",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "Student Physician", "status": "Silver 1" },
+        { "level": 2, "name": "Physician", "status": "Silver 3" },
+        { "level": 3, "name": "Doctor", "status": "Silver 5" },
+        { "level": 4, "name": "Court Physician", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.priest",
+      "name": "Priest",
+      "class": "Academic",
+      "species": ["race.human"],
+      "ranks": [
+        { "level": 1, "name": "Initiate", "status": "Brass 2" },
+        { "level": 2, "name": "Priest", "status": "Silver 2" },
+        { "level": 3, "name": "High Priest", "status": "Gold 1" },
+        { "level": 4, "name": "Lector", "status": "Gold 2" }
+      ]
+    },
+    {
+      "id": "car.scholar",
+      "name": "Scholar",
+      "class": "Academic",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Student", "status": "Brass 4" },
+        { "level": 2, "name": "Scholar", "status": "Silver 2" },
+        { "level": 3, "name": "Fellow", "status": "Silver 4" },
+        { "level": 4, "name": "Professor", "status": "Gold 1" }
       ]
     },
     {
@@ -38,8 +96,680 @@
       "ranks": [
         { "level": 1, "name": "Wizard's Apprentice", "status": "Brass 4" },
         { "level": 2, "name": "Wizard", "status": "Silver 3" },
-        { "level": 3, "name": "Pyromancer", "status": "Silver 4" },
-        { "level": 4, "name": "Master Wizard", "status": "Gold 2" }
+        { "level": 3, "name": "Master Wizard", "status": "Gold 1" },
+        { "level": 4, "name": "Wizard Lord", "status": "Gold 2" }
+      ]
+    },
+    {
+      "id": "car.agitator",
+      "name": "Agitator",
+      "class": "Burgher",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Pamphleteer", "status": "Brass 1" },
+        { "level": 2, "name": "Agitator", "status": "Brass 3" },
+        { "level": 3, "name": "Demagogue", "status": "Silver 1" },
+        { "level": 4, "name": "Crusader", "status": "Silver 3" }
+      ]
+    },
+    {
+      "id": "car.artisan",
+      "name": "Artisan",
+      "class": "Burgher",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Apprentice Artisan", "status": "Brass 2" },
+        { "level": 2, "name": "Artisan", "status": "Brass 4" },
+        { "level": 3, "name": "Master Artisan", "status": "Silver 2" },
+        { "level": 4, "name": "Guildmaster", "status": "Silver 4" }
+      ]
+    },
+    {
+      "id": "car.beggar",
+      "name": "Beggar",
+      "class": "Burgher",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Pauper", "status": "Brass 0" },
+        { "level": 2, "name": "Beggar", "status": "Brass 1" },
+        { "level": 3, "name": "Master Beggar", "status": "Brass 3" },
+        { "level": 4, "name": "Beggar King", "status": "Brass 5" }
+      ]
+    },
+    {
+      "id": "car.investigator",
+      "name": "Investigator",
+      "class": "Burgher",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "Sleuth", "status": "Silver 1" },
+        { "level": 2, "name": "Investigator", "status": "Silver 3" },
+        { "level": 3, "name": "Master Investigator", "status": "Silver 5" },
+        { "level": 4, "name": "Detective", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.merchant",
+      "name": "Merchant",
+      "class": "Burgher",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "Trader", "status": "Silver 2" },
+        { "level": 2, "name": "Merchant", "status": "Silver 4" },
+        { "level": 3, "name": "Master Merchant", "status": "Gold 1" },
+        { "level": 4, "name": "Merchant Prince", "status": "Gold 2" }
+      ]
+    },
+    {
+      "id": "car.rat-catcher",
+      "name": "Rat Catcher",
+      "class": "Burgher",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Rat Hunter", "status": "Brass 1" },
+        { "level": 2, "name": "Rat Catcher", "status": "Brass 3" },
+        { "level": 3, "name": "Sewer Jack", "status": "Brass 5" },
+        { "level": 4, "name": "Exterminator", "status": "Silver 2" }
+      ]
+    },
+    {
+      "id": "car.townsman",
+      "name": "Townsman",
+      "class": "Burgher",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "Clerk", "status": "Brass 3" },
+        { "level": 2, "name": "Townsman", "status": "Silver 1" },
+        { "level": 3, "name": "Town Councillor", "status": "Silver 3" },
+        { "level": 4, "name": "Burgomeister", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.watchman",
+      "name": "Watchman",
+      "class": "Burgher",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "Watch Recruit", "status": "Brass 3" },
+        { "level": 2, "name": "Watchman", "status": "Silver 1" },
+        { "level": 3, "name": "Watch Sergeant", "status": "Silver 3" },
+        { "level": 4, "name": "Watch Captain", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.advisor",
+      "name": "Advisor",
+      "class": "Courtier",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Aide", "status": "Silver 2" },
+        { "level": 2, "name": "Advisor", "status": "Silver 4" },
+        { "level": 3, "name": "Counsellor", "status": "Gold 1" },
+        { "level": 4, "name": "Chancellor", "status": "Gold 2" }
+      ]
+    },
+    {
+      "id": "car.artist",
+      "name": "Artist",
+      "class": "Courtier",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Apprentice Artist", "status": "Brass 3" },
+        { "level": 2, "name": "Artist", "status": "Silver 1" },
+        { "level": 3, "name": "Master Artist", "status": "Silver 3" },
+        { "level": 4, "name": "Maestro", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.duellist",
+      "name": "Duellist",
+      "class": "Courtier",
+      "species": ["race.human", "race.dwarf", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "Fencer", "status": "Silver 1" },
+        { "level": 2, "name": "Duellist", "status": "Silver 3" },
+        { "level": 3, "name": "Duelmaster", "status": "Silver 5" },
+        { "level": 4, "name": "Judicial Champion", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.envoy",
+      "name": "Envoy",
+      "class": "Courtier",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Herald", "status": "Silver 1" },
+        { "level": 2, "name": "Envoy", "status": "Silver 3" },
+        { "level": 3, "name": "Diplomat", "status": "Silver 5" },
+        { "level": 4, "name": "Ambassador", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.noble",
+      "name": "Noble",
+      "class": "Courtier",
+      "species": ["race.human", "race.dwarf", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Scion", "status": "Silver 5" },
+        { "level": 2, "name": "Noble", "status": "Gold 1" },
+        { "level": 3, "name": "Magnate", "status": "Gold 2" },
+        { "level": 4, "name": "Noble Lord", "status": "Gold 4" }
+      ]
+    },
+    {
+      "id": "car.servant",
+      "name": "Servant",
+      "class": "Courtier",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Menial", "status": "Brass 2" },
+        { "level": 2, "name": "Servant", "status": "Brass 4" },
+        { "level": 3, "name": "Attendant", "status": "Silver 1" },
+        { "level": 4, "name": "Steward", "status": "Silver 3" }
+      ]
+    },
+    {
+      "id": "car.spy",
+      "name": "Spy",
+      "class": "Courtier",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Informer", "status": "Silver 1" },
+        { "level": 2, "name": "Spy", "status": "Silver 3" },
+        { "level": 3, "name": "Agent", "status": "Silver 5" },
+        { "level": 4, "name": "Spymaster", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.warden",
+      "name": "Warden",
+      "class": "Courtier",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "Custodian", "status": "Silver 1" },
+        { "level": 2, "name": "Warden", "status": "Silver 3" },
+        { "level": 3, "name": "Seneschal", "status": "Silver 5" },
+        { "level": 4, "name": "Governor", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.bailiff",
+      "name": "Bailiff",
+      "class": "Peasant",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Tax Collector", "status": "Silver 1" },
+        { "level": 2, "name": "Bailiff", "status": "Silver 3" },
+        { "level": 3, "name": "Reeve", "status": "Silver 5" },
+        { "level": 4, "name": "Magistrate", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.hedge-witch",
+      "name": "Hedge Witch",
+      "class": "Peasant",
+      "species": ["race.human"],
+      "ranks": [
+        { "level": 1, "name": "Hedge Apprentice", "status": "Brass 1" },
+        { "level": 2, "name": "Hedge Witch", "status": "Brass 3" },
+        { "level": 3, "name": "Hedge Master", "status": "Silver 1" },
+        { "level": 4, "name": "Hedgewise", "status": "Silver 3" }
+      ]
+    },
+    {
+      "id": "car.herbalist",
+      "name": "Herbalist",
+      "class": "Peasant",
+      "species": ["race.human", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Herb Gatherer", "status": "Brass 2" },
+        { "level": 2, "name": "Herbalist", "status": "Brass 4" },
+        { "level": 3, "name": "Herb Master", "status": "Silver 1" },
+        { "level": 4, "name": "Herbwise", "status": "Silver 3" }
+      ]
+    },
+    {
+      "id": "car.hunter",
+      "name": "Hunter",
+      "class": "Peasant",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Trapper", "status": "Brass 3" },
+        { "level": 2, "name": "Hunter", "status": "Brass 5" },
+        { "level": 3, "name": "Tracker", "status": "Silver 2" },
+        { "level": 4, "name": "Huntsmaster", "status": "Silver 4" }
+      ]
+    },
+    {
+      "id": "car.miner",
+      "name": "Miner",
+      "class": "Peasant",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Prospector", "status": "Brass 3" },
+        { "level": 2, "name": "Miner", "status": "Brass 5" },
+        { "level": 3, "name": "Master Miner", "status": "Silver 2" },
+        { "level": 4, "name": "Mine Foreman", "status": "Silver 4" }
+      ]
+    },
+    {
+      "id": "car.mystic",
+      "name": "Mystic",
+      "class": "Peasant",
+      "species": ["race.human", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Seer", "status": "Brass 1" },
+        { "level": 2, "name": "Mystic", "status": "Brass 3" },
+        { "level": 3, "name": "Sage", "status": "Silver 1" },
+        { "level": 4, "name": "Prophet", "status": "Silver 3" }
+      ]
+    },
+    {
+      "id": "car.scout",
+      "name": "Scout",
+      "class": "Peasant",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Guide", "status": "Silver 1" },
+        { "level": 2, "name": "Scout", "status": "Silver 3" },
+        { "level": 3, "name": "Pathfinder", "status": "Silver 5" },
+        { "level": 4, "name": "Explorer", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.villager",
+      "name": "Villager",
+      "class": "Peasant",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Peasant", "status": "Brass 2" },
+        { "level": 2, "name": "Villager", "status": "Brass 3" },
+        { "level": 3, "name": "Village Elder", "status": "Brass 5" },
+        { "level": 4, "name": "Village Head", "status": "Silver 2" }
+      ]
+    },
+    {
+      "id": "car.bounty-hunter",
+      "name": "Bounty Hunter",
+      "class": "Ranger",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Thief-taker", "status": "Silver 1" },
+        { "level": 2, "name": "Bounty Hunter", "status": "Silver 3" },
+        { "level": 3, "name": "Master Bounty Hunter", "status": "Silver 5" },
+        { "level": 4, "name": "Bounty Hunter General", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.coachman",
+      "name": "Coachman",
+      "class": "Ranger",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Postilion", "status": "Brass 3" },
+        { "level": 2, "name": "Coachman", "status": "Silver 1" },
+        { "level": 3, "name": "Coach Master", "status": "Silver 3" },
+        { "level": 4, "name": "Route Master", "status": "Silver 5" }
+      ]
+    },
+    {
+      "id": "car.entertainer",
+      "name": "Entertainer",
+      "class": "Ranger",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Busker", "status": "Brass 2" },
+        { "level": 2, "name": "Entertainer", "status": "Brass 4" },
+        { "level": 3, "name": "Troubadour", "status": "Silver 1" },
+        { "level": 4, "name": "Troupe Leader", "status": "Silver 3" }
+      ]
+    },
+    {
+      "id": "car.flagellant",
+      "name": "Flagellant",
+      "class": "Ranger",
+      "species": ["race.human"],
+      "ranks": [
+        { "level": 1, "name": "Zealot", "status": "Brass 1" },
+        { "level": 2, "name": "Flagellant", "status": "Brass 2" },
+        { "level": 3, "name": "Penitent", "status": "Brass 4" },
+        { "level": 4, "name": "Arch-Flagellant", "status": "Silver 1" }
+      ]
+    },
+    {
+      "id": "car.messenger",
+      "name": "Messenger",
+      "class": "Ranger",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Runner", "status": "Brass 3" },
+        { "level": 2, "name": "Messenger", "status": "Silver 1" },
+        { "level": 3, "name": "Courier", "status": "Silver 3" },
+        { "level": 4, "name": "Herald", "status": "Silver 5" }
+      ]
+    },
+    {
+      "id": "car.pedlar",
+      "name": "Pedlar",
+      "class": "Ranger",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Vagabond", "status": "Brass 2" },
+        { "level": 2, "name": "Pedlar", "status": "Brass 3" },
+        { "level": 3, "name": "Master Pedlar", "status": "Brass 5" },
+        { "level": 4, "name": "Wandering Trader", "status": "Silver 2" }
+      ]
+    },
+    {
+      "id": "car.roadwarden",
+      "name": "Roadwarden",
+      "class": "Ranger",
+      "species": ["race.human", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Roadwarden", "status": "Silver 1" },
+        { "level": 2, "name": "Road Sergeant", "status": "Silver 3" },
+        { "level": 3, "name": "Road Warden Captain", "status": "Silver 5" },
+        { "level": 4, "name": "Marshal", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.witch-hunter",
+      "name": "Witch Hunter",
+      "class": "Ranger",
+      "species": ["race.human"],
+      "ranks": [
+        { "level": 1, "name": "Interrogator", "status": "Silver 1" },
+        { "level": 2, "name": "Witch Hunter", "status": "Silver 3" },
+        { "level": 3, "name": "Inquisitor", "status": "Silver 5" },
+        { "level": 4, "name": "Witch Finder General", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.boatman",
+      "name": "Boatman",
+      "class": "Riverfolk",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "Boat-hand", "status": "Brass 3" },
+        { "level": 2, "name": "Boatman", "status": "Silver 1" },
+        { "level": 3, "name": "Bargemaster", "status": "Silver 3" },
+        { "level": 4, "name": "Riverboat Captain", "status": "Silver 5" }
+      ]
+    },
+    {
+      "id": "car.huffer",
+      "name": "Huffer",
+      "class": "Riverfolk",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Lookout", "status": "Brass 3" },
+        { "level": 2, "name": "Huffer", "status": "Silver 1" },
+        { "level": 3, "name": "Pilot", "status": "Silver 3" },
+        { "level": 4, "name": "Master Pilot", "status": "Silver 5" }
+      ]
+    },
+    {
+      "id": "car.riverwarden",
+      "name": "Riverwarden",
+      "class": "Riverfolk",
+      "species": ["race.human", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "River Watchman", "status": "Silver 1" },
+        { "level": 2, "name": "Riverwarden", "status": "Silver 3" },
+        { "level": 3, "name": "River Sergeant", "status": "Silver 5" },
+        { "level": 4, "name": "River Captain", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.riverwoman",
+      "name": "Riverwoman",
+      "class": "Riverfolk",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Brat", "status": "Brass 2" },
+        { "level": 2, "name": "Riverwoman", "status": "Brass 4" },
+        { "level": 3, "name": "Riverwise", "status": "Silver 1" },
+        { "level": 4, "name": "Matriarch", "status": "Silver 3" }
+      ]
+    },
+    {
+      "id": "car.seaman",
+      "name": "Seaman",
+      "class": "Riverfolk",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "Landsman", "status": "Brass 3" },
+        { "level": 2, "name": "Seaman", "status": "Silver 1" },
+        { "level": 3, "name": "Boatswain", "status": "Silver 3" },
+        { "level": 4, "name": "Ship's Master", "status": "Silver 5" }
+      ]
+    },
+    {
+      "id": "car.smuggler",
+      "name": "Smuggler",
+      "class": "Riverfolk",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "River Runner", "status": "Brass 4" },
+        { "level": 2, "name": "Smuggler", "status": "Silver 1" },
+        { "level": 3, "name": "Master Smuggler", "status": "Silver 3" },
+        { "level": 4, "name": "Smuggler King", "status": "Silver 5" }
+      ]
+    },
+    {
+      "id": "car.stevedore",
+      "name": "Stevedore",
+      "class": "Riverfolk",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Dockhand", "status": "Brass 2" },
+        { "level": 2, "name": "Stevedore", "status": "Brass 4" },
+        { "level": 3, "name": "Foreman", "status": "Silver 1" },
+        { "level": 4, "name": "Dock Master", "status": "Silver 3" }
+      ]
+    },
+    {
+      "id": "car.wrecker",
+      "name": "Wrecker",
+      "class": "Riverfolk",
+      "species": ["race.human", "race.dwarf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Looter", "status": "Brass 3" },
+        { "level": 2, "name": "Wrecker", "status": "Brass 5" },
+        { "level": 3, "name": "Wrecker Captain", "status": "Silver 2" },
+        { "level": 4, "name": "Wrecker Chief", "status": "Silver 4" }
+      ]
+    },
+    {
+      "id": "car.bawd",
+      "name": "Bawd",
+      "class": "Rogue",
+      "species": ["race.human", "race.halfling", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "Hustler", "status": "Brass 3" },
+        { "level": 2, "name": "Bawd", "status": "Silver 1" },
+        { "level": 3, "name": "Procurer", "status": "Silver 3" },
+        { "level": 4, "name": "Master of the House", "status": "Silver 5" }
+      ]
+    },
+    {
+      "id": "car.charlatan",
+      "name": "Charlatan",
+      "class": "Rogue",
+      "species": ["race.human", "race.halfling", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "Cony-catcher", "status": "Brass 3" },
+        { "level": 2, "name": "Charlatan", "status": "Silver 1" },
+        { "level": 3, "name": "Swindler", "status": "Silver 3" },
+        { "level": 4, "name": "Master Charlatan", "status": "Silver 5" }
+      ]
+    },
+    {
+      "id": "car.fence",
+      "name": "Fence",
+      "class": "Rogue",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Broker", "status": "Brass 3" },
+        { "level": 2, "name": "Fence", "status": "Silver 1" },
+        { "level": 3, "name": "Master Fence", "status": "Silver 3" },
+        { "level": 4, "name": "Crime Lord", "status": "Silver 5" }
+      ]
+    },
+    {
+      "id": "car.grave-robber",
+      "name": "Grave Robber",
+      "class": "Rogue",
+      "species": ["race.human", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Body Snatcher", "status": "Brass 1" },
+        { "level": 2, "name": "Grave Robber", "status": "Brass 3" },
+        { "level": 3, "name": "Tomb Robber", "status": "Brass 5" },
+        { "level": 4, "name": "Grand Tomb Robber", "status": "Silver 2" }
+      ]
+    },
+    {
+      "id": "car.outlaw",
+      "name": "Outlaw",
+      "class": "Rogue",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Brigand", "status": "Brass 3" },
+        { "level": 2, "name": "Outlaw", "status": "Brass 5" },
+        { "level": 3, "name": "Outlaw Chief", "status": "Silver 2" },
+        { "level": 4, "name": "Bandit King", "status": "Silver 4" }
+      ]
+    },
+    {
+      "id": "car.racketeer",
+      "name": "Racketeer",
+      "class": "Rogue",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Thug", "status": "Brass 3" },
+        { "level": 2, "name": "Racketeer", "status": "Silver 1" },
+        { "level": 3, "name": "Gang Boss", "status": "Silver 3" },
+        { "level": 4, "name": "Crime Lord", "status": "Silver 5" }
+      ]
+    },
+    {
+      "id": "car.thief",
+      "name": "Thief",
+      "class": "Rogue",
+      "species": ["race.human", "race.dwarf", "race.halfling"],
+      "ranks": [
+        { "level": 1, "name": "Prowler", "status": "Brass 2" },
+        { "level": 2, "name": "Thief", "status": "Brass 4" },
+        { "level": 3, "name": "Master Thief", "status": "Silver 1" },
+        { "level": 4, "name": "Cat Burglar", "status": "Silver 3" }
+      ]
+    },
+    {
+      "id": "car.witch",
+      "name": "Witch",
+      "class": "Rogue",
+      "species": ["race.human"],
+      "ranks": [
+        { "level": 1, "name": "Hexer", "status": "Brass 1" },
+        { "level": 2, "name": "Witch", "status": "Brass 3" },
+        { "level": 3, "name": "Wyrd", "status": "Silver 1" },
+        { "level": 4, "name": "Witch Queen", "status": "Silver 3" }
+      ]
+    },
+    {
+      "id": "car.cavalryman",
+      "name": "Cavalryman",
+      "class": "Warrior",
+      "species": ["race.human", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Horseman", "status": "Silver 1" },
+        { "level": 2, "name": "Cavalryman", "status": "Silver 3" },
+        { "level": 3, "name": "Cavalry Sergeant", "status": "Silver 5" },
+        { "level": 4, "name": "Cavalry Officer", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.guard",
+      "name": "Guard",
+      "class": "Warrior",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Sentry", "status": "Brass 4" },
+        { "level": 2, "name": "Guard", "status": "Silver 1" },
+        { "level": 3, "name": "Honour Guard", "status": "Silver 3" },
+        { "level": 4, "name": "Guard Officer", "status": "Silver 5" }
+      ]
+    },
+    {
+      "id": "car.knight",
+      "name": "Knight",
+      "class": "Warrior",
+      "species": ["race.human", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Squire", "status": "Silver 3" },
+        { "level": 2, "name": "Knight", "status": "Silver 5" },
+        { "level": 3, "name": "First Knight", "status": "Gold 1" },
+        { "level": 4, "name": "Knight of the Inner Circle", "status": "Gold 2" }
+      ]
+    },
+    {
+      "id": "car.pit-fighter",
+      "name": "Pit Fighter",
+      "class": "Warrior",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Novice Pit Fighter", "status": "Brass 3" },
+        { "level": 2, "name": "Pit Fighter", "status": "Silver 1" },
+        { "level": 3, "name": "Pit Champion", "status": "Silver 3" },
+        { "level": 4, "name": "Pit Legend", "status": "Silver 5" }
+      ]
+    },
+    {
+      "id": "car.protagonist",
+      "name": "Protagonist",
+      "class": "Warrior",
+      "species": ["race.human", "race.dwarf", "race.high-elf"],
+      "ranks": [
+        { "level": 1, "name": "Tough", "status": "Brass 4" },
+        { "level": 2, "name": "Protagonist", "status": "Silver 1" },
+        { "level": 3, "name": "Bravo", "status": "Silver 3" },
+        { "level": 4, "name": "Hitman", "status": "Silver 5" }
+      ]
+    },
+    {
+      "id": "car.soldier",
+      "name": "Soldier",
+      "class": "Warrior",
+      "species": ["race.human", "race.dwarf", "race.halfling", "race.high-elf", "race.wood-elf"],
+      "ranks": [
+        { "level": 1, "name": "Recruit", "status": "Brass 3" },
+        { "level": 2, "name": "Soldier", "status": "Silver 1" },
+        { "level": 3, "name": "Sergeant", "status": "Silver 3" },
+        { "level": 4, "name": "Officer", "status": "Gold 1" }
+      ]
+    },
+    {
+      "id": "car.slayer",
+      "name": "Slayer",
+      "class": "Warrior",
+      "species": ["race.dwarf"],
+      "ranks": [
+        { "level": 1, "name": "Troll Slayer", "status": "Brass 1" },
+        { "level": 2, "name": "Giant Slayer", "status": "Brass 3" },
+        { "level": 3, "name": "Daemon Slayer", "status": "Silver 3" },
+        { "level": 4, "name": "Dragon Slayer", "status": "Gold 2" }
+      ]
+    },
+    {
+      "id": "car.warrior-priest",
+      "name": "Warrior Priest",
+      "class": "Warrior",
+      "species": ["race.human"],
+      "ranks": [
+        { "level": 1, "name": "Novitiate", "status": "Brass 4" },
+        { "level": 2, "name": "Warrior Priest", "status": "Silver 2" },
+        { "level": 3, "name": "Priest Militant", "status": "Silver 4" },
+        { "level": 4, "name": "Templar Lector", "status": "Gold 1" }
       ]
     },
     {
@@ -52,18 +782,6 @@
         { "level": 2, "name": "Journeyman Runesmith", "status": "Silver 3" },
         { "level": 3, "name": "Runesmith", "status": "Silver 5" },
         { "level": 4, "name": "Master Runesmith", "status": "Gold 3" }
-      ]
-    },
-    {
-      "id": "car.priest-shallya",
-      "name": "Priest of Shallya",
-      "class": "Academic",
-      "species": ["race.human", "race.halfling"],
-      "ranks": [
-        { "level": 1, "name": "Anointed", "status": "Brass 5" },
-        { "level": 2, "name": "Cleric", "status": "Silver 3" },
-        { "level": 3, "name": "Priest", "status": "Silver 4" },
-        { "level": 4, "name": "High Priest", "status": "Gold 2" }
       ]
     }
   ]

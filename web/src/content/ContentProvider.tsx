@@ -8,7 +8,9 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import { ContentRegistry } from './registry';
 import type { ContentPack } from './types';
 import { loadBundledPacks } from './loader';
+import { validatePack } from './validate';
 import { useContentPacks } from './useContentPacks';
+import { useContentEdits } from './useContentEdits';
 
 export const ContentContext = createContext<ContentRegistry>(new ContentRegistry([]));
 
@@ -28,6 +30,7 @@ interface BundledState {
 export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<BundledState>({ bundled: [], errors: [], loading: true });
   const { packs: userPacks } = useContentPacks();
+  const { pack: editsPack } = useContentEdits();
 
   // Fetch the bundled packs exactly once. The cancelled flag guards against
   // StrictMode's double-invoke (and unmount-mid-fetch) writing stale state.
@@ -41,9 +44,25 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const registry = useMemo(() => {
-    const enabled = userPacks.filter(p => p.enabled).map(p => p.pack);
-    return new ContentRegistry([...state.bundled, ...enabled]);
-  }, [state.bundled, userPacks]);
+    // Re-validate enabled user packs before they reach the engine. They were
+    // validated at import, but localStorage can be tampered with or carry a pack
+    // from an incompatible app version; an invalid formula/regex here would
+    // otherwise crash a screen at render. Bad stored packs are skipped + logged.
+    const enabled: ContentPack[] = [];
+    for (const sp of userPacks) {
+      if (!sp.enabled) continue;
+      const { pack, errors } = validatePack(sp.pack);
+      if (pack) enabled.push(pack);
+      else console.warn(`[content] stored pack "${sp.pack?.id ?? '?'}" rejected: ${errors.join('; ')}`);
+    }
+    // In-app edits merge last, so they override bundled + imported entries (and
+    // their `deletions` win). Re-validate defensively in case storage was tampered.
+    const layers = [...state.bundled, ...enabled];
+    const { pack: validatedEdits, errors: editErrors } = validatePack(editsPack);
+    if (validatedEdits) layers.push(validatedEdits);
+    else console.warn(`[content] in-app edits rejected: ${editErrors.join('; ')}`);
+    return new ContentRegistry(layers);
+  }, [state.bundled, userPacks, editsPack]);
 
   const status = useMemo<ContentStatus>(
     () => ({ loading: state.loading, errors: state.errors }),

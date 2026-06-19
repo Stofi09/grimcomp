@@ -1,11 +1,12 @@
 // Master/detail shell. Wide (>= RAIL_BREAKPOINT): rail inline. Narrow:
 // slide-over drawer over a scrim.
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { RAIL_BREAKPOINT, RAIL_WIDTH } from '@/theme';
 import { Rail } from './Rail';
 import { AppBar } from './AppBar';
 import { useNavModel } from '@/content/useContent';
 import { useCharacter } from '@/hooks/useCharacter';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import './Shell.css';
 
 interface ShellProps {
@@ -34,6 +35,8 @@ export const Shell: React.FC<ShellProps> = ({ current, onNav, children }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const drawerActive = !isWide && drawerOpen;
 
   // Crossing into the wide layout makes the inline rail authoritative, so the
   // drawer must not linger underneath it.
@@ -53,6 +56,12 @@ export const Shell: React.FC<ShellProps> = ({ current, onNav, children }) => {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [drawerOpen, closeDrawer]);
+
+  // Move focus into the drawer when it opens, and keep Tab inside it.
+  useEffect(() => {
+    if (drawerActive) drawerRef.current?.focus();
+  }, [drawerActive]);
+  useFocusTrap(drawerRef, drawerActive);
 
   // Character-scoped crumbs carry a placeholder token; swap in the active PC so
   // the trail reflects whoever is selected, not the sample character.
@@ -78,8 +87,8 @@ export const Shell: React.FC<ShellProps> = ({ current, onNav, children }) => {
         </div>
       </div>
 
-      {!isWide && drawerOpen ? (
-        <div className="shell-drawer-root" role="dialog" aria-modal="true">
+      {drawerActive ? (
+        <div className="shell-drawer-root" role="dialog" aria-modal="true" ref={drawerRef} tabIndex={-1}>
           <div className="shell-drawer-rail">
             <Rail
               current={current}

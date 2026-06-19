@@ -30,7 +30,7 @@
         "blurb": "Anointed of Shallya. Heals, blesses, intercedes.",
         "icon": "flame",
         "templateId": "c4",
-        "careerId": "car.priest-shallya",
+        "careerId": "car.priest",
         "accent": "#3d6b3d"
       },
       {

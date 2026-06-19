@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { seedResources, setResourceValue, refreshResourceValue } from './resources';
 import { DEFAULT_RESOURCES } from '@/content/registry';
+import type { ResourceDef } from '@/content/types';
 
 // These pin the WFRP paired-pool behaviour the old useVitals hardcoded, now
 // expressed as data — Fortune ≤ Fate (refreshes to Fate), Resolve ≤ Resilience,
@@ -43,6 +44,22 @@ describe('setResourceValue — caps and floors', () => {
     const next = setResourceValue(D, base, 'fate', 6);
     expect(next.fate).toBe(6);
     expect(next.fortune).toBe(1); // unchanged — only re-clamped downward
+  });
+
+  it('treats a non-finite value as 0 rather than persisting NaN', () => {
+    const next = setResourceValue(D, base, 'fate', NaN);
+    expect(next.fate).toBe(0);
+    expect(Number.isFinite(next.fate)).toBe(true);
+  });
+
+  it('re-clamps a cap chain transitively (lowering a cascades through b to c)', () => {
+    const chain: ResourceDef[] = [
+      { id: 'a', label: 'A' },
+      { id: 'b', label: 'B', capBy: 'a' },
+      { id: 'c', label: 'C', capBy: 'b' },
+    ];
+    const next = setResourceValue(chain, { a: 5, b: 5, c: 5 }, 'a', 2);
+    expect(next).toEqual({ a: 2, b: 2, c: 2 });
   });
 });
 

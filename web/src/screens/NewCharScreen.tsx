@@ -160,6 +160,7 @@ const buildCharacter = (
     id: newId,
     name: draft.name.trim() || `New ${label}`,
     species: draft.species,
+    raceId: race?.id,
     initials,
     accent,
     characteristics,

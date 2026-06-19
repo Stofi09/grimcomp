@@ -33,6 +33,12 @@ const isNumber = (v: unknown): v is number => typeof v === 'number';
 
 const HIT_LOCATION_KEYS = ['head', 'body', 'arm_l', 'arm_r', 'leg_l', 'leg_r'];
 
+/** Sections keyed by a unique entry id — the ones `deletions` can tombstone. */
+const ID_KEYED_SECTIONS = new Set<string>([
+  'spells', 'prayers', 'tables', 'races', 'careers', 'skills', 'talents',
+  'weapons', 'armour', 'trappings', 'deities', 'characters',
+]);
+
 /** Every top-level key the v2 schema knows about. Others warn (not fail). */
 const KNOWN_KEYS = new Set([
   '$schema', 'id', 'name', 'version',
@@ -40,7 +46,7 @@ const KNOWN_KEYS = new Set([
   'characteristics', 'races', 'careers', 'skills', 'talents', 'weapons',
   'armour', 'trappings', 'hitLocations', 'figureLabels', 'criticals',
   'woundsRules', 'deities', 'creation', 'characters', 'xpLogSeeds', 'noteSeeds',
-  'screens', 'screenGroups', 'resources', 'capabilities',
+  'screens', 'screenGroups', 'resources', 'capabilities', 'deletions',
 ]);
 
 /** Known capability flags (others warn — likely a typo). */
@@ -694,6 +700,23 @@ export function validatePack(raw: unknown): ValidationResult {
           warnings.push(`resources[${i}] "capBy" references unknown resource "${r.capBy}".`);
         }
       });
+    }
+  }
+
+  // deletions: { <section>: string[] } — tombstones applied after all packs
+  // merge, so a pack can remove a bundled entry by id.
+  if (raw.deletions !== undefined) {
+    if (!isObject(raw.deletions)) {
+      push('"deletions" must be an object keyed by section.');
+    } else {
+      for (const [section, ids] of Object.entries(raw.deletions)) {
+        if (!ID_KEYED_SECTIONS.has(section)) {
+          warnings.push(`"deletions" has unknown section "${section}" — ignored.`);
+        }
+        if (!Array.isArray(ids) || ids.some(x => !isString(x))) {
+          push(`"deletions.${section}" must be an array of string ids.`);
+        }
+      }
     }
   }
 

@@ -8,6 +8,7 @@
       "id": "c1",
       "name": "Sigmund Braun",
       "species": "Human",
+      "raceId": "race.human",
       "class": "Warrior",
       "career": "Roadwarden",
       "careerLevel": 2,
@@ -118,6 +119,7 @@
       "id": "c2",
       "name": "Adelheid Vogt",
       "species": "Human",
+      "raceId": "race.human",
       "class": "Academic",
       "career": "Wizard",
       "careerLevel": 3,
@@ -212,12 +214,13 @@
       "accent": "#9a7d1f",
       "isCaster": true,
       "spellLore": "Fire (Aqshy)",
-      "knownSpells": ["m.candle", "m.dart", "m.gust", "m.warm", "m.fireball", "m.crown", "m.cauterise", "m.dazzle"]
+      "knownSpells": ["sp.petty.dart", "sp.petty.light", "sp.petty.gust", "sp.petty.magic-flame", "sp.fire.cauterise", "sp.fire.crown-of-flame", "sp.fire.firewall", "sp.fire.flaming-sword-of-rhuin", "sp.fire.burning-head", "sp.fire.flamestorm"]
     },
     {
       "id": "c3",
       "name": "Brogar Grimmson",
       "species": "Dwarf",
+      "raceId": "race.dwarf",
       "class": "Warrior",
       "career": "Runesmith",
       "careerLevel": 2,
@@ -228,7 +231,7 @@
         { "level": 3, "name": "Runesmith", "status": "Silver 5" },
         { "level": 4, "name": "Master Runesmith", "status": "Gold 3" }
       ],
-      "status": "Silver 2",
+      "status": "Silver 3",
       "age": 124,
       "height": "141 cm",
       "hair": "Iron-grey, braided",
@@ -243,84 +246,78 @@
       "wounds": { "current": 16, "max": 16 },
       "corruption": 0,
       "sin": 0,
-      "movement": 4,
-      "wealth": { "gc": 12, "ss": 8, "d": 4 },
+      "movement": 3,
+      "wealth": { "gc": 18, "ss": 6, "d": 9 },
       "characteristics": [
-        { "key": "ws", "name": "Weapon Skill", "short": "WS", "init": 33, "adv": 10 },
-        { "key": "bs", "name": "Ballistic Skill", "short": "BS", "init": 38, "adv": 5 },
-        { "key": "s", "name": "Strength", "short": "S", "init": 31, "adv": 5 },
-        { "key": "t", "name": "Toughness", "short": "T", "init": 35, "adv": 5 },
-        { "key": "i", "name": "Initiative", "short": "I", "init": 32, "adv": 5 },
-        { "key": "ag", "name": "Agility", "short": "Ag", "init": 38, "adv": 5 },
-        { "key": "dex", "name": "Dexterity", "short": "Dex", "init": 29, "adv": 0 },
-        { "key": "int", "name": "Intelligence", "short": "Int", "init": 34, "adv": 0 },
-        { "key": "wp", "name": "Willpower", "short": "WP", "init": 30, "adv": 5 },
-        { "key": "fel", "name": "Fellowship", "short": "Fel", "init": 31, "adv": 0 }
+        { "key": "ws", "name": "Weapon Skill", "short": "WS", "init": 38, "adv": 5 },
+        { "key": "bs", "name": "Ballistic Skill", "short": "BS", "init": 28, "adv": 0 },
+        { "key": "s", "name": "Strength", "short": "S", "init": 33, "adv": 0 },
+        { "key": "t", "name": "Toughness", "short": "T", "init": 42, "adv": 5 },
+        { "key": "i", "name": "Initiative", "short": "I", "init": 29, "adv": 0 },
+        { "key": "ag", "name": "Agility", "short": "Ag", "init": 25, "adv": 0 },
+        { "key": "dex", "name": "Dexterity", "short": "Dex", "init": 41, "adv": 10 },
+        { "key": "int", "name": "Intelligence", "short": "Int", "init": 36, "adv": 5 },
+        { "key": "wp", "name": "Willpower", "short": "WP", "init": 48, "adv": 10 },
+        { "key": "fel", "name": "Fellowship", "short": "Fel", "init": 24, "adv": 0 }
       ],
       "skills": [
-        { "name": "Ride (Horse)", "char": "ag", "adv": 15, "career": true, "advanced": false },
-        { "name": "Perception", "char": "i", "adv": 10, "career": true, "advanced": false },
+        { "name": "Trade (Runecraft)", "char": "dex", "adv": 20, "career": true, "advanced": true },
+        { "name": "Lore (Runes)", "char": "int", "adv": 15, "career": true, "advanced": true },
+        { "name": "Lore (Magick)", "char": "int", "adv": 10, "career": true, "advanced": true },
+        { "name": "Evaluate", "char": "int", "adv": 10, "career": true, "advanced": false },
         { "name": "Melee (Basic)", "char": "ws", "adv": 10, "career": true, "grouped": "Basic", "advanced": false },
-        { "name": "Ranged (Bow)", "char": "bs", "adv": 5, "career": true, "grouped": "Bow", "advanced": false },
-        { "name": "Outdoor Survival", "char": "int", "adv": 10, "career": true, "advanced": false },
         { "name": "Intimidate", "char": "s", "adv": 5, "career": true, "advanced": false },
-        { "name": "Track", "char": "i", "adv": 5, "career": true, "advanced": true },
-        { "name": "Lore (Heraldry)", "char": "int", "adv": 0, "career": true, "advanced": true },
-        { "name": "Athletics", "char": "ag", "adv": 5, "career": false, "advanced": false },
-        { "name": "Animal Care", "char": "int", "adv": 5, "career": false, "advanced": false },
-        { "name": "Endurance", "char": "t", "adv": 10, "career": false, "advanced": false },
-        { "name": "Haggle", "char": "fel", "adv": 0, "career": false, "advanced": false }
+        { "name": "Endurance", "char": "t", "adv": 10, "career": true, "advanced": false },
+        { "name": "Cool", "char": "wp", "adv": 10, "career": true, "advanced": false },
+        { "name": "Consume Alcohol", "char": "t", "adv": 10, "career": false, "advanced": false },
+        { "name": "Perception", "char": "i", "adv": 5, "career": false, "advanced": false },
+        { "name": "Research", "char": "int", "adv": 5, "career": false, "advanced": true }
       ],
       "talents": [
-        { "name": "Sure Shot", "times": 1, "desc": "No penalty when shooting from a moving mount", "career": true },
-        { "name": "Sharp", "times": 1, "desc": "Double range on visual perception tests", "career": true },
         { "name": "Hardy", "times": 2, "desc": "+T Bonus to every Wound point", "career": true },
-        { "name": "Lightning Reflexes", "times": 1, "desc": "Reroll one Initiative test per combat", "career": false },
-        { "name": "Menacing", "times": 1, "desc": "+10 to Intimidate tests", "career": false }
+        { "name": "Second Sight", "times": 1, "desc": "Perceives the Winds of Magic and the song of active runes", "career": true },
+        { "name": "Read/Write", "times": 1, "desc": "Reads and writes Khazalid and Reikspiel", "career": true },
+        { "name": "Strong-minded", "times": 1, "desc": "Reroll a failed Cool test vs mental influence", "career": true },
+        { "name": "Night Vision", "times": 1, "desc": "Sees in the dark of the deep holds", "career": false },
+        { "name": "Sturdy", "times": 1, "desc": "Ignores movement penalties from heavy gear", "career": false }
       ],
       "weapons": [
-        { "name": "Hand Weapon (Sword)", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+4", "qual": ["Defensive"] },
-        { "name": "Longbow", "group": "Bow", "enc": 1, "range": "90", "dmg": "4", "qual": ["Penetrating"] },
+        { "name": "Rune-etched Hand Weapon", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+5", "qual": ["Durable", "Magical"] },
+        { "name": "Dwarf Crossbow", "group": "Crossbow", "enc": 1, "range": "60", "dmg": "5", "qual": ["Reload"] },
         { "name": "Dagger", "group": "Basic", "enc": 0, "reach": "Short", "dmg": "SB+2", "qual": [] }
       ],
       "armour": [
-        { "name": "Mail Shirt", "locs": ["Body", "Arms"], "enc": 2, "ap": 2, "qual": ["Flexible"] },
-        { "name": "Open Helm", "locs": ["Head"], "enc": 1, "ap": 1, "qual": [] },
+        { "name": "Gromril Mail Shirt", "locs": ["Body", "Arms"], "enc": 2, "ap": 3, "qual": ["Flexible"] },
+        { "name": "Mail Coif", "locs": ["Head"], "enc": 1, "ap": 2, "qual": [] },
         { "name": "Leather Leggings", "locs": ["Legs"], "enc": 1, "ap": 1, "qual": [] }
       ],
-      "ap": { "head": 1, "arm_l": 2, "arm_r": 2, "body": 2, "leg_l": 1, "leg_r": 1, "shield": 0 },
-      "conditions": [
-        { "type": "Fatigued", "stacks": 1 },
-        { "type": "Bleeding", "stacks": 0 }
-      ],
-      "criticals": [
-        { "loc": "Arm", "roll": 42, "name": "Bruised Muscle", "effect": "Pain throbs, –10 WS for 1 Round", "days": 2 }
-      ],
+      "ap": { "head": 2, "arm_l": 3, "arm_r": 3, "body": 3, "leg_l": 1, "leg_r": 1, "shield": 0 },
+      "conditions": [],
+      "criticals": [],
       "trappings": [
-        { "name": "Travel Cloak", "enc": 1 },
+        { "name": "Rune tools & punches", "enc": 1 },
+        { "name": "Engraving chisels", "enc": 0 },
+        { "name": "Personal Book of Grudges", "enc": 1 },
+        { "name": "Gromril ingots ×2", "enc": 1 },
+        { "name": "Whetstone", "enc": 0 },
         { "name": "Tinder Box", "enc": 0 },
-        { "name": "Rope (10m)", "enc": 1 },
-        { "name": "Torches ×3", "enc": 1 },
-        { "name": "Spare Clothing", "enc": 1 },
-        { "name": "Map: Reikland", "enc": 0 },
+        { "name": "Tankard", "enc": 0 },
         { "name": "Rations (week)", "enc": 1 },
-        { "name": "Healing Draught", "enc": 0 },
-        { "name": "Horn", "enc": 0 },
-        { "name": "Family Signet Ring", "enc": 0 }
+        { "name": "Flask of Bugman's ale", "enc": 0 }
       ],
       "party": {
         "name": "The Eberfeld Road Wardens",
-        "short": "The party has been hired to guard the Eberfeld–Ubersreik road.",
+        "short": "The party has been hired to guard the Eberfeld–Ubersreik road. Brogar travels with them to repay a debt of honour owed to Sigmund's father.",
         "members": [
+          { "name": "Sigmund Braun", "role": "Roadwarden" },
           { "name": "Adelheid Vogt", "role": "Pyromancer" },
-          { "name": "Brogar Grimmson", "role": "Runesmith" },
           { "name": "Halla Stern", "role": "Anointed" }
         ]
       },
-      "psychology": ["Fear (large orcs) — short note about the great greenskins"],
+      "psychology": ["Animosity (Elves) — old grudges die hard; he will not turn his back on one"],
       "mutations": [],
-      "ambitionsShort": "Find the lost caravan from the Hetzenberg Pass",
-      "ambitionsLong": "Form a road-warden company in eastern Reikland",
+      "ambitionsShort": "Strike the rune that settles a long-standing clan grudge",
+      "ambitionsLong": "Be named Master Runesmith and write his name in the Great Book",
       "initials": "BG",
       "accent": "#6a5612"
     },
@@ -328,6 +325,7 @@
       "id": "c4",
       "name": "Halla Stern",
       "species": "Human",
+      "raceId": "race.human",
       "class": "Academic",
       "career": "Anointed Priest of Shallya",
       "careerLevel": 1,
@@ -383,7 +381,7 @@
         { "name": "Bless (Shallya)", "times": 1, "desc": "Knows the Bless prayer", "career": true },
         { "name": "Invoke (Shallya)", "times": 1, "desc": "Can invoke Shallya's prayers without sin", "career": true },
         { "name": "Read/Write", "times": 1, "desc": "Can read and write Reikspiel + Classical", "career": true },
-        { "name": "Kind-hearted", "times": 1, "desc": "+10 to Charm tests on those in distress", "career": false }
+        { "name": "Cat-tongued", "times": 1, "desc": "Soothing words; +SL on Charm tests to calm the distressed", "career": false }
       ],
       "weapons": [
         { "name": "Quarterstaff", "group": "Two-handed", "enc": 2, "reach": "Long", "dmg": "SB+3", "qual": ["Defensive", "Pummel"] }
@@ -441,7 +439,10 @@
       { "date": "2026.04.03", "reason": "Session reward", "amount": 150, "kind": "gain" }
     ],
     "c3": [
-      { "date": "2026.04.10", "reason": "Session reward: Eberfeld road", "amount": 200, "kind": "gain" }
+      { "date": "2026.04.10", "reason": "Trade (Runecraft) +15 → +20", "amount": -50, "kind": "skill" },
+      { "date": "2026.04.10", "reason": "Session reward: Eberfeld road", "amount": 200, "kind": "gain" },
+      { "date": "2026.04.03", "reason": "Journeyman Runesmith — career rank 2", "amount": -200, "kind": "career" },
+      { "date": "2026.04.03", "reason": "Session reward", "amount": 150, "kind": "gain" }
     ],
     "c4": [
       { "date": "2026.04.10", "reason": "Session reward: Eberfeld road", "amount": 200, "kind": "gain" },

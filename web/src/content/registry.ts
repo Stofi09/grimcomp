@@ -210,6 +210,9 @@ export class ContentRegistry {
 
   constructor(packs: ContentPack[]) {
     this.packs = packs;
+    // Tombstones queued from every pack's `deletions`, applied once all packs
+    // have merged so a later pack can remove an earlier (or bundled) entry.
+    const delQueue: Record<string, Set<string>> = {};
     for (const pack of packs) {
       // id-keyed entity sections — merge last-pack-wins per id, insertion
       // order preserved.
@@ -290,7 +293,17 @@ export class ContentRegistry {
       if (pack.xpLogSeeds) {
         this._xpLogSeeds = { ...this._xpLogSeeds, ...pack.xpLogSeeds };
       }
+
+      // deletions: queue ids to remove once every pack has merged.
+      if (pack.deletions) {
+        for (const [section, ids] of Object.entries(pack.deletions)) {
+          const set = (delQueue[section] ??= new Set<string>());
+          for (const id of ids ?? []) set.add(id);
+        }
+      }
     }
+
+    this.applyDeletions(delQueue);
 
     // Resolve the nav once: a pack-authored `screens` section, or the built-in
     // WFRP nav when none is declared. An empty array falls back to the default
@@ -302,6 +315,21 @@ export class ContentRegistry {
 
   private normalizeConditions(raw: Array<ConditionDef | string>): ConditionDef[] {
     return raw.map(c => (typeof c === 'string' ? { name: c } : c));
+  }
+
+  /** Remove tombstoned ids from each id-keyed entity map. */
+  private applyDeletions(queue: Record<string, Set<string>>): void {
+    const maps: Record<string, { delete(id: string): boolean }> = {
+      spells: this.spellMap, prayers: this.prayerMap, tables: this.tableMap,
+      races: this.raceMap, careers: this.careerMap, skills: this.skillMap,
+      talents: this.talentMap, weapons: this.weaponMap, armour: this.armourMap,
+      trappings: this.trappingMap, deities: this.deityMap, characters: this.characterMap,
+    };
+    for (const [section, ids] of Object.entries(queue)) {
+      const map = maps[section];
+      if (!map) continue;
+      for (const id of ids) map.delete(id);
+    }
   }
 
   private overlayXpRules(base: XpRules, overlay: Partial<XpRules>): XpRules {

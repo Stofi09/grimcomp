@@ -231,6 +231,7 @@ export const FaithScreen: React.FC = () => {
               <Cell flex={0.5} align="right">
                 <Button
                   variant="ghost"
+                  ariaLabel={`Pray ${p.name}`}
                   iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
                   onPress={() => pray(p)}
                 >{''}</Button>
