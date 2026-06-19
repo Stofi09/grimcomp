@@ -3,7 +3,7 @@
 // device as an overlay pack (useContentEdits) that the registry merges last, so
 // changes apply live to every screen. Deletes are tombstones (reversible).
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -25,6 +25,35 @@ import './ContentScreen.css';
 interface Entry { id: string; name?: string }
 
 type SheetState = { mode: 'new' | 'edit'; id: string; text: string };
+
+/** Non-fatal dangling-reference checks for the sections that point at other
+    content (careers → races + skill names; races → skill/talent ids). Returns a
+    list of human-readable warnings; empty means everything resolves. */
+function refWarnings(section: EditableSection, entry: Record<string, unknown>, reg: ReturnType<typeof useContent>): string[] {
+  const w: string[] = [];
+  if (section === 'careers') {
+    const raceIds = new Set(reg.allRaces.map(r => r.id));
+    for (const sp of (entry.species as unknown[] | undefined) ?? []) {
+      if (typeof sp === 'string' && !raceIds.has(sp)) w.push(`• species "${sp}" — no race with that id`);
+    }
+    const skillNames = new Set(reg.allSkillDefs.map(s => s.name));
+    for (const rk of (entry.ranks as Array<{ requirements?: Array<{ skill?: unknown }> }> | undefined) ?? []) {
+      for (const req of rk?.requirements ?? []) {
+        if (typeof req?.skill === 'string' && !skillNames.has(req.skill)) w.push(`• requirement skill "${req.skill}" — no skill with that name`);
+      }
+    }
+  } else if (section === 'races') {
+    const skillIds = new Set(reg.allSkillDefs.map(s => s.id));
+    const talentIds = new Set(reg.allTalentDefs.map(t => t.id));
+    for (const s of (entry.skills as unknown[] | undefined) ?? []) {
+      if (typeof s === 'string' && !skillIds.has(s)) w.push(`• skill "${s}" — no skill with that id`);
+    }
+    for (const t of (entry.talents as unknown[] | undefined) ?? []) {
+      if (typeof t === 'string' && !talentIds.has(t)) w.push(`• talent "${t}" — no talent with that id`);
+    }
+  }
+  return w;
+}
 
 export const ContentScreen: React.FC = () => {
   const reg = useContent();
@@ -48,6 +77,11 @@ export const ContentScreen: React.FC = () => {
   };
   const entries = lists[sectionKey];
 
+  // Remember id → name as you browse, so the Deleted list can show friendly
+  // names for tombstoned entries (which are gone from the registry).
+  const nameCache = useRef<Record<string, string>>({});
+  for (const e of entries) if (e.name) nameCache.current[e.id] = e.name;
+
   const customIds = useMemo(
     () => new Set(((edits[sectionKey] as Entry[] | undefined) ?? []).map(e => e.id)),
     [edits, sectionKey],
@@ -56,6 +90,14 @@ export const ContentScreen: React.FC = () => {
 
   const openNew = () => setSheet({ mode: 'new', id: '', text: JSON.stringify(meta.template, null, 2) });
   const openEdit = (entry: Entry) => setSheet({ mode: 'edit', id: entry.id, text: JSON.stringify(entry, null, 2) });
+
+  const commit = (parsed: Entry, newId: string) => {
+    upsertEntry(sectionKey, parsed);
+    // A changed id on an edit is a rename: drop the entry under the old id so it
+    // doesn't linger as a duplicate (tombstones a core original; clears a custom one).
+    if (sheet?.mode === 'edit' && newId !== sheet.id) deleteEntry(sectionKey, sheet.id);
+    setSheet(null);
+  };
 
   const save = () => {
     if (!sheet) return;
@@ -84,11 +126,22 @@ export const ContentScreen: React.FC = () => {
     const probe = { $schema: CONTENT_SCHEMA, id: 'probe', name: 'probe', version: '1', [sectionKey]: [parsed] };
     const { errors } = validatePack(probe);
     if (errors.length > 0) { Alert.alert('Invalid entry', errors.join('\n').slice(0, 800)); return; }
-    upsertEntry(sectionKey, parsed as Entry);
-    // A changed id on an edit is a rename: drop the entry under the old id so it
-    // doesn't linger as a duplicate (tombstones a core original; clears a custom one).
-    if (sheet.mode === 'edit' && newId !== sheet.id) deleteEntry(sectionKey, sheet.id);
-    setSheet(null);
+    // Non-fatal: warn on dangling references (a career citing a missing race, a
+    // race granting an unknown skill) but let the author save anyway — the target
+    // may be added next.
+    const warns = refWarnings(sectionKey, parsed as Record<string, unknown>, reg);
+    if (warns.length > 0) {
+      Alert.alert(
+        'Unresolved references',
+        `This entry points at content that doesn't exist:\n\n${warns.join('\n')}\n\nSave anyway?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Save anyway', onPress: () => commit(parsed as Entry, newId) },
+        ],
+      );
+      return;
+    }
+    commit(parsed as Entry, newId);
   };
 
   const confirmDelete = (entry: Entry) => {
@@ -114,6 +167,16 @@ export const ContentScreen: React.FC = () => {
   };
 
   const sheetIsCustom = sheet ? customIds.has(sheet.id) : false;
+  // Title reflects the id currently in the editor (so a mid-rename shows the new
+  // id), falling back to the original when the JSON is incomplete.
+  const sheetEditId = (() => {
+    if (!sheet || sheet.mode === 'new') return '';
+    try {
+      const p = JSON.parse(sheet.text);
+      if (p && typeof p.id === 'string' && p.id.trim()) return p.id.trim();
+    } catch { /* incomplete JSON — fall back to the original id */ }
+    return sheet.id;
+  })();
 
   return (
     <ScreenContainer>
@@ -171,8 +234,8 @@ export const ContentScreen: React.FC = () => {
           ))}
           {deletedIds.map((id, i) => (
             <TableRow key={`del-${id}`} last={i === deletedIds.length - 1}>
-              <Cell flex={2} textStyle={{ color: colors.ink3, fontStyle: 'italic' }}>{id}</Cell>
-              <Cell flex={2} textStyle={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: colors.ink3 }}>deleted</Cell>
+              <Cell flex={2} textStyle={{ color: colors.ink3, fontStyle: 'italic' }}>{nameCache.current[id] ?? id}</Cell>
+              <Cell flex={2} textStyle={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: colors.ink3 }}>{id}</Cell>
               <Cell flex={1}><Pill variant="warn" size={10}>Deleted</Pill></Cell>
               <Cell flex={1.4} align="right">
                 <div className="cnt-row-actions">
@@ -186,7 +249,7 @@ export const ContentScreen: React.FC = () => {
 
       <EditSheet
         visible={!!sheet}
-        title={sheet?.mode === 'new' ? `New ${meta.singular}` : `Edit ${sheet?.id ?? ''}`}
+        title={sheet?.mode === 'new' ? `New ${meta.singular}` : `Edit ${sheetEditId}`}
         subtitle={`${meta.label} · raw JSON`}
         onClose={() => setSheet(null)}
         onSave={save}

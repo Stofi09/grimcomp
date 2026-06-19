@@ -31,6 +31,12 @@ const isObject = (v: unknown): v is Record<string, unknown> =>
 const isString = (v: unknown): v is string => typeof v === 'string';
 const isNumber = (v: unknown): v is number => typeof v === 'number';
 
+/** A finite number within [min, max]. Bounds dice counts/sides so a tampered or
+    malformed pack can't freeze the UI with an enormous roll loop (Number.isFinite
+    also rejects NaN/Infinity that would otherwise pass a bare typeof check). */
+const inRange = (v: unknown, min: number, max: number): v is number =>
+  typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
+
 const HIT_LOCATION_KEYS = ['head', 'body', 'arm_l', 'arm_r', 'leg_l', 'leg_r'];
 
 /** Sections keyed by a unique entry id — the ones `deletions` can tombstone. */
@@ -182,8 +188,8 @@ export function validatePack(raw: unknown): ValidationResult {
     strings: ['name'],
     extra: (entry, where, p) => {
       if (entry.dice !== undefined) {
-        if (!isObject(entry.dice) || !isNumber(entry.dice.count) || !isNumber(entry.dice.sides)) {
-          p(`${where} "dice" must be { count, sides }.`);
+        if (!isObject(entry.dice) || !inRange(entry.dice.count, 1, 100) || !inRange(entry.dice.sides, 1, 10000)) {
+          p(`${where} "dice" must be { count: 1–100, sides: 1–10000 }.`);
         }
       }
       if (!Array.isArray(entry.rows)) {
@@ -407,8 +413,8 @@ export function validatePack(raw: unknown): ValidationResult {
           push('"system.test" must be an object.');
         } else {
           const t = sys.test;
-          if (t.dice !== undefined && (!isObject(t.dice) || !isNumber(t.dice.count) || !isNumber(t.dice.sides))) {
-            push('"system.test.dice" must be { count, sides }.');
+          if (t.dice !== undefined && (!isObject(t.dice) || !inRange(t.dice.count, 1, 100) || !inRange(t.dice.sides, 1, 10000))) {
+            push('"system.test.dice" must be { count: 1–100, sides: 1–10000 }.');
           }
           if (t.direction !== undefined && t.direction !== 'under' && t.direction !== 'over') {
             push('"system.test.direction" must be "under" or "over".');
@@ -513,9 +519,12 @@ export function validatePack(raw: unknown): ValidationResult {
       if (!isObject(cr.statRoll)) {
         push('"creation.statRoll" must be an object.');
       } else {
-        for (const f of ['count', 'sides', 'plus']) {
-          if (!isNumber((cr.statRoll as Record<string, unknown>)[f])) push(`"creation.statRoll.${f}" must be a number.`);
-        }
+        // count is looped per characteristic at roll time — bound it so a huge
+        // value can't freeze character creation.
+        const sr = cr.statRoll as Record<string, unknown>;
+        if (!inRange(sr.count, 0, 100)) push('"creation.statRoll.count" must be a number 0–100.');
+        if (!inRange(sr.sides, 1, 10000)) push('"creation.statRoll.sides" must be a number 1–10000.');
+        if (!inRange(sr.plus, -100000, 100000)) push('"creation.statRoll.plus" must be a finite number.');
       }
       if (!Array.isArray(cr.archetypes)) {
         push('"creation.archetypes" must be an array.');
