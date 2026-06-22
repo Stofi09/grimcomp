@@ -102,6 +102,38 @@ export const WoundsScreen: React.FC = () => {
     void condMap;
   };
 
+  // End of round: Bleeding drains 1 Wound per stack (WFRP 4e p.169). At 0
+  // Wounds while still Bleeding, the character must pass an Endurance Test at
+  // the start of their next turn or die.
+  const endOfRound = () => {
+    const bleed = conds['Bleeding'] ?? 0;
+    if (bleed <= 0) {
+      Alert.alert('End of round', 'No Bleeding to resolve.');
+      return;
+    }
+    const newW = Math.max(0, wounds - bleed);
+    setWounds(newW);
+    Alert.alert(
+      'End of round — Bleeding',
+      `Lost ${bleed} Wound${bleed === 1 ? '' : 's'} to Bleeding (×${bleed}). Wounds ${wounds} → ${newW}.` +
+        (newW === 0 ? '\n\nAt 0 Wounds while Bleeding: pass an Endurance Test at the start of your next turn, or die.' : ''),
+    );
+  };
+
+  // Burn a Fate point to cheat certain death (WFRP 4e p.187): the point is
+  // spent permanently and you survive, removed from the fight at 0 Wounds.
+  const cheatDeath = () => {
+    if (vitals.fate <= 0) {
+      Alert.alert('No Fate to burn', 'No Fate points remain — there is no cheating this death.');
+      return;
+    }
+    vitals.setFate(vitals.fate - 1);
+    Alert.alert(
+      'Fate burned — you cheat death',
+      `−1 Fate (now ${vitals.fate - 1}).\n\nYou survive what should have killed you: left at 0 Wounds and out of the fight. The GM may impose a lasting injury.`,
+    );
+  };
+
   const addCritical = () => {
     const fresh = newCritical(hitLocations, prefabCriticals);
     if (!caps.combatHitLocations) fresh.loc = '';
@@ -172,6 +204,20 @@ export const WoundsScreen: React.FC = () => {
               }}
             >
               Use healing draught
+            </Button>
+            <Button
+              iconLeft={<Icon name="sword" size={13} color={colors.ink} />}
+              style={{ alignSelf: 'stretch' }}
+              onPress={endOfRound}
+            >
+              End of round{(conds['Bleeding'] ?? 0) > 0 ? ` (Bleeding ×${conds['Bleeding']})` : ''}
+            </Button>
+            <Button
+              iconLeft={<Icon name="star" size={13} color={colors.ink} />}
+              style={{ alignSelf: 'stretch' }}
+              onPress={cheatDeath}
+            >
+              Burn Fate — cheat death
             </Button>
             <Button
               iconLeft={<Icon name="flame" size={13} color={colors.ink} />}
