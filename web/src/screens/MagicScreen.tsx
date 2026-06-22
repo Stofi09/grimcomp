@@ -5,6 +5,7 @@ import { useStoredState } from '@/hooks/useStoredState';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useConditions } from '@/hooks/useConditions';
 import { resolveTest, outcomeLabel, formatTestResult, isDouble } from '@/utils/roll';
+import { resolveCast } from '@/utils/magic';
 import { useResolveSpells, useTable, useSystemRules, useCreation, useCapabilities } from '@/content/useContent';
 import { rollOnTable, rollForTable } from '@/content/tables';
 import type { Spell } from '@/content/types';
@@ -116,24 +117,30 @@ export const MagicScreen: React.FC = () => {
 
   const cast = (spell: Spell) => {
     const r = resolveTest({ target: castTarget, modifier: condMod.total, label: `Cast ${spell.name}` }, system.test);
-    // Total SL = test SL + channelling pool.
-    const totalSl = r.sl + pool;
-    const reachedCN = totalSl >= spell.cn;
+    // Total SL = casting-test SL + banked Channelling SL, vs the spell's CN.
+    // A fumbled casting test never casts, however large the pool.
+    const oc = resolveCast(r.sl, pool, spell.cn, r.outcome === 'fumble');
     const usedPool = pool;
-    setPool(0); // Pool spends regardless of success.
+    setPool(0); // Channelled power is spent on the attempt regardless of outcome.
 
-    let body = `${formatTestResult(r)}\n\nChannelling pool used: +${usedPool} SL\nTotal SL: ${totalSl}\nNeeded: ${spell.cn}\n\n`;
+    const resolveLine = `${spell.description}${spell.damage ? `\nDamage: ${spell.damage}` : ''}`;
+    // Surplus SL over the CN fuels Overcasting (CRB p.239) — one effect per 2 SL.
+    const overcastLine = oc.overcasts > 0
+      ? `\n\nOvercast: +${oc.surplus} SL over CN → up to ${oc.overcasts} effect${oc.overcasts === 1 ? '' : 's'} (each 2 SL: +1 Target, +1× Range, or +1× Duration).`
+      : oc.cast && oc.surplus > 0
+        ? `\n\nSurplus +${oc.surplus} SL (2 needed to Overcast).`
+        : '';
+
+    let body = `${formatTestResult(r)}\n\nChannelling pool used: +${usedPool} SL\nTotal SL: ${oc.totalSl}  ·  CN ${spell.cn}\n\n`;
 
     // A double on the casting roll is a Miscast (WFRP 4e), whether or not the
     // spell goes off — not merely a fumble (96–00).
     if (miscastDouble(r.roll)) {
       const mRoll = rollForTable(miscastMinor);
       body += `MISCAST (${mRoll}):\n${rollOnTable(miscastMinor, mRoll)}`;
-      if (reachedCN) {
-        body += `\n\n…the spell still resolves: ${spell.description}${spell.damage ? `\nDamage: ${spell.damage}` : ''}`;
-      }
-    } else if (reachedCN) {
-      body += `→ ${spell.name} resolves!\n${spell.description}${spell.damage ? `\nDamage: ${spell.damage}` : ''}`;
+      if (oc.cast) body += `\n\n…the spell still resolves: ${resolveLine}${overcastLine}`;
+    } else if (oc.cast) {
+      body += `→ ${spell.name} resolves!\n${resolveLine}${overcastLine}`;
     } else {
       body += `→ Not enough SL — spell fizzles. The energy disperses harmlessly.`;
     }
