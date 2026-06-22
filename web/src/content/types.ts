@@ -147,6 +147,13 @@ export interface Prayer {
   target: string;
   duration: string;
   description: string;
+  /**
+   * WFRP 4e distinguishes Blessings (minor invocations — no Test, no Wrath) from
+   * Miracles (a Pray Test that risks the Wrath of the Gods). Omit and the Faith
+   * screen infers it: a deity-agnostic prayer (deity === creation.anyDeity) is a
+   * Blessing, a deity-specific one is a Miracle.
+   */
+  type?: 'blessing' | 'miracle';
 }
 
 /** One d100 outcome band: a roll in [min, max] yields `effect`. */

@@ -61,6 +61,32 @@
   color: var(--ink);
 }
 
+.cmb-hit-preview {
+  margin-top: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--divider);
+  border-radius: 8px;
+  background: var(--surface3);
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.cmb-hit-preview strong {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--empire);
+}
+
+.cmb-hit-crit {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--empire);
+}
+
 .cmb-qual-row {
   display: flex;
   flex-direction: row;

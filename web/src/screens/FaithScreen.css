@@ -104,6 +104,20 @@
   color: var(--ink);
 }
 
+.fth-type-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.fth-deity-mini {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink3);
+  letter-spacing: 0.3px;
+}
+
 /* prayerDesc: body 11 / ink3 / marginTop 2 / lineHeight 15 / clamp 2 lines */
 .fth-prayer-desc {
   font-family: var(--font-body);

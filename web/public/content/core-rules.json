@@ -110,13 +110,12 @@
     { "key": "fel", "name": "Fellowship", "short": "Fel" }
   ],
   "hitLocations": [
-    { "min": 1, "max": 10, "key": "head", "label": "Head" },
-    { "min": 11, "max": 20, "key": "leg_r", "label": "Right Leg" },
-    { "min": 21, "max": 35, "key": "leg_l", "label": "Left Leg" },
-    { "min": 36, "max": 50, "key": "body", "label": "Body" },
-    { "min": 51, "max": 70, "key": "arm_r", "label": "Right Arm" },
-    { "min": 71, "max": 85, "key": "arm_l", "label": "Left Arm" },
-    { "min": 86, "max": 100, "key": "body", "label": "Body" }
+    { "min": 1, "max": 9, "key": "head", "label": "Head" },
+    { "min": 10, "max": 24, "key": "arm_l", "label": "Left Arm" },
+    { "min": 25, "max": 44, "key": "arm_r", "label": "Right Arm" },
+    { "min": 45, "max": 79, "key": "body", "label": "Body" },
+    { "min": 80, "max": 89, "key": "leg_l", "label": "Left Leg" },
+    { "min": 90, "max": 100, "key": "leg_r", "label": "Right Leg" }
   ],
   "figureLabels": {
     "head": "FEJ",

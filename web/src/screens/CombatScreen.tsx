@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
 import { ScreenContainer } from './ScreenContainer';
-import { type Weapon, type Armour } from '@/data/character';
+import { type Weapon, type Armour, type Critical } from '@/data/character';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useCharacterCollection } from '@/hooks/useCharacterCollection';
-import { useFigureLabels, useSystemRules, useCharacteristicDefs, useWeapons, useCapabilities } from '@/content/useContent';
+import { useFigureLabels, useSystemRules, useCharacteristicDefs, useWeapons, useCapabilities, useHitLocations, useCriticals } from '@/content/useContent';
 import type { CombatRules } from '@/content/types';
 import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
 import { charVars, evalFormula } from '@/utils/formula';
+import { apByLocation, apAt, hitLocationFromRoll, applyDamage, type ApLocation } from '@/utils/combat';
 import { Alert } from '@/ui/alert';
 import { Hero } from '@/components/Hero';
 import { Card, CardHead } from '@/components/Card';
@@ -49,6 +50,18 @@ const DEFAULT_FIGURE_LABELS = {
   leg_l: 'B. LÁB',
   leg_r: 'J. LÁB',
 } as const;
+
+// Friendly labels for the six hit locations a "Take a hit" can strike.
+const HIT_LOCATION_OPTIONS: ReadonlyArray<{ value: ApLocation; label: string }> = [
+  { value: 'head', label: 'Head' },
+  { value: 'body', label: 'Body' },
+  { value: 'arm_l', label: 'Left Arm' },
+  { value: 'arm_r', label: 'Right Arm' },
+  { value: 'leg_l', label: 'Left Leg' },
+  { value: 'leg_r', label: 'Right Leg' },
+];
+const hitLocLabel = (key: ApLocation): string =>
+  HIT_LOCATION_OPTIONS.find(o => o.value === key)?.label ?? 'Body';
 
 // Weapon group → test characteristic and skill name, per system.combat config.
 const charForWeapon = (w: Weapon, combat: CombatRules): string => {
@@ -98,6 +111,8 @@ export const CombatScreen: React.FC = () => {
   const caps = useCapabilities();
   const charDefs = useCharacteristicDefs();
   const weaponDefs = useWeapons();
+  const hitLocations = useHitLocations();
+  const prefabCriticals = useCriticals();
   const figureLabels = { ...DEFAULT_FIGURE_LABELS, ...useFigureLabels() };
   const [skillAdv] = useStoredState<Record<string, number>>(
     characterKey(id, 'skills.adv'),
@@ -107,22 +122,17 @@ export const CombatScreen: React.FC = () => {
   const weapons = useCharacterCollection<Weapon>('weapons', c.weapons);
   const armour = useCharacterCollection<Armour>('armour', c.armour);
 
-  // AP is the sum across the live armour collection by location.
-  const ap = useMemo(() => {
-    const sums = { head: 0, body: 0, arm_l: 0, arm_r: 0, leg_l: 0, leg_r: 0, shield: 0 };
-    for (const a of armour.items) {
-      for (const loc of a.locs) {
-        if (loc === 'Head') sums.head += a.ap;
-        else if (loc === 'Body') sums.body += a.ap;
-        else if (loc === 'Arms') { sums.arm_l += a.ap; sums.arm_r += a.ap; }
-        else if (loc === 'Legs') { sums.leg_l += a.ap; sums.leg_r += a.ap; }
-      }
-    }
-    return sums;
-  }, [armour.items]);
+  // Wounds + criticals share their storage keys with the Wounds screen, so a
+  // hit resolved here updates that screen live (useStoredState syncs by key).
+  const [wounds, setWounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
+  const crits = useCharacterCollection<Critical>('criticals', c.criticals);
+
+  // AP per location from the live armour collection (shared, tested helper).
+  const ap = useMemo(() => apByLocation(armour.items), [armour.items]);
 
   const totalAP = ap.head + ap.body + ap.arm_l + ap.arm_r + ap.leg_l + ap.leg_r;
   const vars = charVars(charList);
+  const toughnessBonus = vars.tb ?? 0;
 
   const targetForWeapon = (w: Weapon): number => {
     const ch = charList.find(x => x.key === charForWeapon(w, combat));
@@ -134,13 +144,63 @@ export const CombatScreen: React.FC = () => {
     const target = targetForWeapon(w);
     const r = resolveTest({ target, modifier: condMod.total, label: w.name }, system.test);
     const dmg = r.success ? computeDamage(w.dmg, vars) + Math.max(0, r.sl) : 0;
+    // WFRP 4e: hit location is the reversed digits of a successful to-hit roll.
+    const loc = caps.combatHitLocations && r.success ? hitLocationFromRoll(r.roll, hitLocations) : null;
+    const locLine = loc ? `\n\nHit location: ${loc.label}  (${r.roll} → ${loc.locRoll})` : '';
     const dmgLine = r.success
-      ? `\n\nDamage: ${dmg}  (${w.dmg}${r.hasSl ? ` + ${Math.max(0, r.sl)} SL` : ''})`
+      ? `\n\nDamage dealt: ${dmg}  (${w.dmg}${r.hasSl ? ` + ${Math.max(0, r.sl)} SL` : ''})` +
+        `\nThe target subtracts its Toughness Bonus + AP.`
       : '';
     const condLine = condMod.parts.length
       ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
       : '';
-    Alert.alert(`${w.name} — ${outcomeLabel(r.outcome)}`, formatTestResult(r) + dmgLine + condLine);
+    Alert.alert(`${w.name} — ${outcomeLabel(r.outcome)}`, formatTestResult(r) + locLine + dmgLine + condLine);
+  };
+
+  // "Take a hit": resolve incoming damage against THIS character's Toughness
+  // Bonus + Armour Points at the struck location, apply the net to Wounds, and
+  // raise a Critical Wound if it drops them to (or strikes them at) 0.
+  const [hit, setHit] = useState<{ damage: number; locKey: ApLocation; locRoll: number } | null>(null);
+
+  const rollHitLocation = () => {
+    const roll = Math.floor(Math.random() * 100) + 1;
+    const loc = hitLocationFromRoll(roll, hitLocations);
+    const key = (HIT_LOCATION_OPTIONS.some(o => o.value === loc.key) ? loc.key : 'body') as ApLocation;
+    return { key, locRoll: loc.locRoll };
+  };
+
+  const openHit = () => {
+    const { key, locRoll } = rollHitLocation();
+    setHit({ damage: 0, locKey: key, locRoll });
+  };
+
+  const resolveHit = () => {
+    if (!hit) return;
+    const apVal = apAt(ap, hit.locKey);
+    const res = applyDamage({ damage: hit.damage, toughnessBonus, ap: apVal, currentWounds: wounds });
+    setWounds(res.newWounds);
+
+    let critLine = '';
+    if (res.critical && prefabCriticals.length > 0) {
+      const tpl = prefabCriticals[Math.floor(Math.random() * prefabCriticals.length)];
+      const locLabel = hitLocLabel(hit.locKey);
+      crits.add({
+        loc: caps.combatHitLocations ? locLabel : '',
+        roll: hit.locRoll,
+        name: tpl.name,
+        effect: tpl.effect,
+        days: tpl.days,
+      });
+      critLine = `\n\nCRITICAL WOUND — ${tpl.name}${caps.combatHitLocations ? ` (${locLabel})` : ''}.\nAdded to the Wounds screen; roll on the location's critical table.`;
+    }
+
+    const locPart = caps.combatHitLocations ? ` to the ${hitLocLabel(hit.locKey)}` : '';
+    setHit(null);
+    Alert.alert(
+      res.woundsLost > 0 ? `Hit${locPart} — ${res.woundsLost} Wound${res.woundsLost === 1 ? '' : 's'} lost` : `Hit${locPart} — fully soaked`,
+      `Damage ${res.damage} − TB ${res.toughnessBonus} − AP ${res.ap} = ${res.woundsLost} Wound${res.woundsLost === 1 ? '' : 's'}.\n` +
+      `Wounds ${res.currentWounds} → ${res.newWounds}.${critLine}`,
+    );
   };
 
   // Group picker options come from the loaded packs' weapons; the draft's own
@@ -230,6 +290,14 @@ export const CombatScreen: React.FC = () => {
               <span className="cmb-meta-mono">TOTAL AP</span>
               <span className="cmb-total-mono">{totalAP}</span>
             </div>
+            <Button
+              variant="primary"
+              iconLeft={<Icon name="dice" size={12} color={colors.ivory} />}
+              style={{ alignSelf: 'stretch', marginTop: 12 }}
+              onPress={openHit}
+            >
+              Take a hit
+            </Button>
           </div>
         </Card>
 
@@ -449,6 +517,62 @@ export const CombatScreen: React.FC = () => {
             />
           </>
         ) : null}
+      </EditSheet>
+
+      {/* Take-a-hit resolver: incoming damage vs this character's TB + AP */}
+      <EditSheet
+        visible={!!hit}
+        title="Take a hit"
+        subtitle="Resolve incoming damage against this character's Toughness and armour."
+        onClose={() => setHit(null)}
+        onSave={resolveHit}
+        saveLabel="Apply"
+        saveDisabled={!hit || hit.damage <= 0}
+      >
+        {hit ? (() => {
+          const apVal = apAt(ap, hit.locKey);
+          const net = Math.max(0, hit.damage - toughnessBonus - apVal);
+          const after = Math.max(0, wounds - net);
+          const crit = net > 0 && after === 0;
+          return (
+            <>
+              <NumberField
+                label="Incoming damage"
+                value={hit.damage}
+                onChangeNumber={n => setHit(s => s && ({ ...s, damage: n }))}
+                min={0}
+                max={200}
+                hint="Weapon Damage + SL of the hit, before your Toughness Bonus and AP."
+              />
+              {caps.combatHitLocations ? (
+                <>
+                  <PickerField<ApLocation>
+                    label="Hit location"
+                    value={hit.locKey}
+                    onChange={v => setHit(s => s && ({ ...s, locKey: v }))}
+                    options={HIT_LOCATION_OPTIONS.map(o => ({ value: o.value, label: `${o.label} — AP ${apAt(ap, o.value)}` }))}
+                    hint={`Reversed-digit location roll → ${hit.locRoll}.`}
+                  />
+                  <Button
+                    variant="ghost"
+                    iconLeft={<Icon name="dice" size={12} color={colors.ink2} />}
+                    onPress={() => setHit(s => s && ({ ...s, ...rollHitLocation() }))}
+                  >
+                    Roll location
+                  </Button>
+                </>
+              ) : null}
+              <div className="cmb-hit-preview">
+                <span className="cmb-meta-mono">
+                  {hit.damage} − TB {toughnessBonus} − AP {apVal} =
+                </span>{' '}
+                <strong>{net}</strong> Wound{net === 1 ? '' : 's'}
+                <span className="cmb-meta-mono">  ·  Wounds {wounds} → {after}</span>
+                {crit ? <span className="cmb-hit-crit">  ·  CRITICAL WOUND</span> : null}
+              </div>
+            </>
+          );
+        })() : null}
       </EditSheet>
     </ScreenContainer>
   );

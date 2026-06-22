@@ -1,0 +1,140 @@
+import { describe, it, expect } from 'vitest';
+import {
+  reverseDigits,
+  hitLocationFromRoll,
+  apByLocation,
+  apAt,
+  soakDamage,
+  applyDamage,
+} from './combat';
+import type { HitLocationRow } from '@/content/types';
+
+// The canonical WFRP 4e core hit-location table (reversed-digit roll → location,
+// CRB p.159). Mirrors public/content/core-rules.json so this also locks it in.
+const LOCATIONS: HitLocationRow[] = [
+  { min: 1, max: 9, key: 'head', label: 'Head' },
+  { min: 10, max: 24, key: 'arm_l', label: 'Left Arm' },
+  { min: 25, max: 44, key: 'arm_r', label: 'Right Arm' },
+  { min: 45, max: 79, key: 'body', label: 'Body' },
+  { min: 80, max: 89, key: 'leg_l', label: 'Left Leg' },
+  { min: 90, max: 100, key: 'leg_r', label: 'Right Leg' },
+];
+
+describe('reverseDigits — WFRP 4e hit-location roll', () => {
+  it('swaps tens and units', () => {
+    expect(reverseDigits(27)).toBe(72);
+    expect(reverseDigits(94)).toBe(49);
+  });
+
+  it('treats a one-digit roll as 0N → N0', () => {
+    expect(reverseDigits(6)).toBe(60);
+    expect(reverseDigits(1)).toBe(10);
+  });
+
+  it('keeps doubles unchanged', () => {
+    expect(reverseDigits(33)).toBe(33);
+    expect(reverseDigits(55)).toBe(55);
+  });
+
+  it('reads 100 (00) as 100', () => {
+    expect(reverseDigits(100)).toBe(100);
+  });
+
+  it('clamps out-of-range rolls into 1..100', () => {
+    expect(reverseDigits(0)).toBe(10); // clamped to 1 → 10
+    expect(reverseDigits(150)).toBe(100); // clamped to 100 → 100
+  });
+});
+
+describe('hitLocationFromRoll', () => {
+  it('reverses the to-hit roll then looks up the band', () => {
+    // roll 47 → loc 74 → Body (45–79)
+    expect(hitLocationFromRoll(47, LOCATIONS)).toMatchObject({ key: 'body', label: 'Body', locRoll: 74 });
+    // roll 9 → loc 90 → Right Leg (90–100)
+    expect(hitLocationFromRoll(9, LOCATIONS)).toMatchObject({ key: 'leg_r', label: 'Right Leg', locRoll: 90 });
+    // roll 5 → loc 50 → Body (45–79)
+    expect(hitLocationFromRoll(5, LOCATIONS)).toMatchObject({ key: 'body', locRoll: 50 });
+    // roll 1 → loc 10 → Left Arm (10–24)
+    expect(hitLocationFromRoll(1, LOCATIONS)).toMatchObject({ key: 'arm_l', label: 'Left Arm', locRoll: 10 });
+    // roll 8 → loc 80 → Left Leg (80–89)
+    expect(hitLocationFromRoll(8, LOCATIONS)).toMatchObject({ key: 'leg_l', label: 'Left Leg', locRoll: 80 });
+  });
+
+  it('falls back to Body when no band matches', () => {
+    expect(hitLocationFromRoll(50, [])).toMatchObject({ key: 'body', label: 'Body' });
+  });
+});
+
+describe('apByLocation', () => {
+  it('sums AP per location and spreads Arms/Legs to both sides', () => {
+    const ap = apByLocation([
+      { locs: ['Body', 'Arms'], ap: 2 }, // mail shirt
+      { locs: ['Head'], ap: 1 }, // helm
+      { locs: ['Body'], ap: 5 }, // breastplate
+    ]);
+    expect(ap).toEqual({ head: 1, body: 7, arm_l: 2, arm_r: 2, leg_l: 0, leg_r: 0 });
+  });
+
+  it('returns all-zero for no armour', () => {
+    expect(apByLocation([])).toEqual({ head: 0, body: 0, arm_l: 0, arm_r: 0, leg_l: 0, leg_r: 0 });
+  });
+});
+
+describe('apAt', () => {
+  const ap = { head: 1, body: 7, arm_l: 2, arm_r: 2, leg_l: 0, leg_r: 0 };
+  it('reads AP at a known location key', () => {
+    expect(apAt(ap, 'body')).toBe(7);
+    expect(apAt(ap, 'arm_l')).toBe(2);
+  });
+  it('falls back to body AP for an unmapped key', () => {
+    expect(apAt(ap, 'tail')).toBe(7);
+  });
+});
+
+describe('soakDamage — TB + AP mitigation', () => {
+  it('subtracts Toughness Bonus and Armour Points', () => {
+    // Greatsword SB+5 with S 40 (SB 4) → 9 damage, +2 SL = 11; target TB 4, AP 2 → 5 lost
+    expect(soakDamage({ damage: 11, toughnessBonus: 4, ap: 2 }).woundsLost).toBe(5);
+  });
+
+  it('never deals negative Wounds when fully soaked', () => {
+    expect(soakDamage({ damage: 3, toughnessBonus: 4, ap: 2 }).woundsLost).toBe(0);
+  });
+
+  it('treats negative TB/AP as zero', () => {
+    expect(soakDamage({ damage: 10, toughnessBonus: -3, ap: -1 }).woundsLost).toBe(10);
+  });
+});
+
+describe('applyDamage — Wounds + Critical trigger', () => {
+  it('reduces Wounds by the net damage', () => {
+    const r = applyDamage({ damage: 11, toughnessBonus: 4, ap: 2, currentWounds: 12 });
+    expect(r.woundsLost).toBe(5);
+    expect(r.newWounds).toBe(7);
+    expect(r.critical).toBe(false);
+  });
+
+  it('flags a Critical when a hit reduces the target to 0 Wounds', () => {
+    const r = applyDamage({ damage: 11, toughnessBonus: 0, ap: 0, currentWounds: 8 });
+    expect(r.newWounds).toBe(0);
+    expect(r.critical).toBe(true);
+  });
+
+  it('flags a Critical when a damaging hit lands while already at 0 Wounds', () => {
+    const r = applyDamage({ damage: 5, toughnessBonus: 0, ap: 0, currentWounds: 0 });
+    expect(r.newWounds).toBe(0);
+    expect(r.critical).toBe(true);
+  });
+
+  it('does NOT flag a Critical when a hit at 0 Wounds is fully soaked', () => {
+    const r = applyDamage({ damage: 4, toughnessBonus: 4, ap: 2, currentWounds: 0 });
+    expect(r.woundsLost).toBe(0);
+    expect(r.critical).toBe(false);
+  });
+
+  it('does NOT flag a Critical for a non-lethal hit', () => {
+    const r = applyDamage({ damage: 6, toughnessBonus: 0, ap: 0, currentWounds: 12 });
+    expect(r.newWounds).toBe(6);
+    expect(r.critical).toBe(false);
+  });
+});

@@ -37,6 +37,20 @@ export const FaithScreen: React.FC = () => {
   const praySkill = c.skills.find(s => s.name === faith.praySkill);
   const prayTarget = (prayCh?.current ?? 0) + (praySkill?.adv ?? 0);
 
+  // WFRP 4e: a Blessing is a minor invocation that needs NO Test and never risks
+  // Wrath; a Miracle is a Pray Test that does. Honour an explicit `type`, else
+  // infer from the deity (the deity-agnostic prayers are the Blessings).
+  const anyDeity = creation?.anyDeity;
+  const isBlessing = (p: Prayer): boolean =>
+    (p.type ?? (p.deity === anyDeity ? 'blessing' : 'miracle')) === 'blessing';
+
+  const invokeBlessing = (prayer: Prayer) => {
+    Alert.alert(
+      `${prayer.name} — Blessing`,
+      `No Test required — a Blessing simply takes effect, and never risks the Wrath of the Gods.\n\n→ ${prayer.description}`,
+    );
+  };
+
   // De-hardcoded deity lookup. Match the character's deity by name in the
   // registry; this gives the *real* epithet + dogma (fixing the original's
   // "— Goddess of Mercy" suffix bug, which was appended regardless of deity).
@@ -203,19 +217,21 @@ export const FaithScreen: React.FC = () => {
 
       <Section
         title="Known prayers"
-        aside={prayCh ? `${prayCh.short} ${prayCh.current} · target ${prayTarget}` : `target ${prayTarget}`}
+        aside={`Blessings need no test · Miracles roll Pray ${prayCh ? `(${prayCh.short} ${prayCh.current} · target ${prayTarget})` : `(target ${prayTarget})`}`}
       />
       <Card flush>
         <CardHead title="Prayers" meta={(c.deity ?? '').toLowerCase()} />
         <Table>
           <TableRow header>
             <Cell header flex={2}>Name</Cell>
-            <Cell header flex={1.1}>Deity</Cell>
+            <Cell header flex={1.2}>Type</Cell>
             <Cell header flex={1.2}>Range</Cell>
             <Cell header flex={1.1}>Duration</Cell>
             <Cell header flex={0.5}> </Cell>
           </TableRow>
-          {prayers.map((p, i) => (
+          {prayers.map((p, i) => {
+            const blessing = isBlessing(p);
+            return (
             <TableRow key={p.id} last={i === prayers.length - 1}>
               <Cell flex={2}>
                 <div className="fth-prayer-cell">
@@ -223,21 +239,25 @@ export const FaithScreen: React.FC = () => {
                   <span className="fth-prayer-desc">{p.description}</span>
                 </div>
               </Cell>
-              <Cell flex={1.1}>
-                <Pill variant={p.deity === creation?.anyDeity ? 'ghost' : 'brass'} size={10}>{p.deity}</Pill>
+              <Cell flex={1.2}>
+                <div className="fth-type-cell">
+                  <Pill variant={blessing ? 'success' : 'brass'} size={10}>{blessing ? 'Blessing' : 'Miracle'}</Pill>
+                  <span className="fth-deity-mini">{p.deity}</span>
+                </div>
               </Cell>
               <Cell flex={1.2} textStyle={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: colors.ink3 }}>{p.range}</Cell>
               <Cell flex={1.1} textStyle={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: colors.ink3 }}>{p.duration}</Cell>
               <Cell flex={0.5} align="right">
                 <Button
                   variant="ghost"
-                  ariaLabel={`Pray ${p.name}`}
-                  iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
-                  onPress={() => pray(p)}
+                  ariaLabel={blessing ? `Invoke ${p.name}` : `Pray ${p.name}`}
+                  iconLeft={<Icon name={blessing ? 'sparkle' : 'dice'} size={13} color={colors.ink2} />}
+                  onPress={() => (blessing ? invokeBlessing(p) : pray(p))}
                 >{''}</Button>
               </Cell>
             </TableRow>
-          ))}
+            );
+          })}
         </Table>
       </Card>
     </ScreenContainer>
