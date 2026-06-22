@@ -7,7 +7,7 @@ import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useXp } from '@/hooks/useXp';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useConditions } from '@/hooks/useConditions';
-import { useXpRules, useSystemRules } from '@/content/useContent';
+import { useXpRules, useSystemRules, useSkillDefs } from '@/content/useContent';
 import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -84,6 +84,24 @@ export const SkillsScreen: React.FC = () => {
   const careerSkills = c.skills.filter(s => s.career);
   const otherSkills = c.skills.filter(s => !s.career);
 
+  // WFRP 4e: any character may attempt a Basic skill untrained, at their raw
+  // characteristic (CRB p.117). List the Basic, non-grouped skills the character
+  // doesn't already have as rollable references — grouped skills need a chosen
+  // specialisation, so they're left out.
+  const system = useSystemRules();
+  const skillDefs = useSkillDefs();
+  const ownedNames = new Set(c.skills.map(s => s.name));
+  const untrainedBasics = skillDefs.filter(d => !d.advanced && !d.grouped && !ownedNames.has(d.name));
+
+  const rollUntrained = (name: string, char: string) => {
+    const tot = charBase[char] ?? 0;
+    const r = resolveTest({ target: tot, modifier: condMod.total, label: name }, system.test);
+    const breakdown = condMod.parts.length
+      ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
+      : '';
+    Alert.alert(`${name} — ${outcomeLabel(r.outcome)}`, formatTestResult(r) + breakdown);
+  };
+
   return (
     <ScreenContainer>
       <Hero
@@ -137,6 +155,41 @@ export const SkillsScreen: React.FC = () => {
         condMod={condMod}
         rules={rules}
       />
+
+      {untrainedBasics.length > 0 ? (
+        <>
+          <Section title="Basic skills (untrained)" aside="any character may attempt these at the raw characteristic" />
+          <Card flush>
+            <Table>
+              <TableRow header>
+                <Cell header flex={2.4}>Name</Cell>
+                <Cell header flex={0.5}>Char.</Cell>
+                <Cell header num flex={0.6}>Total</Cell>
+                <Cell header flex={0.4}> </Cell>
+              </TableRow>
+              {untrainedBasics.map((d, i) => (
+                <TableRow key={d.id} last={i === untrainedBasics.length - 1}>
+                  <Cell flex={2.4}><span className="skl-name">{d.name}</span></Cell>
+                  <Cell flex={0.5} textStyle={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: colors.ink3 }}>
+                    {charLabel[d.char] ?? d.char}
+                  </Cell>
+                  <Cell num flex={0.6} textStyle={{ fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: 13 }}>
+                    {charBase[d.char] ?? 0}
+                  </Cell>
+                  <Cell flex={0.4} align="right">
+                    <Button
+                      variant="ghost"
+                      ariaLabel={`Test ${d.name}`}
+                      iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
+                      onPress={() => rollUntrained(d.name, d.char)}
+                    >{''}</Button>
+                  </Cell>
+                </TableRow>
+              ))}
+            </Table>
+          </Card>
+        </>
+      ) : null}
     </ScreenContainer>
   );
 };
