@@ -104,6 +104,8 @@ In `core-magic.json` (or your own pack), edit the `spells` array:
 
 To **remove** a spell, delete its object. To **add** one, append a new object with a unique `id` (convention: `m.<slug>`). A character "knows" a spell when its `id` is in their `knownSpells` array (see `core-characters.json`), so add the id there to put it on a caster's sheet. Prayers work identically in `core-faith.json` (`prayers`, ids `p.<slug>`, with a `deity`).
 
+Prayers may also carry an optional **`"type"`**: `"blessing"` (a minor invocation — invoked with **no test and no Wrath**) or `"miracle"` (a **Pray Test** that risks the Wrath of the Gods). Omit it and the Faith screen infers the type from the deity — a deity-agnostic prayer (`deity` equal to `creation.anyDeity`, `"Any"` by default) is treated as a Blessing, a deity-specific one as a Miracle.
+
 ### Add a race / species
 
 In `core-races.json`:
@@ -237,11 +239,20 @@ The `system` section in `core-rules.json` defines the *mechanics*, not just the 
 - **Weapon `dmg` strings are formulas too** (`"SB+4"`), evaluated live against the bonuses.
 - Roll **tables** may declare their own `"dice": { "count": 2, "sides": 6 }` (default 1d100).
 
+### How combat, magic & faith resolve
+
+The `system.combat` / `system.magic` / `system.faith` bindings above drive these WFRP 4e procedures (pure logic in `src/utils/`, toggled by the capability flags in `core-rules.json`):
+
+- **Combat damage** (`utils/combat.ts`). An attack derives its hit location by reversing the to-hit roll. The **Combat → "Take a hit"** action resolves incoming damage as `Damage − (Toughness Bonus + Armour Points at the struck location)` and applies the result to Wounds; reaching (or being struck at) **0 Wounds** raises a Critical Wound. Armour Points come from the live armour list, summed per location.
+- **Spellcasting** (`utils/magic.ts`). **Channelling** banks Success Levels across rounds into a pool (persisted per character). A cast adds the pool to the casting-test SL and compares the total to the spell's **CN**; SL over the CN fuels **Overcasting** (one effect per 2 surplus SL). A double triggers a Miscast (gated by `magicMiscastOnDouble`); a fumbled casting test never casts.
+- **Faith.** A **Blessing** is invoked with no test and never risks Wrath; a **Miracle** rolls a Pray Test and can trigger the **Wrath of the Gods** when the roll's units die is ≤ the character's Sin (gated by `faithWrath`). See `prayers[].type` above.
+- **Wounds.** `Bleeding` drains 1 Wound per stack on **End of round**; a Fate point can be **burned** to cheat death. Max Wounds follows `system.formulas.maxWounds`.
+
 ### Edit rules data (conditions, hit locations, criticals, wounds)
 
 All in `core-rules.json`:
 - **`conditions`** — `{ "name", "penalty"?, "maxStacks"?, "clearsAtSceneEnd"?, "description"? }`. `penalty` is the per-stack test modifier; `maxStacks` is the tap-cycle cap; `clearsAtSceneEnd` drops all stacks at scene end instead of ticking down by 1.
-- **`hitLocations`** — d100 bands `{ "min", "max", "key", "label" }` (`key` ∈ head/body/arm_l/arm_r/leg_l/leg_r). `figureLabels` are the body-diagram annotations per key.
+- **`hitLocations`** — d100 bands `{ "min", "max", "key", "label" }` (`key` ∈ head/body/arm_l/arm_r/leg_l/leg_r). `figureLabels` are the body-diagram annotations per key. The core pack ships the canonical WFRP table (01–09 Head, 10–24 Left Arm, 25–44 Right Arm, 45–79 Body, 80–89 Left Leg, 90–100 Right Leg); Combat derives the struck location by **reversing the digits** of a successful to-hit roll (e.g. `27 → 72`) and looking it up in these bands.
 - **`criticals`** — the prefab critical-injury pool `{ "name", "effect", "days" }`.
 - **`woundsRules`** — `{ "smallSizes": ["Small"], "bonusTalent": "Hardy" }`. The max-Wounds formula is `SB + 2×TB + WPB` (small sizes drop SB; the bonus talent adds TB per rank).
 - **`characteristics`** — the 10-entry roster `{ "key", "name", "short" }` in display order.
@@ -265,7 +276,7 @@ In `core-characters.json`, the `characters` array holds full character templates
 
 ## Tests & data migrations
 
-A [Vitest](https://vitest.dev) unit suite covers the rules-critical pure logic: the d100/dice **roll engine** (`src/utils/roll.ts`), the **formula evaluator** (`src/utils/formula.ts`), **content-pack validation** (`src/content/validate.ts`), and **storage migrations** (`src/storage/migrations.ts`). Run it with `npm test` (or `npm run test:watch`).
+A [Vitest](https://vitest.dev) unit suite covers the rules-critical pure logic: the d100/dice **roll engine** (`src/utils/roll.ts`), the **formula evaluator** (`src/utils/formula.ts`), **combat resolution** (`src/utils/combat.ts` — hit location, armour soak, the 0-Wounds Critical), **spellcasting** (`src/utils/magic.ts` — SL-vs-CN and Overcasting), **content-pack validation** (`src/content/validate.ts`), and **storage migrations** (`src/storage/migrations.ts`). Run it with `npm test` (or `npm run test:watch`).
 
 Tests live next to the code they cover as `*.test.ts`. They're **excluded from `npm run tsc`** (which type-checks only the app) because they use Node APIs (`node:fs`) to load the real content packs; Vitest type-checks and runs them itself, so both `npm run tsc` and `npm test` stay green.
 
@@ -299,6 +310,6 @@ web/
 └── dist/                ← static build output (deploy this)
 ```
 
-Rules-critical pure logic (`utils/roll.ts`, `utils/formula.ts`, `content/validate.ts`, `storage/migrations.ts`) is covered by a Vitest unit suite — see **Tests & data migrations** above.
+Rules-critical pure logic (`utils/roll.ts`, `utils/formula.ts`, `utils/combat.ts`, `utils/magic.ts`, `content/validate.ts`, `storage/migrations.ts`) is covered by a Vitest unit suite — see **Tests & data migrations** above.
 
 The `src/` code is intentionally content-agnostic: it knows the *shapes* of game data (TypeScript types) but never hardcodes the *values* — those all come from the JSON packs.
