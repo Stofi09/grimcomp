@@ -1,8 +1,10 @@
-import type * as React from 'react';
+import * as React from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { useTalents } from '@/hooks/useTalents';
+import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useXp } from '@/hooks/useXp';
-import { useXpRules } from '@/content/useContent';
+import { useXpRules, useTalentDefs } from '@/content/useContent';
+import { talentMaxRank } from '@/utils/advancement';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
@@ -15,14 +17,30 @@ import './TalentsScreen.css';
 
 export const TalentsScreen: React.FC = () => {
   const { list, buyAnother, refundRank } = useTalents();
+  const chars = useCharacteristics();
+  const talentDefs = useTalentDefs();
   const xp = useXp();
   const rules = useXpRules();
+
+  // Talent "Max" (WFRP 4e p.135): a flat cap or the Bonus of a characteristic.
+  // Looked up by name against the registry's talent defs; undefined = no cap.
+  const defByName = React.useMemo(
+    () => Object.fromEntries(talentDefs.map(d => [d.name, d])),
+    [talentDefs],
+  );
+  const bonusFor = (key: string) => chars.list.find(c => c.key === key)?.bonus ?? 0;
+  const maxRankFor = (name: string): number | undefined => talentMaxRank(defByName[name], bonusFor);
 
   // "Buy another rank" cost: talentCostPerRank × the new rank number
   // (WFRP 4e core p.49). Sourced from the content registry (xpRules).
   const talentCost = (currentTimes: number) => rules.talentCostPerRank * (currentTimes + 1);
 
   const buy = (name: string, currentTimes: number) => {
+    const cap = maxRankFor(name);
+    if (cap !== undefined && currentTimes >= cap) {
+      Alert.alert('At maximum', `${name} is capped at ${cap} rank${cap === 1 ? '' : 's'} (its listed Max).`);
+      return;
+    }
     const cost = talentCost(currentTimes);
     const reason = `${name} ×${currentTimes + 1}`;
     const r = xp.spend(cost, reason, 'talent');
@@ -73,6 +91,8 @@ export const TalentsScreen: React.FC = () => {
       <div className="tal-grid">
         {list.map((t, i) => {
           const cost = talentCost(t.times);
+          const cap = maxRankFor(t.name);
+          const atMax = cap !== undefined && t.times >= cap;
           return (
             <Card key={i} style={{ flexBasis: '48%', flexGrow: 1, minWidth: 280 }}>
               <div className="tal-row" style={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -80,20 +100,22 @@ export const TalentsScreen: React.FC = () => {
                   <div className="tal-title-row">
                     <span className="tal-name">{t.name}</span>
                     {t.career ? <Pill variant="empire" size={9.5}>career</Pill> : null}
+                    {atMax ? <Pill variant="brass" size={9.5}>max</Pill> : null}
                   </div>
                   <span className="tal-desc">{t.desc}</span>
                 </div>
                 <div className="tal-times-col">
                   <span className="tal-mini-label">TIMES</span>
-                  <span className="tal-times">×{t.times}</span>
+                  <span className="tal-times">×{t.times}{cap !== undefined ? ` / ${cap}` : ''}</span>
                 </div>
               </div>
               <div className="tal-divider" />
               <div className="tal-row-between">
-                <span className="tal-next">NEXT {cost} XP</span>
+                <span className="tal-next">{atMax ? 'AT MAXIMUM' : `NEXT ${cost} XP`}</span>
                 <Stepper
                   value={t.times}
                   min={1}
+                  max={cap}
                   step={1}
                   onChange={(next) => onTimesChange(t.name, t.times, next)}
                 />

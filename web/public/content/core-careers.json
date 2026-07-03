@@ -69,9 +69,13 @@
       "name": "Priest",
       "class": "Academic",
       "species": ["race.human"],
+      "advanceScheme": {
+        "characteristics": ["t", "i", "int", "wp", "fel"],
+        "skills": ["Pray", "Heal", "Charm", "Lore (Theology)", "Cool", "Intuition"]
+      },
       "ranks": [
         { "level": 1, "name": "Initiate", "status": "Brass 2" },
-        { "level": 2, "name": "Priest", "status": "Silver 2" },
+        { "level": 2, "name": "Priest", "status": "Silver 2", "requirements": [{ "skill": "Pray", "min": 10 }, { "skill": "Heal", "min": 5 }] },
         { "level": 3, "name": "High Priest", "status": "Gold 1" },
         { "level": 4, "name": "Lector", "status": "Gold 2" }
       ]
@@ -93,9 +97,13 @@
       "name": "Wizard",
       "class": "Academic",
       "species": ["race.human", "race.high-elf", "race.wood-elf"],
+      "advanceScheme": {
+        "characteristics": ["t", "i", "dex", "int", "wp", "fel"],
+        "skills": ["Channelling (Fire)", "Language (Magick)", "Lore (Magick)", "Intuition", "Perception", "Cool"]
+      },
       "ranks": [
         { "level": 1, "name": "Wizard's Apprentice", "status": "Brass 4" },
-        { "level": 2, "name": "Wizard", "status": "Silver 3" },
+        { "level": 2, "name": "Wizard", "status": "Silver 3", "requirements": [{ "skill": "Channelling (Fire)", "min": 10 }, { "skill": "Language (Magick)", "min": 10 }] },
         { "level": 3, "name": "Master Wizard", "status": "Gold 1" },
         { "level": 4, "name": "Wizard Lord", "status": "Gold 2" }
       ]
@@ -465,9 +473,13 @@
       "name": "Roadwarden",
       "class": "Ranger",
       "species": ["race.human", "race.halfling"],
+      "advanceScheme": {
+        "characteristics": ["ws", "bs", "s", "t", "i", "ag"],
+        "skills": ["Melee (Basic)", "Ranged (Bow)", "Ride (Horse)", "Perception", "Track", "Outdoor Survival"]
+      },
       "ranks": [
         { "level": 1, "name": "Roadwarden", "status": "Silver 1" },
-        { "level": 2, "name": "Road Sergeant", "status": "Silver 3" },
+        { "level": 2, "name": "Road Sergeant", "status": "Silver 3", "requirements": [{ "skill": "Ride (Horse)", "min": 10 }, { "skill": "Melee (Basic)", "min": 5 }] },
         { "level": 3, "name": "Road Warden Captain", "status": "Silver 5" },
         { "level": 4, "name": "Marshal", "status": "Gold 1" }
       ]
@@ -777,9 +789,13 @@
       "name": "Runesmith",
       "class": "Warrior",
       "species": ["race.dwarf"],
+      "advanceScheme": {
+        "characteristics": ["ws", "s", "t", "dex", "int", "wp"],
+        "skills": ["Trade (Runecraft)", "Lore (Runes)", "Lore (Magick)", "Evaluate", "Melee (Basic)", "Endurance"]
+      },
       "ranks": [
         { "level": 1, "name": "Apprentice Runesmith", "status": "Silver 2" },
-        { "level": 2, "name": "Journeyman Runesmith", "status": "Silver 3" },
+        { "level": 2, "name": "Journeyman Runesmith", "status": "Silver 3", "requirements": [{ "skill": "Trade (Runecraft)", "min": 10 }, { "skill": "Lore (Runes)", "min": 5 }] },
         { "level": 3, "name": "Runesmith", "status": "Silver 5" },
         { "level": 4, "name": "Master Runesmith", "status": "Gold 3" }
       ]

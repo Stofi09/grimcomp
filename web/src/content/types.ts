@@ -196,6 +196,10 @@ export interface XpRules {
   careerAdvanceCost: number;
   /** Non-career skill advances cost this multiple of the listed rate. */
   nonCareerSkillMultiplier: number;
+  /** Non-career characteristic advances cost this multiple of the listed rate
+      (WFRP 4e: ×2). A characteristic is "in-career" when it's in the current
+      career's advanceScheme. */
+  nonCareerCharacteristicMultiplier: number;
   /** Quick-award buttons on the XP screen. */
   quickAwards: number[];
   /** Advances are bought in steps of this many points (+5). */
@@ -364,6 +368,17 @@ export interface CareerRankDef {
   requirements?: CareerRankRequirement[];
 }
 
+/** The characteristics (and skills) a career advances — its advance scheme. A
+    characteristic outside this set is a non-career advance and costs the
+    xpRules.nonCareerCharacteristicMultiplier. Omit to model no scheme (every
+    characteristic treated as in-career). */
+export interface CareerAdvanceScheme {
+  characteristics: CharacteristicKey[];
+  /** Career-skill display names (informational; skill pricing keys off the
+      character's own `career` flag today). */
+  skills?: string[];
+}
+
 export interface Career {
   id: string;
   name: string;
@@ -371,6 +386,7 @@ export interface Career {
   /** Race IDs eligible to take this career. */
   species: string[];
   ranks: CareerRankDef[];
+  advanceScheme?: CareerAdvanceScheme;
 }
 
 export interface SkillDef {
@@ -386,6 +402,11 @@ export interface TalentDef {
   id: string;
   name: string;
   description: string;
+  /** Hard cap on ranks (WFRP 4e "Max"). Wins over maxChar when both are set. */
+  max?: number;
+  /** The characteristic whose Bonus caps ranks (e.g. Hardy → Toughness Bonus).
+      Used when `max` is absent. Omit both for a talent with no listed cap. */
+  maxChar?: CharacteristicKey;
 }
 
 export interface WeaponDef {

@@ -94,6 +94,7 @@
     "talentCostPerRank": 100,
     "careerAdvanceCost": 100,
     "nonCareerSkillMultiplier": 2,
+    "nonCareerCharacteristicMultiplier": 2,
     "quickAwards": [50, 100, 150, 200],
     "buyStep": 5
   },

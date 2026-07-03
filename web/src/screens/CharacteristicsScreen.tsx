@@ -2,11 +2,13 @@ import type * as React from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { type CharacteristicKey } from '@/data/character';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
+import { useCharacter } from '@/hooks/useCharacter';
 import { useXp } from '@/hooks/useXp';
 import { useConditions } from '@/hooks/useConditions';
-import { useXpRules, useSystemRules } from '@/content/useContent';
+import { useXpRules, useSystemRules, useCareers } from '@/content/useContent';
 import type { XpCostBand } from '@/content/types';
 import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
+import { isCareerCharacteristic, characteristicAdvanceCost } from '@/utils/advancement';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Stat } from '@/components/Stat';
@@ -25,12 +27,22 @@ const bandRange = (b: XpCostBand) => (b.max >= 999 ? `${b.min}+` : `${b.min}–$
 
 export const CharacteristicsScreen: React.FC = () => {
   const { list, get, adjust } = useCharacteristics();
+  const { template: char } = useCharacter();
   const xp = useXp();
   const { modifier: condMod } = useConditions();
   const xpRules = useXpRules();
   const system = useSystemRules();
+  const careers = useCareers();
   const bands = xpRules.characteristicAdvances;
   const buyStep = xpRules.buyStep;
+
+  // The character's current career (matched by name) supplies the advance
+  // scheme: a characteristic outside it is a non-career advance and costs the
+  // xpRules.nonCareerCharacteristicMultiplier. No scheme → all in-career.
+  const registryCareer = careers.find(cr => cr.name === char.career);
+  const nonCareerMult = xpRules.nonCareerCharacteristicMultiplier;
+  const inCareer = (key: CharacteristicKey) => isCareerCharacteristic(registryCareer, key);
+  const hasScheme = (registryCareer?.advanceScheme?.characteristics?.length ?? 0) > 0;
 
   // Per-advance (+1) XP cost from the registry ladder, keyed by how many
   // advances have already been bought: the band whose [min, max] covers adv.
@@ -40,8 +52,10 @@ export const CharacteristicsScreen: React.FC = () => {
   };
   const perAdvance = (adv: number) => bands[bandIndexFor(adv)]?.cost ?? 0;
   // A purchase raises the characteristic by +buyStep — five advances, all within
-  // the same band — so it costs buyStep times the per-advance rate.
-  const stepCost = (adv: number) => buyStep * perAdvance(adv);
+  // the same band — so it costs buyStep times the per-advance rate, doubled when
+  // the characteristic is outside the career's advance scheme.
+  const stepCost = (adv: number, key: CharacteristicKey) =>
+    characteristicAdvanceCost(buyStep * perAdvance(adv), inCareer(key), nonCareerMult);
 
   const test = (key: CharacteristicKey) => {
     const c = list.find(x => x.key === key)!;
@@ -59,15 +73,16 @@ export const CharacteristicsScreen: React.FC = () => {
   // roster order decides, so non-WFRP stat sets work unchanged.
   const suggest = list[0];
   const advNow = get(suggest.key);
-  const cost = stepCost(advNow);
+  const cost = stepCost(advNow, suggest.key);
   const highlightIdx = bandIndexFor(advNow);
 
   const buy = (key: CharacteristicKey) => {
-    const c = list.find(x => x.key === key)!;
+    const cmeta = list.find(x => x.key === key)!;
     const cur = get(key);
     const next = cur + buyStep;
-    const cost = stepCost(cur);
-    const reason = `${c.name} +${cur} → +${next}`;
+    const cost = stepCost(cur, key);
+    const tag = inCareer(key) ? '' : ' [non-career]';
+    const reason = `${cmeta.name} +${cur} → +${next}${tag}`;
     const r = xp.spend(cost, reason, 'char');
     if (!r.ok) {
       Alert.alert('Not enough XP', r.message);
@@ -86,8 +101,9 @@ export const CharacteristicsScreen: React.FC = () => {
     if (next > current) {
       buy(key);
     } else if (next < current) {
-      const cost = stepCost(next);
-      const r = xp.refund(cost, `${cmeta.name} +${next} → +${current}`, 'char');
+      const cost = stepCost(next, key);
+      const tag = inCareer(key) ? '' : ' [non-career]';
+      const r = xp.refund(cost, `${cmeta.name} +${next} → +${current}${tag}`, 'char');
       if (!r.ok) {
         Alert.alert('Cannot refund', `${r.message} Only advances bought this session can be refunded.`);
         return;
@@ -100,10 +116,10 @@ export const CharacteristicsScreen: React.FC = () => {
     // Quick "buy any characteristic +buyStep" picker. Lists each one with
     // current adv + bracket cost; tapping a button fires the buy.
     const buttons = list
-      .filter(c => c.key !== suggest.key)
-      .map(c => ({
-        text: `${c.name} (+${c.adv} → +${c.adv + buyStep}) · ${stepCost(c.adv)} XP`,
-        onPress: () => buy(c.key),
+      .filter(cc => cc.key !== suggest.key)
+      .map(cc => ({
+        text: `${cc.name} (+${cc.adv} → +${cc.adv + buyStep}) · ${stepCost(cc.adv, cc.key)} XP${inCareer(cc.key) ? '' : ' ×2'}`,
+        onPress: () => buy(cc.key),
       }));
     Alert.alert(
       'Buy another characteristic',
@@ -148,7 +164,9 @@ export const CharacteristicsScreen: React.FC = () => {
                 max={40}
                 onChange={(next) => onAdvChange(x.key, x.adv, next)}
               />
-              <span className="chr-stat-cost">{stepCost(x.adv)} XP</span>
+              <span className="chr-stat-cost">
+                {stepCost(x.adv, x.key)} XP{hasScheme && !inCareer(x.key) ? ' ·2×' : ''}
+              </span>
             </div>
           </div>
         ))}
@@ -190,12 +208,18 @@ export const CharacteristicsScreen: React.FC = () => {
             <span className="chr-suggest-title">
               {suggest.name} <span className="chr-suggest-plus">+{buyStep}</span>
             </span>
-            <Pill variant="success" iconLeft={<Icon name="check" size={11} color={colors.success} />}>
-              in career path
-            </Pill>
+            {inCareer(suggest.key) ? (
+              <Pill variant="success" iconLeft={<Icon name="check" size={11} color={colors.success} />}>
+                in career scheme
+              </Pill>
+            ) : (
+              <Pill variant="warn">non-career ×{nonCareerMult}</Pill>
+            )}
           </div>
           <p className="chr-muted chr-muted-blurb">
-            Career ranks can require skill and characteristic advances. You're at +{suggest.adv}; another +{buyStep} builds a buffer.
+            {hasScheme
+              ? `Advances inside ${char.career}'s scheme cost the listed rate; those outside it cost ×${nonCareerMult}.`
+              : `Career ranks can require skill and characteristic advances. You're at +${suggest.adv}; another +${buyStep} builds a buffer.`}
           </p>
           <div className="chr-divider" />
           <div className="chr-suggest-row">

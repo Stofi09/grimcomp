@@ -223,6 +223,14 @@ export function validatePack(raw: unknown): ValidationResult {
     strings: ['name', 'class'],
     extra: (entry, where, p) => {
       if (!Array.isArray(entry.species)) p(`${where} "species" must be an array of race ids.`);
+      if (entry.advanceScheme !== undefined) {
+        const as = entry.advanceScheme;
+        if (!isObject(as) || !Array.isArray(as.characteristics) || as.characteristics.some(k => !isString(k))) {
+          p(`${where} "advanceScheme.characteristics" must be an array of characteristic keys.`);
+        } else if (isObject(as) && as.skills !== undefined && (!Array.isArray(as.skills) || as.skills.some(s => !isString(s)))) {
+          p(`${where} "advanceScheme.skills" must be an array of skill names.`);
+        }
+      }
       if (!Array.isArray(entry.ranks)) {
         p(`${where} "ranks" must be an array.`);
         return;
@@ -259,6 +267,10 @@ export function validatePack(raw: unknown): ValidationResult {
 
   checkSection('talents', {
     strings: ['name', 'description'],
+    extra: (entry, where, p) => {
+      if (entry.max !== undefined && !isNumber(entry.max)) p(`${where} "max" must be a number.`);
+      if (entry.maxChar !== undefined && !isString(entry.maxChar)) p(`${where} "maxChar" must be a characteristic key.`);
+    },
   });
 
   checkSection('weapons', {
@@ -388,7 +400,7 @@ export function validatePack(raw: unknown): ValidationResult {
       const xr = raw.xpRules;
       if (xr.characteristicAdvances !== undefined) checkBands(xr.characteristicAdvances, 'xpRules.characteristicAdvances');
       if (xr.skillAdvances !== undefined) checkBands(xr.skillAdvances, 'xpRules.skillAdvances');
-      for (const f of ['talentCostPerRank', 'careerAdvanceCost', 'nonCareerSkillMultiplier', 'buyStep']) {
+      for (const f of ['talentCostPerRank', 'careerAdvanceCost', 'nonCareerSkillMultiplier', 'nonCareerCharacteristicMultiplier', 'buyStep']) {
         if (xr[f] !== undefined && !isNumber(xr[f])) push(`"xpRules.${f}" must be a number.`);
       }
       if (xr.quickAwards !== undefined) {

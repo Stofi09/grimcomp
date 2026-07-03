@@ -64,6 +64,7 @@ export const DEFAULT_XP_RULES: XpRules = {
   talentCostPerRank: 100,
   careerAdvanceCost: 100,
   nonCareerSkillMultiplier: 2,
+  nonCareerCharacteristicMultiplier: 2,
   quickAwards: [50, 100, 150, 200],
   buyStep: 5,
 };
@@ -347,6 +348,7 @@ export class ContentRegistry {
     if (overlay.talentCostPerRank !== undefined) next.talentCostPerRank = overlay.talentCostPerRank;
     if (overlay.careerAdvanceCost !== undefined) next.careerAdvanceCost = overlay.careerAdvanceCost;
     if (overlay.nonCareerSkillMultiplier !== undefined) next.nonCareerSkillMultiplier = overlay.nonCareerSkillMultiplier;
+    if (overlay.nonCareerCharacteristicMultiplier !== undefined) next.nonCareerCharacteristicMultiplier = overlay.nonCareerCharacteristicMultiplier;
     if (overlay.quickAwards !== undefined) next.quickAwards = overlay.quickAwards;
     if (overlay.buyStep !== undefined) next.buyStep = overlay.buyStep;
     return next;
