@@ -23,13 +23,6 @@ import { Table, TableRow, Cell } from '@/components/Table';
 import { colors } from '@/theme';
 import './WoundsScreen.css';
 
-// Find the hit-location band a roll falls into. Sourced from the registry's
-// hitLocations table; the roll range follows from the bands themselves.
-const locFromRoll = (rows: HitLocationRow[], roll: number): string => {
-  const band = rows.find(r => roll >= r.min && roll <= r.max);
-  return band?.label ?? 'Body';
-};
-
 // Roll a fresh critical: pick a hit location, then roll d100 on that location's
 // own critical table when the packs ship one (WFRP 4e p.180+), otherwise draw a
 // random prefab from the flat `criticals` list.
