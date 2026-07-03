@@ -239,6 +239,27 @@ export interface CriticalDef {
   days: number;
 }
 
+/** One d100 band on a location-specific critical-wound table. */
+export interface CriticalRow {
+  min: number;
+  max: number;
+  name: string;
+  effect: string;
+  days: number;
+}
+
+/**
+ * A location-specific d100 critical-wound table (WFRP 4e CRB p.180+). One table
+ * serves one or more hit locations — canonically Arms share a table and Legs
+ * share a table, so `locations` lists every key it resolves. When present, a
+ * critical at a struck location rolls on its table instead of drawing a random
+ * `CriticalDef` prefab.
+ */
+export interface CriticalTableDef {
+  locations: HitLocationKey[];
+  rows: CriticalRow[];
+}
+
 export interface WoundsRules {
   /** Race size bands whose species omit SB from the Wounds total. */
   smallSizes: string[];
@@ -509,6 +530,9 @@ export interface ContentPack {
   hitLocations?: HitLocationRow[];
   figureLabels?: Partial<Record<HitLocationKey, string>>;
   criticals?: CriticalDef[];
+  /** Location-specific d100 critical tables. When present, a critical at a
+      struck location rolls on its table; `criticals` is the flat fallback. */
+  criticalTables?: CriticalTableDef[];
   woundsRules?: WoundsRules;
   deities?: Deity[];
   creation?: CreationConfig;

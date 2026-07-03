@@ -6,8 +6,9 @@ import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useCharacterCollection } from '@/hooks/useCharacterCollection';
-import { useFigureLabels, useSystemRules, useCharacteristicDefs, useWeapons, useCapabilities, useHitLocations, useCriticals } from '@/content/useContent';
+import { useContent, useFigureLabels, useSystemRules, useCharacteristicDefs, useWeapons, useCapabilities, useHitLocations, useCriticals } from '@/content/useContent';
 import type { CombatRules } from '@/content/types';
+import { critFromTable } from '@/content/tables';
 import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
 import { charVars, evalFormula } from '@/utils/formula';
 import { apByLocation, apAt, hitLocationFromRoll, applyDamage, type ApLocation } from '@/utils/combat';
@@ -104,6 +105,7 @@ const blankArmour = (): Armour => ({
 
 export const CombatScreen: React.FC = () => {
   const { id, template: c } = useCharacter();
+  const content = useContent();
   const { list: charList } = useCharacteristics();
   const { modifier: condMod } = useConditions();
   const system = useSystemRules();
@@ -181,17 +183,21 @@ export const CombatScreen: React.FC = () => {
     setWounds(res.newWounds);
 
     let critLine = '';
-    if (res.critical && prefabCriticals.length > 0) {
-      const tpl = prefabCriticals[Math.floor(Math.random() * prefabCriticals.length)];
+    if (res.critical) {
       const locLabel = hitLocLabel(hit.locKey);
-      crits.add({
-        loc: caps.combatHitLocations ? locLabel : '',
-        roll: hit.locRoll,
-        name: tpl.name,
-        effect: tpl.effect,
-        days: tpl.days,
-      });
-      critLine = `\n\nCRITICAL WOUND — ${tpl.name}${caps.combatHitLocations ? ` (${locLabel})` : ''}.\nAdded to the Wounds screen; roll on the location's critical table.`;
+      // WFRP 4e: a critical rolls d100 on the struck location's own table.
+      const table = caps.combatHitLocations ? content.criticalTableFor(hit.locKey) : undefined;
+      const critRoll = Math.floor(Math.random() * 100) + 1;
+      const row = critFromTable(table, critRoll);
+      if (row) {
+        crits.add({ loc: caps.combatHitLocations ? locLabel : '', roll: critRoll, name: row.name, effect: row.effect, days: row.days });
+        critLine = `\n\nCRITICAL WOUND — ${row.name}${caps.combatHitLocations ? ` (${locLabel})` : ''}.\n` +
+          `d100 ${critRoll} on the ${locLabel} critical table:\n${row.effect}`;
+      } else if (prefabCriticals.length > 0) {
+        const tpl = prefabCriticals[Math.floor(Math.random() * prefabCriticals.length)];
+        crits.add({ loc: caps.combatHitLocations ? locLabel : '', roll: hit.locRoll, name: tpl.name, effect: tpl.effect, days: tpl.days });
+        critLine = `\n\nCRITICAL WOUND — ${tpl.name}${caps.combatHitLocations ? ` (${locLabel})` : ''}.\nAdded to the Wounds screen.`;
+      }
     }
 
     const locPart = caps.combatHitLocations ? ` to the ${hitLocLabel(hit.locKey)}` : '';

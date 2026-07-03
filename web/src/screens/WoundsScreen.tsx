@@ -7,8 +7,9 @@ import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useDerived } from '@/hooks/useDerived';
 import { useVitals } from '@/hooks/useVitals';
 import { useCharacterCollection } from '@/hooks/useCharacterCollection';
-import { useHitLocations, useCriticals, useConditionList, useSystemRules, useCapabilities } from '@/content/useContent';
-import type { HitLocationRow, CriticalDef } from '@/content/types';
+import { useContent, useHitLocations, useCriticals, useConditionList, useSystemRules, useCapabilities } from '@/content/useContent';
+import { critFromTable } from '@/content/tables';
+import type { HitLocationRow, HitLocationKey, CriticalDef, CriticalTableDef } from '@/content/types';
 import { Alert } from '@/ui/alert';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -29,13 +30,25 @@ const locFromRoll = (rows: HitLocationRow[], roll: number): string => {
   return band?.label ?? 'Body';
 };
 
-// Roll a fresh critical: random prefab from the registry + random hit location.
-// The location roll spans the pack-defined bands (1–100 for the WFRP table).
-const newCritical = (rows: HitLocationRow[], prefabs: CriticalDef[]): Critical => {
+// Roll a fresh critical: pick a hit location, then roll d100 on that location's
+// own critical table when the packs ship one (WFRP 4e p.180+), otherwise draw a
+// random prefab from the flat `criticals` list.
+const newCritical = (
+  rows: HitLocationRow[],
+  prefabs: CriticalDef[],
+  tableFor: (k: HitLocationKey) => CriticalTableDef | undefined,
+): Critical => {
   const maxRoll = rows.reduce((m, row) => Math.max(m, row.max), 0) || 100;
-  const r = Math.floor(Math.random() * maxRoll) + 1;
-  const tpl = prefabs[Math.floor(Math.random() * prefabs.length)];
-  return { loc: locFromRoll(rows, r), roll: r, name: tpl.name, effect: tpl.effect, days: tpl.days };
+  const locRoll = Math.floor(Math.random() * maxRoll) + 1;
+  const band = rows.find(r => locRoll >= r.min && locRoll <= r.max);
+  const label = band?.label ?? 'Body';
+  const table = band ? tableFor(band.key) : undefined;
+  const critRoll = Math.floor(Math.random() * 100) + 1;
+  const row = critFromTable(table, critRoll);
+  if (row) return { loc: label, roll: critRoll, name: row.name, effect: row.effect, days: row.days };
+  const tpl = prefabs[Math.floor(Math.random() * prefabs.length)]
+    ?? { name: 'Critical Wound', effect: 'A serious injury — the GM describes its effect.', days: 10 };
+  return { loc: label, roll: locRoll, name: tpl.name, effect: tpl.effect, days: tpl.days };
 };
 
 export const WoundsScreen: React.FC = () => {
@@ -44,6 +57,7 @@ export const WoundsScreen: React.FC = () => {
   const { conds, cycle, names } = useConditions();
   const vitals = useVitals();
 
+  const content = useContent();
   const hitLocations = useHitLocations();
   const prefabCriticals = useCriticals();
   const conditionDefs = useConditionList();
@@ -135,7 +149,7 @@ export const WoundsScreen: React.FC = () => {
   };
 
   const addCritical = () => {
-    const fresh = newCritical(hitLocations, prefabCriticals);
+    const fresh = newCritical(hitLocations, prefabCriticals, k => content.criticalTableFor(k));
     if (!caps.combatHitLocations) fresh.loc = '';
     crits.add(fresh);
     const locLine = caps.combatHitLocations ? `Location: ${fresh.loc}\n` : '';

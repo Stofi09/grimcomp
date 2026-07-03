@@ -8,7 +8,7 @@ import type {
   Spell, Prayer, RollTable, XpCostRow, XpRules,
   Race, Career, SkillDef, TalentDef, WeaponDef, ArmourDef, TrappingDef,
   ConditionDef, CharacteristicDef, CreationConfig, HitLocationRow,
-  HitLocationKey, CriticalDef, WoundsRules, Deity, SystemRules, ResourceDef,
+  HitLocationKey, CriticalDef, CriticalTableDef, WoundsRules, Deity, SystemRules, ResourceDef,
   Capabilities,
 } from './types';
 import type { NavModel } from '@/data/nav';
@@ -104,6 +104,11 @@ export function useDeities(): Deity[] {
 
 export function useCriticals(): CriticalDef[] {
   return useContent().criticals;
+}
+
+/** Location-specific d100 critical tables (empty if the packs ship none). */
+export function useCriticalTables(): CriticalTableDef[] {
+  return useContent().criticalTables;
 }
 
 export function useWoundsRules(): WoundsRules {

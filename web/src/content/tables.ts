@@ -2,7 +2,7 @@
 // this is the lookup that turns a roll into its effect text, plus the roll
 // generator honouring each table's own dice spec (default 1d100).
 
-import type { RollTable } from './types';
+import type { RollTable, CriticalRow, CriticalTableDef } from './types';
 import { rollDice } from '@/utils/roll';
 
 /** Roll the table's dice (1d100 unless the table declares otherwise). */
@@ -16,4 +16,10 @@ export function rollOnTable(table: RollTable | undefined, roll: number): string 
   if (!table) return 'No table available for this result.';
   const row = table.rows.find(r => roll >= r.min && roll <= r.max);
   return row?.effect ?? `No table entry for a roll of ${roll}.`;
+}
+
+/** Resolve a d100 roll on a location-specific critical table. Returns the
+    matching {name, effect, days} row, or undefined if the roll falls in no band. */
+export function critFromTable(table: CriticalTableDef | undefined, roll: number): CriticalRow | undefined {
+  return table?.rows.find(r => roll >= r.min && roll <= r.max);
 }

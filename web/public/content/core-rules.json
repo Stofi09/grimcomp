@@ -145,6 +145,68 @@
     { "name": "Skull Fracture", "effect": "A caved-in crack. Unconscious now; −10 to all tests for weeks.", "days": 40 },
     { "name": "Lost Limb", "effect": "The struck limb is severed. Bleeding 3; the loss is permanent.", "days": 45 }
   ],
+  "criticalTables": [
+    {
+      "locations": ["head"],
+      "rows": [
+        { "min": 1, "max": 10, "name": "Struck Silly", "effect": "A ringing crack to the skull. Stunned 1.", "days": 1 },
+        { "min": 11, "max": 20, "name": "Cut Brow", "effect": "Blood sheets into the eyes. Bleeding 1 and −10 to sight-based tests until staunched.", "days": 3 },
+        { "min": 21, "max": 30, "name": "Bruised Jaw", "effect": "The mouth won't work right. −10 to tests that need speech, casting, or prayer.", "days": 4 },
+        { "min": 31, "max": 40, "name": "Broken Nose", "effect": "Eyes stream uncontrollably. −10 to sight-based Perception until set.", "days": 6 },
+        { "min": 41, "max": 55, "name": "Concussion", "effect": "The world swims. Stunned 2 and −10 to mental tests until healed.", "days": 7 },
+        { "min": 56, "max": 65, "name": "Ear Ruptured", "effect": "A burst eardrum. Deafened 1 and −10 to tests relying on hearing.", "days": 12 },
+        { "min": 66, "max": 80, "name": "Gouged Eye", "effect": "Sight lost on one side. −20 to ranged attacks and sight-based Perception.", "days": 20 },
+        { "min": 81, "max": 90, "name": "Skull Fracture", "effect": "A caved-in crack. Unconscious now; −10 to all tests for weeks after.", "days": 35 },
+        { "min": 91, "max": 99, "name": "Caved Skull", "effect": "Unconscious and dying. Bleeding 3; pass an Endurance Test each round or die.", "days": 45 },
+        { "min": 100, "max": 100, "name": "Decapitated", "effect": "The head is struck clean from the shoulders. The character is slain outright.", "days": 60 }
+      ]
+    },
+    {
+      "locations": ["arm_l", "arm_r"],
+      "rows": [
+        { "min": 1, "max": 10, "name": "Numbed Arm", "effect": "The blow deadens the limb. Drop whatever it holds; −10 with that arm for 1 round.", "days": 1 },
+        { "min": 11, "max": 20, "name": "Torn Muscle", "effect": "A deep gash across the arm. Bleeding 1 and −10 to tests using it.", "days": 4 },
+        { "min": 21, "max": 30, "name": "Sprained Wrist", "effect": "The joint swells and stiffens. −10 to fine Dexterity work with that hand.", "days": 6 },
+        { "min": 31, "max": 45, "name": "Dislocated Shoulder", "effect": "The arm hangs useless until reset — no two-handed weapons.", "days": 9 },
+        { "min": 46, "max": 55, "name": "Broken Forearm", "effect": "A grinding crack. The arm is useless and drops what it held until set.", "days": 12 },
+        { "min": 56, "max": 70, "name": "Mangled Hand", "effect": "Fingers crushed to pulp. Bleeding 1 and −20 to tests needing that hand's grip.", "days": 16 },
+        { "min": 71, "max": 80, "name": "Shattered Elbow", "effect": "The joint is ruined. The arm cannot bear weight or wield a weapon.", "days": 20 },
+        { "min": 81, "max": 90, "name": "Compound Fracture", "effect": "Bone juts through skin. Bleeding 2; the arm is useless until surgery.", "days": 30 },
+        { "min": 91, "max": 99, "name": "Crushed Arm", "effect": "The limb is pulped. Bleeding 3; likely to be lost even if you live.", "days": 40 },
+        { "min": 100, "max": 100, "name": "Severed Arm", "effect": "The arm is struck off. Bleeding 4; pass an Endurance Test each round or die.", "days": 60 }
+      ]
+    },
+    {
+      "locations": ["body"],
+      "rows": [
+        { "min": 1, "max": 10, "name": "Winded", "effect": "The breath is driven out of you. Fatigued 1 until you recover it.", "days": 1 },
+        { "min": 11, "max": 20, "name": "Deep Gash", "effect": "A long cut across the torso. Bleeding 1; a scar remains.", "days": 5 },
+        { "min": 21, "max": 35, "name": "Bruised Kidneys", "effect": "A sickening blow to the flank. −10 to all tests until treated.", "days": 8 },
+        { "min": 36, "max": 50, "name": "Cracked Ribs", "effect": "Every breath stabs. Bleeding 1 and −10 to Strength- and Agility-based tests.", "days": 10 },
+        { "min": 51, "max": 60, "name": "Winded and Reeling", "effect": "The wind and footing both go. Stunned 1 and Prone.", "days": 4 },
+        { "min": 61, "max": 75, "name": "Ruptured Organ", "effect": "Something tears inside. Bleeding 1 and −10 to all tests until treated.", "days": 25 },
+        { "min": 76, "max": 85, "name": "Punctured Lung", "effect": "Wheezing agony. Fatigued 1 that rest cannot remove until healed.", "days": 30 },
+        { "min": 86, "max": 95, "name": "Impaled", "effect": "The blow drives clean through. Bleeding 3 and −10 to all tests.", "days": 35 },
+        { "min": 96, "max": 99, "name": "Gutted", "effect": "A mortal wound to the belly. Unconscious and Bleeding 4; Endurance each round or die.", "days": 45 },
+        { "min": 100, "max": 100, "name": "Heart Struck", "effect": "The blow finds the heart. The character dies where they stand.", "days": 60 }
+      ]
+    },
+    {
+      "locations": ["leg_l", "leg_r"],
+      "rows": [
+        { "min": 1, "max": 10, "name": "Stumbling", "effect": "The leg buckles under you. Prone; lose your next move.", "days": 1 },
+        { "min": 11, "max": 20, "name": "Dead Leg", "effect": "A numbing blow to the thigh. Movement halved for 1 round and −10 with the leg.", "days": 2 },
+        { "min": 21, "max": 35, "name": "Torn Tendon", "effect": "The hamstring pulls. Movement halved whenever the leg is used.", "days": 8 },
+        { "min": 36, "max": 45, "name": "Twisted Knee", "effect": "The joint gives way. You cannot run; Prone on any hard move.", "days": 10 },
+        { "min": 46, "max": 60, "name": "Broken Shin", "effect": "A clean crack. Bleeding 1; the leg cannot bear weight until set.", "days": 14 },
+        { "min": 61, "max": 70, "name": "Dislocated Hip", "effect": "The leg turns wrong. Movement quartered until it is reset.", "days": 16 },
+        { "min": 71, "max": 80, "name": "Smashed Knee", "effect": "The joint shatters. Movement quartered and Prone on most moves.", "days": 20 },
+        { "min": 81, "max": 90, "name": "Shattered Leg", "effect": "The bone splinters. Bleeding 2; cannot stand unaided until healed.", "days": 28 },
+        { "min": 91, "max": 99, "name": "Ruined Leg", "effect": "The limb is mangled. Bleeding 3; beyond any easy mending.", "days": 42 },
+        { "min": 100, "max": 100, "name": "Severed Leg", "effect": "The leg is struck off. Bleeding 4; pass an Endurance Test each round or die.", "days": 60 }
+      ]
+    }
+  ],
   "woundsRules": {
     "smallSizes": ["Small"],
     "bonusTalent": "Hardy"

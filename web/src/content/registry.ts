@@ -12,7 +12,7 @@ import type {
   ContentPack, Spell, Prayer, RollTable,
   Race, Career, SkillDef, TalentDef, WeaponDef, ArmourDef, TrappingDef,
   ConditionDef, XpRules, XpCostBand, CharacteristicDef, CreationConfig,
-  HitLocationRow, HitLocationKey, CriticalDef, WoundsRules, Deity,
+  HitLocationRow, HitLocationKey, CriticalDef, CriticalTableDef, WoundsRules, Deity,
   NoteSeedsConfig, XpEntry, SystemRules, SystemOverlay, ScreenDef, ScreenGroupDef,
   ResourceDef, Capabilities,
 } from './types';
@@ -190,6 +190,7 @@ export class ContentRegistry {
   private _hitLocations: HitLocationRow[] = [];
   private _figureLabels: Partial<Record<HitLocationKey, string>> = {};
   private _criticals: CriticalDef[] = [];
+  private _criticalTables: CriticalTableDef[] = [];
   private _woundsRules: WoundsRules = { ...DEFAULT_WOUNDS_RULES };
   private _system: SystemRules = {
     test: { ...DEFAULT_SYSTEM.test },
@@ -253,6 +254,9 @@ export class ContentRegistry {
       }
       if (pack.criticals) {
         this._criticals = pack.criticals;
+      }
+      if (pack.criticalTables) {
+        this._criticalTables = pack.criticalTables;
       }
       if (pack.woundsRules) {
         this._woundsRules = pack.woundsRules;
@@ -461,6 +465,15 @@ export class ContentRegistry {
 
   get criticals(): CriticalDef[] {
     return this._criticals;
+  }
+
+  get criticalTables(): CriticalTableDef[] {
+    return this._criticalTables;
+  }
+
+  /** The critical table serving a struck hit location, if any pack ships one. */
+  criticalTableFor(key: HitLocationKey): CriticalTableDef | undefined {
+    return this._criticalTables.find(t => t.locations.includes(key));
   }
 
   get woundsRules(): WoundsRules {

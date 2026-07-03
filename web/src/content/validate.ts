@@ -51,8 +51,9 @@ const KNOWN_KEYS = new Set([
   'spells', 'prayers', 'tables', 'conditions', 'xpCosts', 'xpRules', 'system',
   'characteristics', 'races', 'careers', 'skills', 'talents', 'weapons',
   'armour', 'trappings', 'hitLocations', 'figureLabels', 'criticals',
-  'woundsRules', 'deities', 'creation', 'characters', 'xpLogSeeds', 'noteSeeds',
-  'screens', 'screenGroups', 'resources', 'capabilities', 'deletions',
+  'criticalTables', 'woundsRules', 'deities', 'creation', 'characters',
+  'xpLogSeeds', 'noteSeeds', 'screens', 'screenGroups', 'resources',
+  'capabilities', 'deletions',
 ]);
 
 /** Known capability flags (others warn — likely a typo). */
@@ -308,6 +309,29 @@ export function validatePack(raw: unknown): ValidationResult {
     strings: ['name', 'effect'],
     numbers: ['days'],
     requireId: false,
+  });
+
+  // criticalTables: location-keyed d100 tables of { min, max, name, effect, days }.
+  checkSection('criticalTables', {
+    requireId: false,
+    extra: (entry, where, p) => {
+      if (!Array.isArray(entry.locations) || entry.locations.some(k => !isString(k) || !HIT_LOCATION_KEYS.includes(k))) {
+        p(`${where} "locations" must be an array of ${HIT_LOCATION_KEYS.join('|')}.`);
+      }
+      if (!Array.isArray(entry.rows)) {
+        p(`${where} is missing a "rows" array.`);
+        return;
+      }
+      entry.rows.forEach((row, j) => {
+        const rw = `${where}.rows[${j}]`;
+        if (!isObject(row)) { p(`${rw} must be an object.`); return; }
+        if (!isNumber(row.min)) p(`${rw} missing numeric "min".`);
+        if (!isNumber(row.max)) p(`${rw} missing numeric "max".`);
+        if (!isString(row.name)) p(`${rw} missing string "name".`);
+        if (!isString(row.effect)) p(`${rw} missing string "effect".`);
+        if (!isNumber(row.days)) p(`${rw} missing numeric "days".`);
+      });
+    },
   });
 
   // Characters carry the full template shape; validate the load-bearing
