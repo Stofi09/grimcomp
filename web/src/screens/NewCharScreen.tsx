@@ -1,26 +1,36 @@
+import { useMemo } from 'react';
 import type * as React from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
-import { Icon, type IconName } from '@/components/Icon';
+import { Icon } from '@/components/Icon';
 import { Avatar } from '@/components/Avatar';
 import { Pill } from '@/components/Pill';
+import { Stepper } from '@/components/Stepper';
 import { Alert } from '@/ui/alert';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useRoster } from '@/hooks/useRoster';
 import { useCharacter } from '@/hooks/useCharacter';
-import { type Character, type CharacteristicKey } from '@/data/character';
+import {
+  type Character, type CharacteristicKey, type Skill, type Talent,
+  type Weapon, type Armour, type Trapping,
+} from '@/data/character';
 import {
   useRaces, useSkillDefs, useTalentDefs, useCareers, useContent,
   useCreation, useCharacteristicDefs, useWoundsRules, useSystemRules,
 } from '@/content/useContent';
 import type {
-  Race, SkillDef, TalentDef, Spell, Prayer, ArchetypeDef,
+  Race, SkillDef, TalentDef, Spell, Prayer, Career,
   CharacteristicDef, WoundsRules, CreationConfig, SystemRules,
 } from '@/content/types';
+import {
+  startingXp, statusTier, startingMoney, startingMoneyDice,
+  inferCareerCapabilities, pickDistinct, type CareerMode,
+} from '@/utils/creation';
 import { charVars, evalFormula } from '@/utils/formula';
+import { rollDice } from '@/utils/roll';
 import { colors } from '@/theme';
 import './NewCharScreen.css';
 
@@ -28,25 +38,37 @@ interface Props {
   onNav: (id: string) => void;
 }
 
-const STEPS = ['Name', 'Archetype', 'Stats', 'Review'];
+const STEPS = ['Name & Species', 'Characteristics', 'Career', 'Review'];
 
 interface Draft {
   name: string;
   species: string;
-  archetypeKey: string;
-  /** Per-characteristic initial value override (replaces template's `init`). */
+  /** Whether the species was randomly determined (+20 XP, CRB p.36). */
+  speciesRandom: boolean;
+  /** How the career was settled: accept-first (+50), roll-three (+25), choose (+0). */
+  careerMode: CareerMode;
+  /** The chosen career id. */
+  careerId: string;
+  /** The three ids rolled for the roll-three option (mode === 'three'). */
+  careerChoices: string[];
+  /** Per-characteristic rolled initial value (replaces the flat base). */
   inits: Partial<Record<CharacteristicKey, number>>;
+  /** How many of the species' Extra points go to Fate (the rest to Resilience). */
+  extraToFate: number;
 }
 
-// Fallback creation config, used only while the content packs are still loading
-// (useCreation() returns undefined until then). Mirrors core-creation.json so
-// the wizard renders sensibly during that brief phase; nothing is persisted.
+// Fallback creation config, used only while the content packs are still loading.
 const FALLBACK_CREATION: CreationConfig = {
   statRoll: { count: 2, sides: 10, plus: 20 },
   archetypes: [],
   defaults: { species: 'Human', archetype: 'warrior' },
   pettyLore: 'Petty',
   anyDeity: 'Any',
+};
+
+const CLASS_ACCENT: Record<string, string> = {
+  Academic: '#9a7d1f', Burgher: '#5a6b8c', Courtier: '#8c5a7a', Peasant: '#6a7a4a',
+  Ranger: '#8b5a2d', Riverfolk: '#3d6b6b', Rogue: '#5a5a6a', Warrior: '#8b2d2d',
 };
 
 // `count` d`sides` + `plus` (WFRP 4e starting characteristics: 2d10 + 20).
@@ -65,17 +87,21 @@ const rerollInits = (
   return out;
 };
 
-/** Build a fresh character from an archetype + the draft (name, species,
-    rolled stats). The archetype contributes its career, gear, and caster /
-    anointed capabilities (cloned from a content-registry template); species
-    contributes characteristic modifiers, movement, Fate/Resilience, and granted
-    skills + talents. Identity and history are generated blank. */
+/**
+ * Build a character from the WFRP 4e creation choices. Species supplies
+ * characteristic modifiers, Fate/Resilience (+ the allocated Extra), Movement,
+ * and granted skills/talents; the chosen career supplies identity, ranks,
+ * class, and status. One of the four archetype careers additionally clones its
+ * pregen `kitTpl` (weapons, armour, trappings, spells/prayers); any other career
+ * gets a generic starting kit and its career skills from the advance scheme.
+ */
 const buildCharacter = (
   draft: Draft,
   newId: string,
-  arch: ArchetypeDef | undefined,
-  src: Character,
+  career: Career,
   race: Race | undefined,
+  kitTpl: Character,
+  hasRichKit: boolean,
   skillDefs: SkillDef[],
   talentDefs: TalentDef[],
   spells: Spell[],
@@ -84,20 +110,24 @@ const buildCharacter = (
   wounds: WoundsRules,
   creation: CreationConfig,
   system: SystemRules,
+  wealth: Record<string, number>,
 ): Character => {
-  const label = arch?.label ?? 'Adventurer';
-  const accent = arch?.accent ?? src.accent;
+  const rank1 = career.ranks[0];
+  const caps = hasRichKit
+    ? { isCaster: !!kitTpl.isCaster, isAnointed: !!kitTpl.isAnointed }
+    : inferCareerCapabilities(career.id);
+  const accent = hasRichKit ? kitTpl.accent : (CLASS_ACCENT[career.class] ?? '#8b2d2d');
 
-  const characteristics = src.characteristics.map(c => ({
-    ...c,
-    init: (draft.inits[c.key] ?? c.init) + (race?.charModifiers?.[c.key] ?? 0),
+  const characteristics = charDefs.map(d => ({
+    key: d.key,
+    name: d.name,
+    short: d.short,
+    init: (draft.inits[d.key] ?? creation.statRoll.plus) + (race?.charModifiers?.[d.key] ?? 0),
     adv: 0,
   }));
 
   const initials = draft.name.split(/\s+/).filter(Boolean).map(s => s[0]?.toUpperCase()).join('').slice(0, 2) || 'XX';
 
-  // Formula vars over the freshly rolled characteristics (value + bonus, by
-  // key and short name), using the system's bonus formula.
   const vars = charVars(characteristics.map(c => ({
     key: c.key,
     short: c.short,
@@ -105,10 +135,9 @@ const buildCharacter = (
     bonus: evalFormula(system.formulas.bonus, { value: c.init }),
   })));
 
-  // The bonus-wounds talent (Hardy), granted by the archetype and/or species,
-  // feeds the maxWounds formula as bonusRanks; a fresh character holds one rank.
+  // Hardy (bonus-Wounds talent) may come from the species or a rich kit.
   const bonusTalent = wounds.bonusTalent;
-  const hasHardy = src.talents.some(t => t.name === bonusTalent)
+  const hasHardy = (hasRichKit && kitTpl.talents.some(t => t.name === bonusTalent))
     || (race?.talents ?? []).some(id => talentDefs.find(d => d.id === id)?.name === bonusTalent);
   const small = race?.size !== undefined && wounds.smallSizes.includes(race.size);
   const wMax = evalFormula(system.formulas.maxWounds, {
@@ -117,9 +146,17 @@ const buildCharacter = (
     bonusRanks: hasHardy ? 1 : 0,
   });
 
-  // Career skills come from the archetype, reset to +0 advances (fresh). Then
-  // layer on the species' granted skills (as non-career) if not already present.
-  const skills = src.skills.map(s => ({ ...s, adv: 0 }));
+  // Career skills: a rich kit's own skills, or the career's advance-scheme skills
+  // at +0. Then layer species-granted skills as non-career.
+  const skills: Skill[] = [];
+  if (hasRichKit) {
+    for (const s of kitTpl.skills) skills.push({ ...s, adv: 0 });
+  } else {
+    for (const nm of career.advanceScheme?.skills ?? []) {
+      const def = skillDefs.find(d => d.name === nm) ?? skillDefs.find(d => nm.startsWith(d.name));
+      skills.push({ name: nm, char: def?.char ?? charDefs[0]?.key ?? 'ws', adv: 0, career: true, advanced: def?.advanced });
+    }
+  }
   const haveSkill = new Set(skills.map(s => s.name));
   for (const id of race?.skills ?? []) {
     const def = skillDefs.find(d => d.id === id);
@@ -129,8 +166,9 @@ const buildCharacter = (
     }
   }
 
-  // Talents from the archetype (reset to a single rank) plus species talents.
-  const talents = src.talents.map(t => ({ ...t, times: 1 }));
+  // Talents: a rich kit's talents (single rank) plus species talents.
+  const talents: Talent[] = [];
+  if (hasRichKit) for (const t of kitTpl.talents) talents.push({ ...t, times: 1 });
   const haveTalent = new Set(talents.map(t => t.name));
   for (const id of race?.talents ?? []) {
     const def = talentDefs.find(d => d.id === id);
@@ -140,51 +178,81 @@ const buildCharacter = (
     }
   }
 
-  // Fate & Resilience from species. The free Extra points are allocated to Fate
-  // by default. On a fresh PC, Fortune = Fate, Resolve = Resilience.
-  const fate = (race?.fate ?? src.fate) + (race?.extra ?? 0);
-  const resilience = race?.resilience ?? src.resilience;
+  // Kit: rich pregen loadout, or a generic starting kit for any other career.
+  let weapons: Weapon[];
+  let armour: Armour[];
+  let trappings: Trapping[];
+  let knownSpells: string[];
+  let knownPrayers: string[];
+  let spellLore: string | undefined;
+  let deity: string | undefined;
+  if (hasRichKit) {
+    weapons = kitTpl.weapons;
+    armour = kitTpl.armour;
+    trappings = kitTpl.trappings;
+    knownSpells = (kitTpl.knownSpells ?? []).filter(id => spells.find(s => s.id === id)?.lore === creation.pettyLore);
+    knownPrayers = (kitTpl.knownPrayers ?? []).filter(id => prayers.find(p => p.id === id)?.deity === creation.anyDeity);
+    spellLore = kitTpl.spellLore;
+    deity = kitTpl.deity;
+  } else {
+    weapons = [{ name: 'Hand Weapon', group: 'Basic', enc: 1, reach: 'Average', dmg: 'SB+4', qual: [] }];
+    armour = [];
+    trappings = [{ name: 'Clothing', enc: 0 }, { name: 'Dagger', enc: 0 }, { name: 'Backpack', enc: 0 }];
+    // Casters start with the Petty spells; the Anointed with deity-agnostic Blessings.
+    knownSpells = caps.isCaster ? spells.filter(s => s.lore === creation.pettyLore).map(s => s.id) : [];
+    knownPrayers = caps.isAnointed ? prayers.filter(p => p.deity === creation.anyDeity).map(p => p.id) : [];
+    spellLore = caps.isCaster ? creation.pettyLore : undefined;
+    deity = undefined;
+  }
 
-  // Fresh casters keep only their Petty spells; fresh priests keep only
-  // deity-agnostic Blessings, learning the rest later via XP.
-  const knownSpells = (src.knownSpells ?? []).filter(id => spells.find(s => s.id === id)?.lore === creation.pettyLore);
-  const knownPrayers = (src.knownPrayers ?? []).filter(id => prayers.find(p => p.id === id)?.deity === creation.anyDeity);
+  // Fate / Resilience: species base + the allocated Extra points.
+  const extra = race?.extra ?? 0;
+  const toFate = Math.max(0, Math.min(extra, draft.extraToFate));
+  const fate = (race?.fate ?? 0) + toFate;
+  const resilience = (race?.resilience ?? 0) + (extra - toFate);
 
-  // Characteristic order follows the canonical roster from the registry; the
-  // template's own list already matches, but we keep this for the rolled-stats
-  // and review grids which iterate over charDefs.
-  void charDefs;
+  const careerRanks = career.ranks.map(r => ({ level: r.level, name: r.name, status: r.status }));
 
   return {
-    ...src,
+    ...kitTpl,
     id: newId,
-    name: draft.name.trim() || `New ${label}`,
+    name: draft.name.trim() || `New ${career.name}`,
     species: draft.species,
     raceId: race?.id,
+    class: career.class,
+    career: career.name,
+    careerLevel: 1,
+    careerLevelName: rank1?.name ?? '',
+    careerRanks,
+    status: rank1?.status ?? '',
     initials,
     accent,
     characteristics,
     skills,
     talents,
+    weapons,
+    armour,
+    trappings,
     knownSpells,
     knownPrayers,
-    movement: race?.movement ?? src.movement,
+    spellLore,
+    deity,
+    isCaster: caps.isCaster,
+    isAnointed: caps.isAnointed,
+    movement: race?.movement ?? kitTpl.movement,
     fate,
     fortune: fate,
     resilience,
     resolve: resilience,
-    // Fresh-character defaults — clear out the sample PC's history & identity.
-    xpCurrent: 0,
+    xpCurrent: startingXp(draft.speciesRandom, draft.careerMode),
     xpSpent: 0,
     wounds: { current: wMax, max: wMax },
     corruption: 0,
     sin: 0,
-    careerLevel: 1,
-    careerLevelName: src.careerRanks[0]?.name ?? src.careerLevelName,
-    status: src.careerRanks[0]?.status ?? src.status,
+    ap: { head: 0, arm_l: 0, arm_r: 0, body: 0, leg_l: 0, leg_r: 0, shield: 0 },
     conditions: [],
     criticals: [],
-    wealth: Object.fromEntries(system.currency.units.map(u => [u.key, 0])),
+    wealth,
     age: 0,
     height: '',
     hair: '',
@@ -211,86 +279,121 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
   const system = useSystemRules();
   const creation = useCreation() ?? FALLBACK_CREATION;
 
-  const archetypes = creation.archetypes;
   const charKeys = charDefs.map(c => c.key);
 
   const emptyDraft: Draft = {
     name: '',
     species: creation.defaults.species,
-    archetypeKey: creation.defaults.archetype,
+    speciesRandom: false,
+    careerMode: 'choose',
+    careerId: '',
+    careerChoices: [],
     inits: {},
+    extraToFate: 3,
   };
 
-  // Wizard step + draft are persisted so the user can come back to their
-  // half-finished character.
   const [step, setStep] = useStoredState('gc.newchar.step', 0);
   const [draft, setDraft] = useStoredState<Draft>('gc.newchar.draft', emptyDraft);
 
-  const arch = archetypes.find(a => a.key === draft.archetypeKey) ?? archetypes[0];
-  const srcTpl = get(arch?.templateId ?? '');
   const race = races.find(r => r.name === draft.species);
 
-  // Species eligibility: each archetype maps to a career whose `species` list
-  // says who may take it. Halflings can't be Wizards, Runesmith is Dwarf-only.
-  const raceName = (id: string) => races.find(r => r.id === id)?.name ?? id;
-  const allowedRaceIds = careers.find(c => c.id === arch?.careerId)?.species ?? [];
-  const comboOk = !race || allowedRaceIds.length === 0 || allowedRaceIds.includes(race.id);
-
-  // Preview the would-be character so the Review step shows live values.
-  const preview = buildCharacter(
-    draft, 'preview', arch, srcTpl, race, skillDefs, talentDefs,
-    content.allSpells, content.allPrayers, charDefs, woundsRules, creation, system,
+  // Careers this species may take.
+  const eligibleCareers = useMemo(
+    () => careers.filter(cr => !race || cr.species.length === 0 || cr.species.includes(race.id)),
+    [careers, race],
   );
+  const careersByClass = useMemo(() => {
+    const map = new Map<string, Career[]>();
+    for (const cr of eligibleCareers) {
+      const arr = map.get(cr.class) ?? [];
+      arr.push(cr);
+      map.set(cr.class, arr);
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [eligibleCareers]);
 
-  const totalRolled = Object.values(draft.inits).reduce<number>((a, b) => a + (b ?? 0), 0);
+  const chosenCareer = careers.find(cr => cr.id === draft.careerId);
+  const archForChosen = creation.archetypes.find(a => a.careerId === draft.careerId);
+  const hasRichKit = !!archForChosen;
+  const kitTpl = get(archForChosen?.templateId ?? '');
+
   const rolled = Object.keys(draft.inits).length > 0;
+  const totalRolled = Object.values(draft.inits).reduce<number>((a, b) => a + (b ?? 0), 0);
+
+  const set = (patch: Partial<Draft>) => setDraft(d => ({ ...d, ...patch }));
+
+  const pickSpecies = (r: Race, random: boolean) =>
+    set({ species: r.name, speciesRandom: random, extraToFate: r.extra, careerId: '', careerChoices: [] });
+
+  const rollSpecies = () => {
+    if (races.length === 0) return;
+    const r = races[Math.floor(Math.random() * races.length)];
+    pickSpecies(r, true);
+  };
+
+  const rollOneCareer = () => {
+    if (eligibleCareers.length === 0) return;
+    const cr = eligibleCareers[Math.floor(Math.random() * eligibleCareers.length)];
+    set({ careerId: cr.id, careerChoices: [] });
+  };
+  const rollThreeCareers = () => {
+    const picks = pickDistinct(eligibleCareers, 3, [Math.random(), Math.random(), Math.random()]);
+    set({ careerChoices: picks.map(c => c.id), careerId: '' });
+  };
+
+  // Preview the would-be character for the Review step (no money rolled yet).
+  const zeroWealth = Object.fromEntries(system.currency.units.map(u => [u.key, 0]));
+  const preview = chosenCareer
+    ? buildCharacter(
+        draft, 'preview', chosenCareer, race, kitTpl, hasRichKit, skillDefs, talentDefs,
+        content.allSpells, content.allPrayers, charDefs, woundsRules, creation, system, zeroWealth,
+      )
+    : null;
 
   const canProceed = (() => {
-    if (step === 0) return draft.name.trim().length > 0;
-    if (step === 1) return comboOk;
-    if (step === 2) return Object.keys(draft.inits).length === charKeys.length;
+    if (step === 0) return draft.name.trim().length > 0 && !!race;
+    if (step === 1) return Object.keys(draft.inits).length === charKeys.length;
+    if (step === 2) return !!chosenCareer && eligibleCareers.some(c => c.id === draft.careerId);
     return true;
   })();
 
   const finish = () => {
-    if (!draft.name.trim()) {
-      Alert.alert('Name required', 'Please give your character a name first.');
-      return;
-    }
-    if (Object.keys(draft.inits).length !== charKeys.length) {
-      Alert.alert('Roll your stats', 'Tap "Reroll" on the Stats step before finishing.');
-      return;
-    }
-    if (!comboOk) {
-      Alert.alert(
-        'Invalid combination',
-        `${arch?.label ?? 'This archetype'} (${srcTpl.career}) isn't available to ${draft.species}. ` +
-        `Pick a different archetype, or change species in step 1.`,
-      );
-      return;
-    }
+    if (!draft.name.trim()) { Alert.alert('Name required', 'Please give your character a name first.'); return; }
+    if (Object.keys(draft.inits).length !== charKeys.length) { Alert.alert('Roll your stats', 'Roll characteristics on step 2 first.'); return; }
+    if (!chosenCareer) { Alert.alert('Pick a career', 'Choose a career on step 3 first.'); return; }
+
+    // Roll starting money by the career's rank-1 Status tier.
+    const tier = statusTier(chosenCareer.ranks[0]?.status ?? '');
+    const rolls = Array.from({ length: startingMoneyDice(tier) }, () => rollDice({ count: 1, sides: 10 }));
+    const wealth: Record<string, number> = {
+      ...Object.fromEntries(system.currency.units.map(u => [u.key, 0])),
+      ...startingMoney(tier, rolls),
+    };
+
     const id = nextId();
     const c = buildCharacter(
-      draft, id, arch, srcTpl, race, skillDefs, talentDefs,
-      content.allSpells, content.allPrayers, charDefs, woundsRules, creation, system,
+      draft, id, chosenCareer, race, kitTpl, hasRichKit, skillDefs, talentDefs,
+      content.allSpells, content.allPrayers, charDefs, woundsRules, creation, system, wealth,
     );
     add(c);
     setActive(id);
-    // Reset draft so the wizard is fresh next time.
     setDraft(emptyDraft);
     setStep(0);
     Alert.alert(
       'Character created',
-      `${c.name} is ready. Switched to them as the active character.`,
+      `${c.name} — ${c.species} ${c.career}. Starting XP ${c.xpCurrent}; ` +
+        `money ${system.currency.units.map(u => `${wealth[u.key] ?? 0} ${u.label}`).join(', ')}.`,
       [{ text: 'Open Overview', onPress: () => onNav('overview') }],
     );
   };
+
+  const xpFor = (mode: CareerMode) => startingXp(draft.speciesRandom, mode);
 
   return (
     <ScreenContainer>
       <Hero
         title="New character"
-        subRow={<span className="nc-sub">Step by step — you can go back at any point.</span>}
+        subRow={<span className="nc-sub">The full WFRP 4e procedure — species, characteristics, career.</span>}
       />
 
       <div className="nc-steps">
@@ -298,12 +401,7 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
           const done = i < step;
           const current = i === step;
           return (
-            <button
-              key={s}
-              type="button"
-              className="btn-reset nc-step-cell"
-              onClick={() => setStep(i)}
-            >
+            <button key={s} type="button" className="btn-reset nc-step-cell" onClick={() => setStep(i)}>
               <span
                 className="nc-line"
                 style={{
@@ -320,9 +418,7 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
                   borderWidth: current ? 2 : 1,
                 }}
               >
-                <span className="nc-dot-text" style={{ color: done || current ? '#fff' : colors.ink3 }}>
-                  {i + 1}
-                </span>
+                <span className="nc-dot-text" style={{ color: done || current ? '#fff' : colors.ink3 }}>{i + 1}</span>
               </span>
               <span className={current ? 'nc-step-label nc-step-label--current' : 'nc-step-label'}>{s}</span>
             </button>
@@ -340,14 +436,19 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
           <input
             className="nc-input"
             value={draft.name}
-            onChange={(e) => setDraft(d => ({ ...d, name: e.target.value }))}
+            onChange={(e) => set({ name: e.target.value })}
             placeholder="e.g. Magnus Brenner"
             autoCapitalize="words"
             autoCorrect="off"
             spellCheck={false}
           />
 
-          <span className="nc-field-label">Species</span>
+          <div className="nc-row-between" style={{ marginTop: 8 }}>
+            <span className="nc-field-label">Species</span>
+            <Button variant="ghost" iconLeft={<Icon name="dice" size={12} color={colors.ink2} />} onPress={rollSpecies}>
+              Roll random (+20 XP)
+            </Button>
+          </div>
           <div className="nc-options-row">
             {races.map(r => {
               const on = draft.species === r.name;
@@ -356,129 +457,182 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
                   key={r.id}
                   type="button"
                   className={on ? 'btn-reset nc-option nc-option--on' : 'btn-reset nc-option'}
-                  onClick={() => setDraft(d => ({ ...d, species: r.name }))}
+                  onClick={() => pickSpecies(r, false)}
                 >
                   <span className={on ? 'nc-option-text nc-option-text--on' : 'nc-option-text'}>{r.name}</span>
                 </button>
               );
             })}
           </div>
+          {draft.speciesRandom ? (
+            <span className="nc-arch-meta" style={{ marginTop: 6 }}>Randomly determined — +20 starting XP.</span>
+          ) : null}
+
+          {race ? (
+            <>
+              <div className="nc-row-between" style={{ marginTop: 14 }}>
+                <span className="nc-field-label">Extra points to Fate ({race.extra} to split)</span>
+                <Stepper value={Math.min(draft.extraToFate, race.extra)} min={0} max={race.extra} onChange={(n) => set({ extraToFate: n })} />
+              </div>
+              <span className="nc-arch-meta">
+                Fate {race.fate + Math.min(draft.extraToFate, race.extra)} · Resilience {race.resilience + (race.extra - Math.min(draft.extraToFate, race.extra))}
+              </span>
+            </>
+          ) : null}
         </Card>
       ) : null}
 
       {step === 1 ? (
         <Card>
           <span className="nc-label">Step 2</span>
-          <span className="nc-heading">Archetype</span>
-          <span className="nc-body">
-            Pick the kind of adventurer they are. Skills, weapons, and starting talents come from this choice.
-          </span>
-
-          {!comboOk ? (
-            <span className="nc-combo-warn">
-              {arch?.label ?? 'This archetype'} isn't available to {draft.species}. Pick another archetype below, or go back to step 1 to change species.
-            </span>
-          ) : null}
-
-          <div className="nc-arch-grid">
-            {archetypes.map(a => {
-              const on = draft.archetypeKey === a.key;
-              const allowed = careers.find(c => c.id === a.careerId)?.species ?? [];
-              const fits = !race || allowed.length === 0 || allowed.includes(race.id);
-              const aTpl = get(a.templateId);
-              return (
-                <button
-                  key={a.key}
-                  type="button"
-                  className="btn-reset nc-arch-cell-wrap"
-                  onClick={() => setDraft(d => ({ ...d, archetypeKey: a.key }))}
-                >
-                  <Card
-                    tight
-                    style={{
-                      flex: 1,
-                      ...(on ? { borderColor: colors.brass } : null),
-                      ...(!fits ? { opacity: 0.5 } : null),
-                    }}
-                  >
-                    <div className="nc-arch-head">
-                      <Icon name={a.icon as IconName} size={20} color={on ? colors.brass : colors.ink2} />
-                      {on ? <Pill variant="brass" size={10}>PICKED</Pill> : null}
-                    </div>
-                    <span className="nc-arch-title">{a.label}</span>
-                    <span className="nc-arch-sub">{a.blurb}</span>
-                    <span className="nc-arch-meta">Starts as {aTpl.career}</span>
-                    <span className="nc-arch-species">{allowed.map(raceName).join(' · ') || 'Any species'}</span>
-                    {!fits ? <span className="nc-arch-warn">Not available to {draft.species}</span> : null}
-                  </Card>
-                </button>
-              );
-            })}
-          </div>
-        </Card>
-      ) : null}
-
-      {step === 2 ? (
-        <Card>
-          <span className="nc-label">Step 3</span>
           <span className="nc-heading">Roll characteristics</span>
           <span className="nc-body">
-            WFRP 4e starting stats are {creation.statRoll.count}d{creation.statRoll.sides} + {creation.statRoll.plus} per
-            characteristic. Tap reroll until you get something you can live with — or stick with what the dice gave you
-            the first time.
+            WFRP 4e starting stats are {creation.statRoll.count}d{creation.statRoll.sides} + your species base per
+            characteristic. Reroll until you get a profile you can live with.
           </span>
 
           <div className="nc-roll-row">
             <Button
               variant="primary"
               iconLeft={<Icon name="dice" size={13} color={colors.ivory} />}
-              onPress={() => setDraft(d => ({ ...d, inits: rerollInits(charKeys, creation.statRoll) }))}
+              onPress={() => set({ inits: rerollInits(charKeys, creation.statRoll) })}
             >
               {rolled ? 'Reroll' : 'Roll stats'}
             </Button>
-            {rolled ? (
-              <span className="nc-total-line">
-                Total: <span className="nc-total-num tabular">{totalRolled}</span>
-              </span>
-            ) : null}
+            {rolled ? <span className="nc-total-line">Total: <span className="nc-total-num tabular">{totalRolled}</span></span> : null}
           </div>
 
           {rolled ? (
             <div className="nc-stats-grid">
-              {srcTpl.characteristics.map(c => (
+              {charDefs.map(c => (
                 <div key={c.key} className="nc-stat-cell">
                   <span className="nc-stat-key">{c.short}</span>
-                  <span className="nc-stat-num tabular">{draft.inits[c.key]}</span>
+                  <span className="nc-stat-num tabular">{(draft.inits[c.key] ?? 0) + (race?.charModifiers?.[c.key] ?? 0)}</span>
                   <span className="nc-stat-name">{c.name}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <span className="nc-body nc-body--empty">
-              Press "Roll stats" to generate your character's profile.
-            </span>
+            <span className="nc-body nc-body--empty">Press "Roll stats" to generate your character's profile.</span>
           )}
         </Card>
       ) : null}
 
-      {step === 3 ? (
+      {step === 2 ? (
+        <Card>
+          <span className="nc-label">Step 3</span>
+          <span className="nc-heading">Career</span>
+          <span className="nc-body">
+            Let the dice decide for more starting XP, or choose freely. {eligibleCareers.length} careers open to {draft.species}.
+          </span>
+
+          <div className="nc-options-row" style={{ marginBottom: 4 }}>
+            {([['choose', 'Choose freely'], ['three', 'Roll 3, pick one'], ['first', 'Roll & accept']] as [CareerMode, string][]).map(([m, label]) => {
+              const on = draft.careerMode === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  className={on ? 'btn-reset nc-option nc-option--on' : 'btn-reset nc-option'}
+                  onClick={() => set({ careerMode: m, careerId: '', careerChoices: [] })}
+                >
+                  <span className={on ? 'nc-option-text nc-option-text--on' : 'nc-option-text'}>{label} · +{xpFor(m)} XP</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {draft.careerMode === 'first' ? (
+            <div style={{ marginTop: 10 }}>
+              <Button variant="primary" iconLeft={<Icon name="dice" size={13} color={colors.ivory} />} onPress={rollOneCareer}>
+                {chosenCareer ? 'Reroll career' : 'Roll a career'}
+              </Button>
+              {chosenCareer ? (
+                <Card tight style={{ marginTop: 10, borderColor: colors.brass }}>
+                  <span className="nc-arch-title">{chosenCareer.name}</span>
+                  <span className="nc-arch-sub">{chosenCareer.class} · starts as {chosenCareer.ranks[0]?.name} ({chosenCareer.ranks[0]?.status})</span>
+                </Card>
+              ) : null}
+            </div>
+          ) : null}
+
+          {draft.careerMode === 'three' ? (
+            <div style={{ marginTop: 10 }}>
+              <Button variant="primary" iconLeft={<Icon name="dice" size={13} color={colors.ivory} />} onPress={rollThreeCareers}>
+                {draft.careerChoices.length ? 'Reroll three' : 'Roll three careers'}
+              </Button>
+              <div className="nc-arch-grid" style={{ marginTop: 10 }}>
+                {draft.careerChoices.map(cid => {
+                  const cr = careers.find(c => c.id === cid);
+                  if (!cr) return null;
+                  const on = draft.careerId === cid;
+                  return (
+                    <button key={cid} type="button" className="btn-reset nc-arch-cell-wrap" onClick={() => set({ careerId: cid })}>
+                      <Card tight style={{ flex: 1, ...(on ? { borderColor: colors.brass } : null) }}>
+                        <div className="nc-arch-head">
+                          <span className="nc-arch-title">{cr.name}</span>
+                          {on ? <Pill variant="brass" size={10}>PICKED</Pill> : null}
+                        </div>
+                        <span className="nc-arch-sub">{cr.class}</span>
+                        <span className="nc-arch-meta">Starts as {cr.ranks[0]?.name} ({cr.ranks[0]?.status})</span>
+                      </Card>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {draft.careerMode === 'choose' ? (
+            <div style={{ marginTop: 10 }}>
+              {careersByClass.map(([cls, list]) => (
+                <div key={cls} style={{ marginBottom: 10 }}>
+                  <span className="nc-field-label">{cls}</span>
+                  <div className="nc-options-row">
+                    {list.map(cr => {
+                      const on = draft.careerId === cr.id;
+                      return (
+                        <button
+                          key={cr.id}
+                          type="button"
+                          className={on ? 'btn-reset nc-option nc-option--on' : 'btn-reset nc-option'}
+                          onClick={() => set({ careerId: cr.id })}
+                          title={`${cr.ranks[0]?.name} (${cr.ranks[0]?.status})`}
+                        >
+                          <span className={on ? 'nc-option-text nc-option-text--on' : 'nc-option-text'}>{cr.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {step === 3 && preview ? (
         <Card>
           <span className="nc-label">Step 4</span>
           <span className="nc-heading">Review</span>
 
           <div className="nc-review-head">
-            <Avatar initials={preview.initials} accent={arch?.accent ?? preview.accent} size={64} fontSize={24} />
+            <Avatar initials={preview.initials} accent={preview.accent} size={64} fontSize={24} />
             <div className="nc-review-main">
               <span className="nc-preview-name">{preview.name}</span>
               <span className="nc-preview-meta">
                 {preview.species} · {preview.career} · rank {preview.careerLevel} · {preview.status}
               </span>
               <span className="nc-preview-meta">
-                Wounds {preview.wounds.max} · {preview.skills.filter(s => s.career).length} career skills · {preview.talents.length} talents
+                Wounds {preview.wounds.max} · Fate {preview.fate} · Resilience {preview.resilience} · {preview.xpCurrent} starting XP
               </span>
-              {arch?.key === 'wizard' || arch?.key === 'priest' ? (
+              <span className="nc-preview-meta">
+                {preview.skills.filter(s => s.career).length} career skills · {preview.talents.length} talents
+                {!hasRichKit ? ' · generic starting kit' : ''}
+              </span>
+              {preview.isCaster || preview.isAnointed ? (
                 <span className="nc-preview-meta nc-preview-meta--brass">
-                  {arch?.key === 'wizard' ? 'Spellcaster — Magic screen will activate' : 'Anointed — Faith screen will activate'}
+                  {preview.isCaster ? 'Spellcaster — Magic screen will activate' : 'Anointed — Faith screen will activate'}
                 </span>
               ) : null}
             </div>
@@ -498,27 +652,15 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
 
       <Section title=" " />
       <div className="nc-nav-row">
-        <Button
-          variant="ghost"
-          onPress={() => setStep(a => Math.max(0, a - 1))}
-          disabled={step === 0}
-        >
+        <Button variant="ghost" onPress={() => setStep(a => Math.max(0, a - 1))} disabled={step === 0}>
           ← {STEPS[Math.max(0, step - 1)]}
         </Button>
         {step < STEPS.length - 1 ? (
-          <Button
-            variant="primary"
-            disabled={!canProceed}
-            onPress={() => setStep(a => a + 1)}
-          >
+          <Button variant="primary" disabled={!canProceed} onPress={() => setStep(a => a + 1)}>
             {STEPS[step + 1]} →
           </Button>
         ) : (
-          <Button
-            variant="primary"
-            onPress={finish}
-            iconLeft={<Icon name="check" size={13} color={colors.ivory} />}
-          >
+          <Button variant="primary" onPress={finish} iconLeft={<Icon name="check" size={13} color={colors.ivory} />}>
             Finish &amp; switch
           </Button>
         )}
