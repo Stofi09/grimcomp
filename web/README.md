@@ -15,6 +15,7 @@ npm run dev        # local dev server (hot reload)
 npm run build      # static production build → web/dist/
 npm run preview    # serve the production build locally
 npm run tsc        # type-check the app (test files run under Vitest, see below)
+npm run lint       # ESLint (typescript-eslint + react-hooks)
 npm test           # run the unit suite once (Vitest)
 npm run test:watch # run the unit suite in watch mode
 ```
@@ -138,6 +139,10 @@ In `core-careers.json`:
   "name": "Witch Hunter",
   "class": "Warrior",
   "species": ["race.human", "race.dwarf"],
+  "advanceScheme": {
+    "characteristics": ["ws", "bs", "s", "t", "wp", "fel"],
+    "skills": ["Melee (Basic)", "Intimidate", "Perception", "Cool"]
+  },
   "ranks": [
     { "level": 1, "name": "Interrogator", "status": "Silver 2" },
     { "level": 2, "name": "Witch Hunter", "status": "Silver 4",
@@ -152,7 +157,7 @@ In `core-careers.json`:
 }
 ```
 
-`species` lists the race ids eligible to take it (drives the New Character wizard). Optional per-rank `requirements` (skill display name + minimum advances) gate the **Career** screen's "advance" button; ranks without requirements stay unblocked.
+`species` lists the race ids eligible to take it (drives the New Character wizard). Optional per-rank `requirements` (skill display name + minimum advances) gate the **Career** screen's "advance" button; ranks without requirements stay unblocked. Optional `advanceScheme.characteristics` lists the characteristics the career advances — one **outside** it is a non-career advance on the Characteristics screen and costs `xpRules.nonCareerCharacteristicMultiplier` (×2). A career with no `advanceScheme` treats every characteristic as in-career.
 
 ### Rebalance the XP economy
 
@@ -169,12 +174,15 @@ In `core-rules.json`, the `xpRules` section is the single source of truth for al
   "talentCostPerRank": 100,
   "careerAdvanceCost": 100,
   "nonCareerSkillMultiplier": 2,
+  "nonCareerCharacteristicMultiplier": 2,
   "quickAwards": [50, 100, 150, 200],
   "buyStep": 5
 }
 ```
 
-Each `*Advances` band means "while you have between `min` and `max` advances, each point costs `cost` XP." Change a number, reload, and the Characteristics/Skills/Talents/Career/XP screens all use the new values. `quickAwards` are the session-reward buttons; `buyStep` is how many points one purchase buys (+5).
+Each `*Advances` band means "while you have between `min` and `max` advances, each point costs `cost` XP." Change a number, reload, and the Characteristics/Skills/Talents/Career/XP screens all use the new values. `quickAwards` are the session-reward buttons; `buyStep` is how many points one purchase buys (+5). `nonCareer*Multiplier` are applied to advances outside the current career's `advanceScheme` (skills already flag `career`; characteristics use the scheme).
+
+**Talent rank caps** — a talent may cap how many times it can be taken (WFRP 4e "Max"). In `core-talents.json`, add `"max": 1` for a flat cap, or `"maxChar": "t"` to cap ranks at that characteristic's Bonus (e.g. Hardy → Toughness Bonus). Omit both for a talent with no listed cap. The Talents screen shows `×N / M` and blocks buying past the cap.
 
 ### Configure character creation
 
@@ -200,7 +208,9 @@ In `core-creation.json`:
 }
 ```
 
-`statRoll` is the starting-characteristic formula (`2d10 + 20` by default — change to e.g. `{ "count": 3, "sides": 6, "plus": 25 }`). Each `archetype` clones a starter `templateId` (from `core-characters.json`) and binds a `careerId`. `pettyLore`/`anyDeity` control which spells/prayers a fresh caster/priest keeps.
+`statRoll` is the starting-characteristic formula (`2d10 + 20` by default — change to e.g. `{ "count": 3, "sides": 6, "plus": 25 }`). `pettyLore`/`anyDeity` control which spells/prayers a fresh caster/priest keeps.
+
+The **New Character** wizard runs the full WFRP 4e procedure: Name & Species (with a random-species roll for +20 XP and the Fate/Resilience **Extra** allocation) → Characteristics → **Career** → Review. The career step lists **every species-eligible career** (grouped by class), with the randomisation rewards — accept the first roll (+50 XP), roll three and pick one (+25 XP), or choose freely (+0 XP), banked as starting XP — plus starting money rolled by the rank-1 Status tier. An `archetype` whose `careerId` matches the chosen career clones that starter `templateId` (full pregen kit — weapons, armour, trappings, spells/prayers); any other career builds from species traits + the career's `advanceScheme.skills` + a generic kit.
 
 ### Change the game system itself (dice, formulas, currency)
 
@@ -243,7 +253,8 @@ The `system` section in `core-rules.json` defines the *mechanics*, not just the 
 
 The `system.combat` / `system.magic` / `system.faith` bindings above drive these WFRP 4e procedures (pure logic in `src/utils/`, toggled by the capability flags in `core-rules.json`):
 
-- **Combat damage** (`utils/combat.ts`). An attack derives its hit location by reversing the to-hit roll. The **Combat → "Take a hit"** action resolves incoming damage as `Damage − (Toughness Bonus + Armour Points at the struck location)` and applies the result to Wounds; reaching (or being struck at) **0 Wounds** raises a Critical Wound. Armour Points come from the live armour list, summed per location.
+- **Combat damage** (`utils/combat.ts`). An attack derives its hit location by reversing the to-hit roll. The **Combat → "Take a hit"** action resolves incoming damage as `Damage − (Toughness Bonus + Armour Points at the struck location)` and applies the result to Wounds; reaching (or being struck at) **0 Wounds** raises a Critical Wound, rolled on the struck location's `criticalTables` entry when one exists. Armour Points come from the live armour list, summed per location.
+- **Advantage, Opposed melee & weapon qualities** (`utils/combat.ts`). The Combat screen tracks **Advantage** (+10 per point to your attack tests; a damaging hit offers +1, taking Wounds resets it). The attack sheet takes an optional **defence** value to resolve a melee attack as an **Opposed Test** (higher SL wins; the net SL feeds damage). Weapon qualities fold into the number where they change it (**Damaging** uses the units die if higher than SL; **Impale** adds a die on a double); the rest surface as reminders.
 - **Spellcasting** (`utils/magic.ts`). **Channelling** banks Success Levels across rounds into a pool (persisted per character). A cast adds the pool to the casting-test SL and compares the total to the spell's **CN**; SL over the CN fuels **Overcasting** (one effect per 2 surplus SL). A double triggers a Miscast (gated by `magicMiscastOnDouble`); a fumbled casting test never casts.
 - **Faith.** A **Blessing** is invoked with no test and never risks Wrath; a **Miracle** rolls a Pray Test and can trigger the **Wrath of the Gods** when the roll's units die is ≤ the character's Sin (gated by `faithWrath`). See `prayers[].type` above.
 - **Wounds.** `Bleeding` drains 1 Wound per stack on **End of round**; a Fate point can be **burned** to cheat death. Max Wounds follows `system.formulas.maxWounds`.
@@ -253,7 +264,8 @@ The `system.combat` / `system.magic` / `system.faith` bindings above drive these
 All in `core-rules.json`:
 - **`conditions`** — `{ "name", "penalty"?, "maxStacks"?, "clearsAtSceneEnd"?, "description"? }`. `penalty` is the per-stack test modifier; `maxStacks` is the tap-cycle cap; `clearsAtSceneEnd` drops all stacks at scene end instead of ticking down by 1.
 - **`hitLocations`** — d100 bands `{ "min", "max", "key", "label" }` (`key` ∈ head/body/arm_l/arm_r/leg_l/leg_r). `figureLabels` are the body-diagram annotations per key. The core pack ships the canonical WFRP table (01–09 Head, 10–24 Left Arm, 25–44 Right Arm, 45–79 Body, 80–89 Left Leg, 90–100 Right Leg); Combat derives the struck location by **reversing the digits** of a successful to-hit roll (e.g. `27 → 72`) and looking it up in these bands.
-- **`criticals`** — the prefab critical-injury pool `{ "name", "effect", "days" }`.
+- **`criticals`** — the flat prefab critical-injury pool `{ "name", "effect", "days" }` (the fallback when no location table matches).
+- **`criticalTables`** — location-specific d100 critical tables `{ "locations": ["arm_l", "arm_r"], "rows": [{ "min", "max", "name", "effect", "days" }] }`. Arms and legs share a table (list both keys). When present, a critical at a struck location rolls on its own table instead of drawing a random `criticals` prefab.
 - **`woundsRules`** — `{ "smallSizes": ["Small"], "bonusTalent": "Hardy" }`. The max-Wounds formula is `SB + 2×TB + WPB` (small sizes drop SB; the bonus talent adds TB per rank).
 - **`characteristics`** — the 10-entry roster `{ "key", "name", "short" }` in display order.
 
@@ -276,7 +288,7 @@ In `core-characters.json`, the `characters` array holds full character templates
 
 ## Tests & data migrations
 
-A [Vitest](https://vitest.dev) unit suite covers the rules-critical pure logic: the d100/dice **roll engine** (`src/utils/roll.ts`), the **formula evaluator** (`src/utils/formula.ts`), **combat resolution** (`src/utils/combat.ts` — hit location, armour soak, the 0-Wounds Critical), **spellcasting** (`src/utils/magic.ts` — SL-vs-CN and Overcasting), **content-pack validation** (`src/content/validate.ts`), and **storage migrations** (`src/storage/migrations.ts`). Run it with `npm test` (or `npm run test:watch`).
+A [Vitest](https://vitest.dev) unit suite covers the rules-critical pure logic: the d100/dice **roll engine** (`src/utils/roll.ts`), the **formula evaluator** (`src/utils/formula.ts`), **combat resolution** (`src/utils/combat.ts` — hit location, armour soak, the 0-Wounds Critical, Advantage, Opposed tests, quality-aware damage), **spellcasting** (`src/utils/magic.ts` — SL-vs-CN and Overcasting), **advancement** (`src/utils/advancement.ts` — talent caps, non-career pricing), **character creation** (`src/utils/creation.ts` — starting XP/money, capability inference), **critical tables** (`src/content/tables.ts`), the **persistence store** (`src/hooks/storageCore.ts`), **content-pack validation** (`src/content/validate.ts`), and **storage migrations** (`src/storage/migrations.ts`). Run it with `npm test` (or `npm run test:watch`).
 
 Tests live next to the code they cover as `*.test.ts`. They're **excluded from `npm run tsc`** (which type-checks only the app) because they use Node APIs (`node:fs`) to load the real content packs; Vitest type-checks and runs them itself, so both `npm run tsc` and `npm test` stay green.
 
