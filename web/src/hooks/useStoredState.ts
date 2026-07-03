@@ -8,71 +8,26 @@
 // Unlike the AsyncStorage-backed RN original, hydration is synchronous: the
 // first access for a key reads localStorage immediately, so `ready` is always
 // true. It stays in the returned tuple for API compatibility.
+//
+// The cache + persistence semantics live in StorageCore (framework-free and
+// unit-tested); this file is the React binding plus the cross-tab listener.
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { StorageCore, browserBackend } from './storageCore';
 
 type Setter<T> = T | ((prev: T) => T);
 type SetState<T> = (next: Setter<T>) => void;
 
-// In-memory store shared across all subscribers, keyed by storage key.
-// Invariant: the cache only ever holds *real* values — parsed from
-// localStorage, written via setValue, or received from another tab. Seeds are
-// never cached, so a hook's value keeps tracking its (possibly async-loaded,
-// template-derived) seed until something is actually persisted.
-const cache = new Map<string, unknown>();
-const listeners = new Map<string, Set<() => void>>();
-
-function emit(key: string) {
-  const ls = listeners.get(key);
-  if (ls) for (const l of ls) l();
-}
-
-/** localStorage.getItem that tolerates privacy-mode / sandbox exceptions. */
-function readRaw(key: string): string | null {
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Synchronous read: cache hit wins; otherwise read localStorage once and
- * populate the cache with the parsed value. A missing key or a JSON.parse
- * failure falls back to the seed (uncached — see the cache invariant above).
- */
-function readStored<T>(key: string, seed: T): T {
-  if (cache.has(key)) return cache.get(key) as T;
-  const raw = readRaw(key);
-  if (raw == null) return seed;
-  try {
-    const parsed = JSON.parse(raw) as T;
-    cache.set(key, parsed);
-    return parsed;
-  } catch {
-    return seed;
-  }
-}
+// One store shared across every subscriber for the lifetime of the module.
+const store = new StorageCore(browserBackend());
 
 // Cross-tab sync (a web bonus the RN version couldn't have): another tab
-// writing a `gc.*` key fires `storage` here. Update the cache and re-render
-// every subscriber of that key. Registered once at module level.
+// writing a `gc.*` key fires `storage` here. Registered once at module level.
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e: StorageEvent) => {
     const key = e.key;
     if (!key || !key.startsWith('gc.')) return;
-    if (e.newValue == null) {
-      // Removed in the other tab — drop it; the next read re-hydrates and
-      // falls back to the current seed.
-      cache.delete(key);
-    } else {
-      try {
-        cache.set(key, JSON.parse(e.newValue));
-      } catch {
-        cache.delete(key);
-      }
-    }
-    emit(key);
+    store.applyExternal(key, e.newValue);
   });
 }
 
@@ -85,7 +40,7 @@ if (typeof window !== 'undefined') {
  */
 export function useStoredState<T>(key: string, initial: T) {
   // `_tick` is a render trigger — when another instance writes, our listener
-  // bumps it, forcing this hook to re-read from `cache`.
+  // bumps it, forcing this hook to re-read from the store.
   const [, setTick] = useState(0);
 
   // `initialRef` holds the seed for the *current* key. Per-character hooks key
@@ -101,34 +56,15 @@ export function useStoredState<T>(key: string, initial: T) {
   }
 
   // Subscribe to cross-instance writes for this key.
-  useEffect(() => {
-    let set = listeners.get(key);
-    if (!set) {
-      set = new Set();
-      listeners.set(key, set);
-    }
-    const l = () => setTick(n => n + 1);
-    set.add(l);
-    return () => {
-      set!.delete(l);
-      if (set!.size === 0) listeners.delete(key);
-    };
-  }, [key]);
+  useEffect(() => store.subscribe(key, () => setTick(n => n + 1)), [key]);
 
-  const value = readStored(key, initialRef.current);
+  const value = store.read(key, initialRef.current);
 
   const setValue: SetState<T> = useCallback((next) => {
     // Functional updates resolve SYNCHRONOUSLY against the shared cache —
     // callers (useXp.spend) smuggle results out through closures and depend
     // on the updater having run before setValue returns.
-    const cur = readStored(key, initialRef.current);
-    const resolved = typeof next === 'function' ? (next as (p: T) => T)(cur) : next;
-    if (Object.is(resolved, cur)) return;
-    cache.set(key, resolved);
-    emit(key);
-    try {
-      window.localStorage.setItem(key, JSON.stringify(resolved));
-    } catch { /* quota exceeded / privacy mode — keep the in-memory value */ }
+    store.update(key, initialRef.current, next);
   }, [key]);
 
   // Hydration is synchronous on the web, so `ready` is always true. Kept in
@@ -145,25 +81,7 @@ export function useStoredState<T>(key: string, initial: T) {
  * can't leak into a later character that reuses the id.
  */
 export function clearStoredKeys(predicate: (key: string) => boolean) {
-  // localStorage: collect first (removing while iterating shifts indices).
-  try {
-    const toDrop: string[] = [];
-    for (let i = 0; i < window.localStorage.length; i += 1) {
-      const k = window.localStorage.key(i);
-      if (k && predicate(k)) toDrop.push(k);
-    }
-    for (const k of toDrop) {
-      try { window.localStorage.removeItem(k); } catch { /* privacy mode */ }
-    }
-  } catch { /* privacy mode — nothing persisted to clear */ }
-
-  // In-memory cache: drop matching keys and re-render their subscribers.
-  for (const k of [...cache.keys()]) {
-    if (predicate(k)) {
-      cache.delete(k);
-      emit(k);
-    }
-  }
+  store.clearMatching(predicate);
 }
 
 /**
@@ -171,6 +89,5 @@ export function clearStoredKeys(predicate: (key: string) => boolean) {
  * touch localStorage, so re-mounted hooks will re-hydrate from disk.
  */
 export function _resetStoredCache() {
-  cache.clear();
-  listeners.clear();
+  store.reset();
 }
