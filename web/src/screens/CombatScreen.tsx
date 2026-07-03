@@ -9,9 +9,13 @@ import { useCharacterCollection } from '@/hooks/useCharacterCollection';
 import { useContent, useFigureLabels, useSystemRules, useCharacteristicDefs, useWeapons, useCapabilities, useHitLocations, useCriticals } from '@/content/useContent';
 import type { CombatRules } from '@/content/types';
 import { critFromTable } from '@/content/tables';
-import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
+import { resolveTest, outcomeLabel, formatTestResult, isDouble, rollDice } from '@/utils/roll';
 import { charVars, evalFormula } from '@/utils/formula';
-import { apByLocation, apAt, hitLocationFromRoll, applyDamage, type ApLocation } from '@/utils/combat';
+import {
+  apByLocation, apAt, hitLocationFromRoll, applyDamage,
+  advantageBonus, resolveOpposed, computeHitDamage, weaponQualityNotes,
+  type ApLocation,
+} from '@/utils/combat';
 import { Alert } from '@/ui/alert';
 import { Hero } from '@/components/Hero';
 import { Card, CardHead } from '@/components/Card';
@@ -19,6 +23,7 @@ import { Pill } from '@/components/Pill';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Table, TableRow, Cell } from '@/components/Table';
+import { Stepper } from '@/components/Stepper';
 import { HitLocationFigure } from '@/components/HitLocationFigure';
 import { EditSheet } from '@/components/EditSheet';
 import { TextField, NumberField, PickerField, MultiPickerField, QualitiesField } from '@/components/Fields';
@@ -129,6 +134,10 @@ export const CombatScreen: React.FC = () => {
   const [wounds, setWounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
   const crits = useCharacterCollection<Critical>('criticals', c.criticals);
 
+  // Advantage (CRB p.163): +10 per point to your combat tests. Persisted so it
+  // survives navigation; taking Wounds resets it (handled in resolveHit).
+  const [advantage, setAdvantage] = useStoredState(characterKey(id, 'advantage'), 0);
+
   // AP per location from the live armour collection (shared, tested helper).
   const ap = useMemo(() => apByLocation(armour.items), [armour.items]);
 
@@ -142,21 +151,73 @@ export const CombatScreen: React.FC = () => {
     return (ch?.current ?? 0) + adv;
   };
 
-  const attack = (w: Weapon) => {
+  // Attack sheet: pick opposed-vs-unopposed before rolling. `defence` 0 = a
+  // straight (unopposed) test; > 0 rolls the defender and resolves an Opposed
+  // Test (WFRP 4e melee).
+  const [atk, setAtk] = useState<{ weapon: Weapon; defence: number } | null>(null);
+  const openAttack = (w: Weapon) => setAtk({ weapon: w, defence: 0 });
+
+  const fmtSL = (n: number) => `${n >= 0 ? '+' : ''}${n} SL`;
+
+  const resolveAttack = () => {
+    if (!atk) return;
+    const w = atk.weapon;
     const target = targetForWeapon(w);
-    const r = resolveTest({ target, modifier: condMod.total, label: w.name }, system.test);
-    const dmg = r.success ? computeDamage(w.dmg, vars) + Math.max(0, r.sl) : 0;
-    // WFRP 4e: hit location is the reversed digits of a successful to-hit roll.
-    const loc = caps.combatHitLocations && r.success ? hitLocationFromRoll(r.roll, hitLocations) : null;
+    const advBonus = advantageBonus(advantage);
+    const r = resolveTest({ target, modifier: condMod.total + advBonus, label: w.name }, system.test);
+
+    // Opposed melee (defence > 0): compare success levels; the higher SL wins.
+    // A fumble never lands regardless of the SL comparison.
+    const opposed = atk.defence > 0;
+    let opposedLine = '';
+    let landed: boolean;
+    let dmgSl: number;
+    if (opposed) {
+      const dr = resolveTest({ target: atk.defence, label: 'Defender' }, system.test);
+      const res = resolveOpposed(r.sl, dr.sl);
+      landed = res.attackerWins && r.outcome !== 'fumble';
+      dmgSl = res.attackerWins ? res.netSL : 0;
+      const verdict = res.winner === 'attacker'
+        ? `you win by ${res.netSL} SL`
+        : res.winner === 'defender' ? 'defender turns it aside' : 'draw — nothing lands';
+      opposedLine = `\n\nOpposed: you ${fmtSL(r.sl)} vs defender ${fmtSL(dr.sl)} ` +
+        `(rolled ${dr.roll} vs ${atk.defence}) → ${verdict}.`;
+    } else {
+      landed = r.success;
+      dmgSl = Math.max(0, r.sl);
+    }
+
+    // Damage with quality tweaks (Damaging / Impale fold into the number).
+    const impaleRoll = landed && isDouble(r.roll) && w.qual.some(q => /impale/i.test(q))
+      ? rollDice({ count: 1, sides: 10 }) : 0;
+    const dmg = landed
+      ? computeHitDamage({ baseDamage: computeDamage(w.dmg, vars), sl: dmgSl, toHitRoll: r.roll, qualities: w.qual, impaleRoll })
+      : null;
+
+    const loc = caps.combatHitLocations && landed ? hitLocationFromRoll(r.roll, hitLocations) : null;
     const locLine = loc ? `\n\nHit location: ${loc.label}  (${r.roll} → ${loc.locRoll})` : '';
-    const dmgLine = r.success
-      ? `\n\nDamage dealt: ${dmg}  (${w.dmg}${r.hasSl ? ` + ${Math.max(0, r.sl)} SL` : ''})` +
+    const dmgLine = dmg
+      ? `\n\nDamage dealt: ${dmg.total}  (${w.dmg}` +
+        `${dmg.damagingApplied ? ` + ${dmg.slBonus} units die` : dmg.slBonus ? ` + ${dmg.slBonus} SL` : ''}` +
+        `${dmg.impaleExtra ? ` + ${dmg.impaleExtra} Impale` : ''})` +
         `\nThe target subtracts its Toughness Bonus + AP.`
       : '';
+    const qualLines = landed ? weaponQualityNotes(w.qual) : [];
+    const qualLine = qualLines.length ? '\n\n' + qualLines.map(q => `• ${q}`).join('\n') : '';
     const condLine = condMod.parts.length
       ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
       : '';
-    Alert.alert(`${w.name} — ${outcomeLabel(r.outcome)}`, formatTestResult(r) + locLine + dmgLine + condLine);
+    const advLine = advBonus > 0 ? `\n\nAdvantage: +${advBonus} to hit (${advantage} × 10).` : '';
+
+    setAtk(null);
+    const canGain = landed && !!dmg && dmg.total > 0;
+    Alert.alert(
+      `${w.name} — ${opposed ? (landed ? 'HIT' : 'NO HIT') : outcomeLabel(r.outcome)}`,
+      formatTestResult(r) + advLine + opposedLine + locLine + dmgLine + qualLine + condLine,
+      canGain
+        ? [{ text: 'Gain +1 Advantage', onPress: () => setAdvantage(a => a + 1) }, { text: 'Close' }]
+        : undefined,
+    );
   };
 
   // "Take a hit": resolve incoming damage against THIS character's Toughness
@@ -181,6 +242,9 @@ export const CombatScreen: React.FC = () => {
     const apVal = apAt(ap, hit.locKey);
     const res = applyDamage({ damage: hit.damage, toughnessBonus, ap: apVal, currentWounds: wounds });
     setWounds(res.newWounds);
+    // WFRP 4e p.164: taking one or more Wounds loses all your Advantage.
+    const lostAdvantage = res.woundsLost > 0 && advantage > 0;
+    if (lostAdvantage) setAdvantage(0);
 
     let critLine = '';
     if (res.critical) {
@@ -201,11 +265,12 @@ export const CombatScreen: React.FC = () => {
     }
 
     const locPart = caps.combatHitLocations ? ` to the ${hitLocLabel(hit.locKey)}` : '';
+    const advLine = lostAdvantage ? `\nAdvantage lost — reset to 0 (you took Wounds).` : '';
     setHit(null);
     Alert.alert(
       res.woundsLost > 0 ? `Hit${locPart} — ${res.woundsLost} Wound${res.woundsLost === 1 ? '' : 's'} lost` : `Hit${locPart} — fully soaked`,
       `Damage ${res.damage} − TB ${res.toughnessBonus} − AP ${res.ap} = ${res.woundsLost} Wound${res.woundsLost === 1 ? '' : 's'}.\n` +
-      `Wounds ${res.currentWounds} → ${res.newWounds}.${critLine}`,
+      `Wounds ${res.currentWounds} → ${res.newWounds}.${advLine}${critLine}`,
     );
   };
 
@@ -310,6 +375,25 @@ export const CombatScreen: React.FC = () => {
         <div className="cmb-right">
           <Card flush>
             <CardHead
+              title="Advantage"
+              right={
+                <Button variant="ghost" onPress={() => setAdvantage(0)}>
+                  Reset
+                </Button>
+              }
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '2px 4px 10px' }}>
+              <Stepper value={advantage} min={0} max={30} onChange={setAdvantage} />
+              <span className="cmb-meta-mono">
+                {advantage > 0
+                  ? `+${advantageBonus(advantage)} to your Weapon / Ballistic Skill tests`
+                  : 'No Advantage — win a bout or charge to gain a point'}
+              </span>
+            </div>
+          </Card>
+
+          <Card flush>
+            <CardHead
               title="Weapons"
               right={
                 <Button
@@ -356,7 +440,7 @@ export const CombatScreen: React.FC = () => {
                       variant="ghost"
                       ariaLabel={`Roll attack with ${w.name}`}
                       iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
-                      onPress={() => attack(w)}
+                      onPress={() => openAttack(w)}
                     >{''}</Button>
                   </Cell>
                 </TableRow>
@@ -523,6 +607,45 @@ export const CombatScreen: React.FC = () => {
             />
           </>
         ) : null}
+      </EditSheet>
+
+      {/* Attack resolver: to-hit roll (+ Advantage), optional Opposed melee */}
+      <EditSheet
+        visible={!!atk}
+        title="Attack"
+        subtitle="Roll to hit. Set a defence value to resolve an Opposed melee test."
+        onClose={() => setAtk(null)}
+        onSave={resolveAttack}
+        saveLabel="Roll attack"
+      >
+        {atk ? (() => {
+          const w = atk.weapon;
+          const target = targetForWeapon(w);
+          const advBonus = advantageBonus(advantage);
+          const ranged = charForWeapon(w, combat) === combat.rangedChar;
+          return (
+            <>
+              <div className="cmb-hit-preview">
+                <span className="cmb-meta-mono">{w.name} · {w.dmg}</span>{' '}
+                target <strong>{target}{advBonus ? ` + ${advBonus}` : ''}</strong>
+                {advBonus ? <span className="cmb-meta-mono">  ·  Advantage +{advBonus}</span> : null}
+              </div>
+              <NumberField
+                label={ranged ? 'Opposed defence (melee only — 0 for ranged)' : "Defender's defence (0 = unopposed)"}
+                value={atk.defence}
+                onChangeNumber={n => setAtk(s => s && ({ ...s, defence: n }))}
+                min={0}
+                max={100}
+                hint="The defender's Melee or Dodge target. Leave at 0 for a straight test."
+              />
+              {w.qual.length ? (
+                <div className="cmb-qual-row">
+                  {w.qual.map(q => <Pill key={q} size={10}>{q}</Pill>)}
+                </div>
+              ) : null}
+            </>
+          );
+        })() : null}
       </EditSheet>
 
       {/* Take-a-hit resolver: incoming damage vs this character's TB + AP */}

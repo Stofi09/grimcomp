@@ -8,6 +8,7 @@
 // Combat and Wounds screens share one source of truth.
 
 import type { HitLocationKey, HitLocationRow } from '@/content/types';
+import { isDouble } from './roll';
 
 /**
  * WFRP 4e hit location (CRB p.159): reverse the digits of the successful to-hit
@@ -122,4 +123,120 @@ export function applyDamage(input: ApplyDamageInput): ApplyDamageResult {
     newWounds,
     critical: reducedToZero || hitWhileDown,
   };
+}
+
+// --- Advantage (CRB p.163) ---
+
+/**
+ * The test bonus from a pool of Advantage: +10 per point (WFRP 4e p.164).
+ * Advantage is clamped at ≥0.
+ */
+export function advantageBonus(advantage: number): number {
+  return Math.max(0, Math.round(advantage)) * 10;
+}
+
+// --- Opposed Tests (CRB p.297) — melee is resolved as one ---
+
+export interface OpposedResult {
+  /** True when the attacker wins outright. A draw is NOT an attacker win. */
+  attackerWins: boolean;
+  winner: 'attacker' | 'defender' | 'draw';
+  /** Winner's SL minus loser's SL (a losing SL is negative, so this widens the
+      gap). This is the SL that feeds the winner's damage. 0 on a draw. */
+  netSL: number;
+}
+
+/**
+ * Resolve an Opposed Test from each side's signed SL. The higher SL wins; the
+ * winner's net SL is the difference (subtracting a negative loser SL adds to
+ * it). Equal SLs are a draw — in melee, nothing happens (the attack fails).
+ */
+export function resolveOpposed(attackerSL: number, defenderSL: number): OpposedResult {
+  if (attackerSL === defenderSL) return { attackerWins: false, winner: 'draw', netSL: 0 };
+  const attackerWins = attackerSL > defenderSL;
+  return {
+    attackerWins,
+    winner: attackerWins ? 'attacker' : 'defender',
+    netSL: Math.abs(attackerSL - defenderSL),
+  };
+}
+
+// --- Weapon qualities that touch damage (CRB p.293) ---
+
+export interface HitDamageInput {
+  /** Weapon Damage before the SL bonus (e.g. SB+4 already evaluated). */
+  baseDamage: number;
+  /** SL that feeds damage — the hit's SL, or the net SL of a won Opposed Test. */
+  sl: number;
+  /** The to-hit roll (its units digit feeds Damaging; a double triggers Impale). */
+  toHitRoll: number;
+  /** Weapon qualities (and flaws), verbatim from the weapon. */
+  qualities: string[];
+  /** Pre-rolled extra Impale die (1d10). Injected so the calc stays pure/testable. */
+  impaleRoll?: number;
+}
+
+export interface HitDamageResult {
+  total: number;
+  /** The SL/units-die bonus actually added to Damage. */
+  slBonus: number;
+  /** Damaging replaced SL with the (higher) units die of the to-hit roll. */
+  damagingApplied: boolean;
+  /** Impale added an extra die (only on a double to-hit roll). */
+  impaleExtra: number;
+  /** Units die of the to-hit roll (0 reads as 10). */
+  unitsDie: number;
+}
+
+/**
+ * WFRP 4e damage from a landed hit: Weapon Damage + SL, with the quality tweaks
+ * that change the number:
+ *  - **Damaging** — use the units die of the to-hit roll instead of SL if higher.
+ *  - **Impale** — a double to-hit roll adds an extra Damage die (1d10).
+ * Other qualities (Hack, Penetrating, Pummel, …) don't change this total; they
+ * surface as notes via weaponQualityNotes().
+ */
+export function computeHitDamage(input: HitDamageInput): HitDamageResult {
+  const has = (q: string) => input.qualities.some(x => x.toLowerCase() === q.toLowerCase());
+  const unitsDie = input.toHitRoll % 10 === 0 ? 10 : input.toHitRoll % 10;
+  const damaging = has('Damaging');
+  const rawBonus = damaging ? Math.max(input.sl, unitsDie) : input.sl;
+  const slBonus = Math.max(0, rawBonus);
+  const impaleExtra = has('Impale') && isDouble(input.toHitRoll) ? Math.max(0, Math.round(input.impaleRoll ?? 0)) : 0;
+  return {
+    total: Math.max(0, Math.round(input.baseDamage)) + slBonus + impaleExtra,
+    slBonus,
+    damagingApplied: damaging && unitsDie > input.sl,
+    impaleExtra,
+    unitsDie,
+  };
+}
+
+/** Short mechanical reminders for qualities computeHitDamage doesn't fold into
+    the number. Returned in weapon order; empty when none apply. */
+export function weaponQualityNotes(qualities: string[]): string[] {
+  const notes: Record<string, string> = {
+    penetrating: 'Penetrating — the target ignores Armour Points equal to this hit\'s SL.',
+    hack: 'Hack — on a damaging hit, reduce the struck location\'s armour by 1 AP.',
+    pummel: 'Pummel — you may spend Advantage to add the Stunned condition.',
+    defensive: 'Defensive — grants +1 SL when used to defend in an Opposed Test.',
+    shield: 'Shield — adds AP against attacks from the front; +1 SL to defend.',
+    trapblade: 'Trap Blade — may catch and hold a foe\'s weapon on a successful defence.',
+    dangerous: 'Dangerous — a fumble may harm the wielder.',
+    reload: 'Reload — needs one or more actions to reload before firing again.',
+    blackpowder: 'Blackpowder — ignores standard Armour Points (not magical AP).',
+    entangle: 'Entangle — a hit may apply the Entangled condition instead of Wounds.',
+    impact: 'Impact — roll two dice for the Damage die and take the higher.',
+    wrap: 'Wrap — ignores shields when working out the hit.',
+  };
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const q of qualities) {
+    const key = q.toLowerCase().replace(/[^a-z]/g, '');
+    if (notes[key] && !seen.has(key)) {
+      out.push(notes[key]);
+      seen.add(key);
+    }
+  }
+  return out;
 }

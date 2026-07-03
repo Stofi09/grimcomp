@@ -6,6 +6,10 @@ import {
   apAt,
   soakDamage,
   applyDamage,
+  advantageBonus,
+  resolveOpposed,
+  computeHitDamage,
+  weaponQualityNotes,
 } from './combat';
 import type { HitLocationRow } from '@/content/types';
 
@@ -136,5 +140,84 @@ describe('applyDamage — Wounds + Critical trigger', () => {
     const r = applyDamage({ damage: 6, toughnessBonus: 0, ap: 0, currentWounds: 12 });
     expect(r.newWounds).toBe(6);
     expect(r.critical).toBe(false);
+  });
+});
+
+describe('advantageBonus — +10 per Advantage (CRB p.164)', () => {
+  it('scales by 10 and clamps at zero', () => {
+    expect(advantageBonus(0)).toBe(0);
+    expect(advantageBonus(3)).toBe(30);
+    expect(advantageBonus(-2)).toBe(0);
+  });
+});
+
+describe('resolveOpposed — melee as an Opposed Test', () => {
+  it('the higher SL wins; net SL is the gap, widened by a losing SL', () => {
+    // attacker +2 vs defender +1 (both pass) → attacker wins, net 1
+    expect(resolveOpposed(2, 1)).toEqual({ attackerWins: true, winner: 'attacker', netSL: 1 });
+    // attacker +2 vs defender −1 (defender failed) → attacker wins, net 3
+    expect(resolveOpposed(2, -1)).toEqual({ attackerWins: true, winner: 'attacker', netSL: 3 });
+    // defender out-rolls the attacker → attack fails
+    expect(resolveOpposed(0, 3)).toEqual({ attackerWins: false, winner: 'defender', netSL: 3 });
+  });
+
+  it('equal SLs are a draw — the melee attack does not land', () => {
+    expect(resolveOpposed(2, 2)).toEqual({ attackerWins: false, winner: 'draw', netSL: 0 });
+  });
+});
+
+describe('computeHitDamage — Weapon Damage + SL with quality tweaks', () => {
+  it('adds the hit SL to base damage by default', () => {
+    const r = computeHitDamage({ baseDamage: 9, sl: 2, toHitRoll: 34, qualities: [] });
+    expect(r.total).toBe(11);
+    expect(r.slBonus).toBe(2);
+    expect(r.damagingApplied).toBe(false);
+  });
+
+  it('Damaging uses the units die of the to-hit roll when higher than SL', () => {
+    // roll 47 → units 7 > SL 2 → bonus 7
+    const r = computeHitDamage({ baseDamage: 9, sl: 2, toHitRoll: 47, qualities: ['Damaging'] });
+    expect(r.slBonus).toBe(7);
+    expect(r.damagingApplied).toBe(true);
+    expect(r.total).toBe(16);
+  });
+
+  it('Damaging keeps SL when SL is the higher of the two', () => {
+    // roll 41 → units 1 < SL 4 → keeps SL 4
+    const r = computeHitDamage({ baseDamage: 9, sl: 4, toHitRoll: 41, qualities: ['Damaging'] });
+    expect(r.slBonus).toBe(4);
+    expect(r.damagingApplied).toBe(false);
+  });
+
+  it('Impale adds an extra die only on a double to-hit roll', () => {
+    const dbl = computeHitDamage({ baseDamage: 6, sl: 1, toHitRoll: 33, qualities: ['Impale'], impaleRoll: 8 });
+    expect(dbl.impaleExtra).toBe(8);
+    expect(dbl.total).toBe(6 + 1 + 8);
+    const notDbl = computeHitDamage({ baseDamage: 6, sl: 1, toHitRoll: 34, qualities: ['Impale'], impaleRoll: 8 });
+    expect(notDbl.impaleExtra).toBe(0);
+  });
+
+  it('a units digit of 0 reads as 10', () => {
+    const r = computeHitDamage({ baseDamage: 4, sl: 1, toHitRoll: 40, qualities: ['Damaging'] });
+    expect(r.unitsDie).toBe(10);
+    expect(r.slBonus).toBe(10);
+  });
+
+  it('never returns negative damage', () => {
+    const r = computeHitDamage({ baseDamage: 0, sl: -5, toHitRoll: 96, qualities: [] });
+    expect(r.total).toBe(0);
+  });
+});
+
+describe('weaponQualityNotes', () => {
+  it('returns a note for the non-damage qualities, de-duplicated', () => {
+    const notes = weaponQualityNotes(['Penetrating', 'Reload', 'Penetrating']);
+    expect(notes.some(n => n.startsWith('Penetrating'))).toBe(true);
+    expect(notes.some(n => n.startsWith('Reload'))).toBe(true);
+    expect(notes.filter(n => n.startsWith('Penetrating'))).toHaveLength(1);
+  });
+
+  it('ignores qualities folded into the damage number, and unknown ones', () => {
+    expect(weaponQualityNotes(['Damaging', 'Impale', 'Whatever'])).toEqual([]);
   });
 });
