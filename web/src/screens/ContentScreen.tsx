@@ -17,7 +17,7 @@ import { Alert } from '@/ui/alert';
 import { useContent } from '@/content/useContent';
 import { useContentEdits } from '@/content/useContentEdits';
 import { validatePack } from '@/content/validate';
-import { CONTENT_SCHEMA, type EditableSection } from '@/content/types';
+import { CONTENT_SCHEMA, EDITABLE_SECTIONS, USER_EDITS_PACK_ID, type EditableSection } from '@/content/types';
 import { SECTION_META } from '@/content/editable';
 import { colors } from '@/theme';
 import './ContentScreen.css';
@@ -60,6 +60,7 @@ export const ContentScreen: React.FC = () => {
   const { pack: edits, upsertEntry, deleteEntry, revertEntry } = useContentEdits();
   const [sectionKey, setSectionKey] = useState<EditableSection>('careers');
   const [sheet, setSheet] = useState<SheetState | null>(null);
+  const [shareText, setShareText] = useState<string | null>(null);
 
   const meta = SECTION_META.find(m => m.key === sectionKey) ?? SECTION_META[0];
 
@@ -166,6 +167,58 @@ export const ContentScreen: React.FC = () => {
     );
   };
 
+  // --- Share edits as a content pack ----------------------------------------
+  // Everything created/edited here already lives in one overlay ContentPack, so
+  // sharing is: rebrand a copy (stable id + friendly name), validate, download.
+  // A friend imports the file in Settings → Content packs; same-id re-imports
+  // replace the older version instead of stacking.
+
+  const openShare = () => {
+    const raw = edits as unknown as Record<string, unknown>;
+    const hasEdits = EDITABLE_SECTIONS.some(k => Array.isArray(raw[k]) && (raw[k] as unknown[]).length > 0)
+      || Object.keys(edits.deletions ?? {}).length > 0;
+    if (!hasEdits) {
+      Alert.alert('Nothing to share yet', 'Create or edit some content first — then export it here as a pack for your group.');
+      return;
+    }
+    setShareText(JSON.stringify({ ...edits, id: 'pack.my-edits', name: 'My edits', version: '1' }, null, 2));
+  };
+
+  const downloadShare = () => {
+    if (shareText == null) return;
+    let raw: unknown;
+    try { raw = JSON.parse(shareText); }
+    catch (e) { Alert.alert('Invalid JSON', e instanceof Error ? e.message : 'Could not parse JSON.'); return; }
+    const { pack, errors } = validatePack(raw);
+    if (errors.length > 0 || !pack) {
+      Alert.alert('Invalid content pack', errors.join('\n').slice(0, 800) || 'Unknown validation error.');
+      return;
+    }
+    if (pack.id === USER_EDITS_PACK_ID) {
+      Alert.alert('Pick a different id', `"${USER_EDITS_PACK_ID}" is reserved for this device's live edits. Give the pack its own id, e.g. "pack.my-edits".`);
+      return;
+    }
+    try {
+      const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${pack.id}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      Alert.alert('Download failed', e instanceof Error ? e.message : String(e));
+      return;
+    }
+    setShareText(null);
+    Alert.alert(
+      'Pack downloaded',
+      `Send ${pack.id}.json to your group — they import it in Settings → Content packs. Keep the same id when you re-export so imports replace the old version.`,
+    );
+  };
+
   const sheetIsCustom = sheet ? customIds.has(sheet.id) : false;
   // Title reflects the id currently in the editor (so a mid-rename shows the new
   // id), falling back to the original when the JSON is incomplete.
@@ -184,9 +237,14 @@ export const ContentScreen: React.FC = () => {
         title="Content"
         subRow={<span className="cnt-sub">Create, edit, and delete rulebook content. Saved on this device and applied live across the app.</span>}
         actions={
-          <Button iconLeft={<Icon name="plus" size={13} color={colors.ink} />} onPress={openNew}>
-            New {meta.singular}
-          </Button>
+          <>
+            <Button variant="ghost" iconLeft={<Icon name="pack" size={13} color={colors.ink} />} onPress={openShare}>
+              Share edits
+            </Button>
+            <Button iconLeft={<Icon name="plus" size={13} color={colors.ink} />} onPress={openNew}>
+              New {meta.singular}
+            </Button>
+          </>
         }
       />
 
@@ -271,6 +329,26 @@ export const ContentScreen: React.FC = () => {
             className="cnt-editor"
             value={sheet.text}
             onChange={(e) => setSheet(s => (s ? { ...s, text: e.target.value } : s))}
+            spellCheck={false}
+            autoCapitalize="off"
+            autoCorrect="off"
+          />
+        ) : null}
+      </EditSheet>
+
+      <EditSheet
+        visible={shareText != null}
+        title="Share your edits"
+        subtitle="Content pack · raw JSON — set a stable id and name, then download"
+        onClose={() => setShareText(null)}
+        onSave={downloadShare}
+        saveLabel="Download"
+      >
+        {shareText != null ? (
+          <textarea
+            className="cnt-editor"
+            value={shareText}
+            onChange={(e) => setShareText(e.target.value)}
             spellCheck={false}
             autoCapitalize="off"
             autoCorrect="off"
