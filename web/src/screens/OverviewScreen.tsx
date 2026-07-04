@@ -1,5 +1,5 @@
 import type * as React from 'react';
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { useConditions } from '@/hooks/useConditions';
 import { useXp } from '@/hooks/useXp';
@@ -73,6 +73,19 @@ export const OverviewScreen: React.FC = () => {
   const corrThresh = derived.corruptionThreshold;
   const woundsMax = derived.maxWounds;
 
+  // Identity sub-row. Freshly-created characters have no age/height/looks/
+  // motivation yet (the wizard doesn't collect them), so build the row from
+  // only the fields that carry a value and interleave separators — otherwise
+  // it reads "age 0 · · hair,  eyes · """.
+  const looks = [c.hair && `${c.hair} hair`, c.eyes && `${c.eyes} eyes`]
+    .filter(Boolean).join(', ');
+  const identityParts: React.ReactNode[] = [
+    <span key="who" className="ovw-sub-text">{c.species}{c.age > 0 ? `, age ${c.age}` : ''}</span>,
+    c.height ? <span key="height" className="ovw-sub-text">{c.height}</span> : null,
+    looks ? <span key="looks" className="ovw-sub-text">{looks}</span> : null,
+    c.motivation ? <span key="mot" className="ovw-sub-text ovw-sub-motivation">"{c.motivation}"</span> : null,
+  ].filter(Boolean);
+
   return (
     <ScreenContainer>
       <Hero
@@ -87,15 +100,12 @@ export const OverviewScreen: React.FC = () => {
         }
         subRow={
           <>
-            <span className="ovw-sub-text">{c.species}, age {c.age}</span>
-            <span className="ovw-sub-sep">·</span>
-            <span className="ovw-sub-text">{c.height}</span>
-            <span className="ovw-sub-sep">·</span>
-            <span className="ovw-sub-text">{c.hair} hair, {c.eyes} eyes</span>
-            <span className="ovw-sub-sep">·</span>
-            <span className="ovw-sub-text ovw-sub-motivation">
-              "{c.motivation}"
-            </span>
+            {identityParts.map((part, i) => (
+              <Fragment key={i}>
+                {i > 0 ? <span className="ovw-sub-sep">·</span> : null}
+                {part}
+              </Fragment>
+            ))}
           </>
         }
         actions={

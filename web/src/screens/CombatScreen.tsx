@@ -46,15 +46,15 @@ const ARMOUR_LOCS = [
 
 type ArmourLoc = typeof ARMOUR_LOCS[number]['value'];
 
-// Hungarian fallbacks for the hit-location figure annotations — overlaid by the
-// JSON figureLabels so the registry can rename them per content pack.
+// Fallbacks for the hit-location figure annotations — overlaid by the JSON
+// figureLabels so the registry can rename them per content pack.
 const DEFAULT_FIGURE_LABELS = {
-  head: 'FEJ',
-  body: 'TEST',
-  arm_l: 'B. KAR',
-  arm_r: 'J. KAR',
-  leg_l: 'B. LÁB',
-  leg_r: 'J. LÁB',
+  head: 'HEAD',
+  body: 'BODY',
+  arm_l: 'L. ARM',
+  arm_r: 'R. ARM',
+  leg_l: 'L. LEG',
+  leg_r: 'R. LEG',
 } as const;
 
 // Friendly labels for the six hit locations a "Take a hit" can strike.

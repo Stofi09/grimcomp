@@ -12,12 +12,12 @@ interface AP {
 type LocationKey = 'head' | 'body' | 'arm_l' | 'arm_r' | 'leg_l' | 'leg_r';
 
 const DEFAULT_LABELS: Record<LocationKey, string> = {
-  head: 'FEJ',
-  body: 'TEST',
-  arm_l: 'B. KAR',
-  arm_r: 'J. KAR',
-  leg_l: 'B. LÁB',
-  leg_r: 'J. LÁB',
+  head: 'HEAD',
+  body: 'BODY',
+  arm_l: 'L. ARM',
+  arm_r: 'R. ARM',
+  leg_l: 'L. LEG',
+  leg_r: 'R. LEG',
 };
 
 interface Props {
