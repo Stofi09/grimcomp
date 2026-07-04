@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveTest, isDouble, diceLabel, rollDice } from './roll';
+import { resolveTest, isDouble, diceLabel, rollDice, rollExploding } from './roll';
 import type { TestRules } from '@/content/types';
 
 // resolveTest is the resolution engine. These lock in WFRP 4e behaviour AND a
@@ -99,6 +99,16 @@ describe('isDouble / diceLabel / rollDice', () => {
       expect(v).toBeGreaterThanOrEqual(2);
       expect(v).toBeLessThanOrEqual(12);
     }
+  });
+
+  it('rollExploding adds and rerolls on a maximum roll (Impale die)', () => {
+    // rng returns ~0.99 → a 10 on a d10, then ~0.3 → a 4: 10 + 4 = 14.
+    const seq = [0.99, 0.3];
+    let i = 0;
+    const rng = () => seq[i++];
+    expect(rollExploding(10, rng)).toBe(14);
+    // A non-max first roll does not explode.
+    expect(rollExploding(10, () => 0.3)).toBe(4);
   });
 });
 

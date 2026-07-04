@@ -119,8 +119,16 @@ export class StorageCore {
 
 /** localStorage as a StorageBackend, null-safe against privacy mode / SSR. */
 export function browserBackend(): StorageBackend | null {
-  if (typeof window === 'undefined' || !window.localStorage) return null;
-  const ls = window.localStorage;
+  // Some privacy-mode / embedded-webview configs throw on the `localStorage`
+  // property *getter* itself (not just on setItem), so the probe is wrapped —
+  // a throw degrades to a null backend (cache-only) instead of crashing boot.
+  let ls: Storage;
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return null;
+    ls = window.localStorage;
+  } catch {
+    return null;
+  }
   return {
     getItem: (k) => { try { return ls.getItem(k); } catch { return null; } },
     setItem: (k, v) => { try { ls.setItem(k, v); } catch { /* quota / privacy */ } },

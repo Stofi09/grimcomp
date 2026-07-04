@@ -163,10 +163,21 @@ export function resolveOpposed(attackerSL: number, defenderSL: number): OpposedR
 
 // --- Weapon qualities that touch damage (CRB p.293) ---
 
+/**
+ * Case-insensitive, word-boundary quality match. A weapon may carry a compound
+ * quality string ("Impale, Ranged", "Damaging (…)"); this keeps every call site
+ * — the damage calc, the screen's Impale pre-roll, the notes list — agreeing on
+ * whether a weapon "has" a given quality, rather than three different tests.
+ */
+export function hasQuality(qualities: string[], name: string): boolean {
+  const re = new RegExp(`\\b${name.toLowerCase()}\\b`);
+  return qualities.some(q => re.test(q.toLowerCase()));
+}
+
 export interface HitDamageInput {
   /** Weapon Damage before the SL bonus (e.g. SB+4 already evaluated). */
   baseDamage: number;
-  /** SL that feeds damage — the hit's SL, or the net SL of a won Opposed Test. */
+  /** SL that feeds damage — the attacker's own SL on the hit (≥0 on a landed hit). */
   sl: number;
   /** The to-hit roll (its units digit feeds Damaging; a double triggers Impale). */
   toHitRoll: number;
@@ -197,12 +208,12 @@ export interface HitDamageResult {
  * surface as notes via weaponQualityNotes().
  */
 export function computeHitDamage(input: HitDamageInput): HitDamageResult {
-  const has = (q: string) => input.qualities.some(x => x.toLowerCase() === q.toLowerCase());
   const unitsDie = input.toHitRoll % 10 === 0 ? 10 : input.toHitRoll % 10;
-  const damaging = has('Damaging');
+  const damaging = hasQuality(input.qualities, 'Damaging');
   const rawBonus = damaging ? Math.max(input.sl, unitsDie) : input.sl;
   const slBonus = Math.max(0, rawBonus);
-  const impaleExtra = has('Impale') && isDouble(input.toHitRoll) ? Math.max(0, Math.round(input.impaleRoll ?? 0)) : 0;
+  const impaleExtra = hasQuality(input.qualities, 'Impale') && isDouble(input.toHitRoll)
+    ? Math.max(0, Math.round(input.impaleRoll ?? 0)) : 0;
   return {
     total: Math.max(0, Math.round(input.baseDamage)) + slBonus + impaleExtra,
     slBonus,

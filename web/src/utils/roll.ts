@@ -71,6 +71,22 @@ export function diceLabel(dice: DiceSpec): string {
   return `${dice.count > 1 ? dice.count : ''}d${dice.sides}`;
 }
 
+/**
+ * Roll one `sides`-faced die that "explodes": a maximum roll is added and
+ * rerolled, repeating. WFRP 4e Impale works this way (the extra Damage die keeps
+ * going on a 10). Capped at 100 iterations so a degenerate RNG can't loop
+ * forever. `rng` is injectable for deterministic tests.
+ */
+export function rollExploding(sides: number, rng: () => number = Math.random): number {
+  let total = 0;
+  for (let i = 0; i < 100; i += 1) {
+    const roll = Math.floor(rng() * sides) + 1;
+    total += roll;
+    if (roll < sides) break;
+  }
+  return total;
+}
+
 /** True for d100 doubles (11, 22, … 99). 100 and one-digit rolls are not doubles. */
 export const isDouble = (roll: number): boolean =>
   roll >= 11 && roll <= 99 && Math.floor(roll / 10) === roll % 10;

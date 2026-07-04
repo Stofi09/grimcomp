@@ -328,9 +328,8 @@
       "name": "Halla Stern",
       "species": "Human",
       "raceId": "race.human",
-      "raceId": "race.human",
       "class": "Academic",
-      "career": "Anointed Priest of Shallya",
+      "career": "Priest",
       "careerLevel": 1,
       "careerLevelName": "Anointed",
       "careerRanks": [

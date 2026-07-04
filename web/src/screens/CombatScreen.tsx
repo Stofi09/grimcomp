@@ -9,11 +9,11 @@ import { useCharacterCollection } from '@/hooks/useCharacterCollection';
 import { useContent, useFigureLabels, useSystemRules, useCharacteristicDefs, useWeapons, useCapabilities, useHitLocations, useCriticals } from '@/content/useContent';
 import type { CombatRules } from '@/content/types';
 import { critFromTable } from '@/content/tables';
-import { resolveTest, outcomeLabel, formatTestResult, isDouble, rollDice } from '@/utils/roll';
+import { resolveTest, outcomeLabel, formatTestResult, isDouble, rollExploding } from '@/utils/roll';
 import { charVars, evalFormula } from '@/utils/formula';
 import {
   apByLocation, apAt, hitLocationFromRoll, applyDamage,
-  advantageBonus, resolveOpposed, computeHitDamage, weaponQualityNotes,
+  advantageBonus, resolveOpposed, computeHitDamage, weaponQualityNotes, hasQuality,
   type ApLocation,
 } from '@/utils/combat';
 import { Alert } from '@/ui/alert';
@@ -166,30 +166,32 @@ export const CombatScreen: React.FC = () => {
     const advBonus = advantageBonus(advantage);
     const r = resolveTest({ target, modifier: condMod.total + advBonus, label: w.name }, system.test);
 
-    // Opposed melee (defence > 0): compare success levels; the higher SL wins.
-    // A fumble never lands regardless of the SL comparison.
+    // Opposed melee (defence > 0): the attacker must pass their OWN test and win
+    // the Opposed Test (higher SL). A failed attack roll misses regardless of how
+    // the defender rolled — only a landed hit deals damage, using the attacker's
+    // own SL (WFRP 4e: Weapon Damage + the hit's SL).
     const opposed = atk.defence > 0;
     let opposedLine = '';
     let landed: boolean;
-    let dmgSl: number;
     if (opposed) {
       const dr = resolveTest({ target: atk.defence, label: 'Defender' }, system.test);
       const res = resolveOpposed(r.sl, dr.sl);
-      landed = res.attackerWins && r.outcome !== 'fumble';
-      dmgSl = res.attackerWins ? res.netSL : 0;
-      const verdict = res.winner === 'attacker'
-        ? `you win by ${res.netSL} SL`
+      landed = r.success && res.attackerWins;
+      const verdict = !r.success
+        ? 'you miss'
+        : res.winner === 'attacker' ? `you win by ${res.netSL} SL`
         : res.winner === 'defender' ? 'defender turns it aside' : 'draw — nothing lands';
       opposedLine = `\n\nOpposed: you ${fmtSL(r.sl)} vs defender ${fmtSL(dr.sl)} ` +
         `(rolled ${dr.roll} vs ${atk.defence}) → ${verdict}.`;
     } else {
       landed = r.success;
-      dmgSl = Math.max(0, r.sl);
     }
+    const dmgSl = landed ? Math.max(0, r.sl) : 0;
 
-    // Damage with quality tweaks (Damaging / Impale fold into the number).
-    const impaleRoll = landed && isDouble(r.roll) && w.qual.some(q => /impale/i.test(q))
-      ? rollDice({ count: 1, sides: 10 }) : 0;
+    // Damage with quality tweaks (Damaging / Impale fold into the number). The
+    // Impale die explodes (WFRP 4e); matched the same way computeHitDamage gates it.
+    const impaleRoll = landed && isDouble(r.roll) && hasQuality(w.qual, 'Impale')
+      ? rollExploding(10) : 0;
     const dmg = landed
       ? computeHitDamage({ baseDamage: computeDamage(w.dmg, vars), sl: dmgSl, toHitRoll: r.roll, qualities: w.qual, impaleRoll })
       : null;

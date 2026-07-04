@@ -10,6 +10,7 @@ import {
   resolveOpposed,
   computeHitDamage,
   weaponQualityNotes,
+  hasQuality,
 } from './combat';
 import type { HitLocationRow } from '@/content/types';
 
@@ -166,7 +167,32 @@ describe('resolveOpposed — melee as an Opposed Test', () => {
   });
 });
 
+describe('hasQuality — case-insensitive, word-boundary match', () => {
+  it('matches exact and compound quality strings, case-insensitively', () => {
+    expect(hasQuality(['Impale'], 'Impale')).toBe(true);
+    expect(hasQuality(['impale'], 'Impale')).toBe(true);
+    expect(hasQuality(['Impale, Ranged'], 'Impale')).toBe(true);
+    expect(hasQuality(['Damaging (special)'], 'Damaging')).toBe(true);
+  });
+
+  it('does not match on a partial word', () => {
+    expect(hasQuality(['Impaled'], 'Impale')).toBe(false);
+    expect(hasQuality(['Defensive'], 'Fence')).toBe(false);
+    expect(hasQuality([], 'Impale')).toBe(false);
+  });
+});
+
 describe('computeHitDamage — Weapon Damage + SL with quality tweaks', () => {
+  it('applies Impale/Damaging even when authored as a compound quality string', () => {
+    // "Impale, Ranged" must still add the extra die on a double, and
+    // "Damaging (…)" must still swap in the higher units die.
+    const impaled = computeHitDamage({ baseDamage: 4, sl: 1, toHitRoll: 33, qualities: ['Impale, Ranged'], impaleRoll: 6 });
+    expect(impaled.impaleExtra).toBe(6);
+    const damaging = computeHitDamage({ baseDamage: 4, sl: 1, toHitRoll: 8, qualities: ['Damaging (test)'] });
+    expect(damaging.damagingApplied).toBe(true);
+    expect(damaging.slBonus).toBe(8);
+  });
+
   it('adds the hit SL to base damage by default', () => {
     const r = computeHitDamage({ baseDamage: 9, sl: 2, toHitRoll: 34, qualities: [] });
     expect(r.total).toBe(11);

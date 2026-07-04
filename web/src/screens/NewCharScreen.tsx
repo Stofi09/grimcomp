@@ -153,7 +153,10 @@ const buildCharacter = (
     for (const s of kitTpl.skills) skills.push({ ...s, adv: 0 });
   } else {
     for (const nm of career.advanceScheme?.skills ?? []) {
-      const def = skillDefs.find(d => d.name === nm) ?? skillDefs.find(d => nm.startsWith(d.name));
+      // Exact match first; then a grouped-skill specialisation ("Lore (Theology)"
+      // → base "Lore"). The " (" boundary keeps "Ride" from matching "Ride (Horse)"
+      // by bare prefix and mis-assigning its characteristic.
+      const def = skillDefs.find(d => d.name === nm) ?? skillDefs.find(d => nm.startsWith(`${d.name} (`));
       skills.push({ name: nm, char: def?.char ?? charDefs[0]?.key ?? 'ws', adv: 0, career: true, advanced: def?.advanced });
     }
   }
@@ -630,6 +633,11 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
                 {preview.skills.filter(s => s.career).length} career skills · {preview.talents.length} talents
                 {!hasRichKit ? ' · generic starting kit' : ''}
               </span>
+              {preview.skills.filter(s => s.career).length === 0 ? (
+                <span className="nc-preview-meta" style={{ color: colors.brass }}>
+                  No starting career-skill list shipped for {preview.career} yet — add its skills on the Skills &amp; XP screens after creation.
+                </span>
+              ) : null}
               {preview.isCaster || preview.isAnointed ? (
                 <span className="nc-preview-meta nc-preview-meta--brass">
                   {preview.isCaster ? 'Spellcaster — Magic screen will activate' : 'Anointed — Faith screen will activate'}
