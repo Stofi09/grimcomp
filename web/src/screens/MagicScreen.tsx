@@ -9,7 +9,7 @@ import { resolveCast } from '@/utils/magic';
 import { useResolveSpells, useTable, useSystemRules, useCreation, useCapabilities } from '@/content/useContent';
 import { rollOnTable, rollForTable } from '@/content/tables';
 import type { Spell } from '@/content/types';
-import { Alert } from '@/ui/alert';
+import { Alert } from '@/ui/alertStore';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card, CardHead } from '@/components/Card';
@@ -34,6 +34,13 @@ export const MagicScreen: React.FC = () => {
   // Each casting attempt may add the pool's SL to the cast SL. Cleared on
   // cast or miscast.
   const [pool, setPool] = useStoredState(characterKey(id, 'magic.pool'), 0);
+  // Skill purchases live in an overlay separate from the immutable character
+  // template. Read the same map as SkillsScreen so casting targets update as
+  // soon as Language (Magick) or Channelling advances are bought.
+  const [skillAdvances] = useStoredState<Record<string, number>>(
+    characterKey(id, 'skills.adv'),
+    Object.fromEntries(c.skills.map(skill => [skill.name, skill.adv])),
+  );
 
   // Content hooks must run before the early return below.
   const spells = useResolveSpells(c.knownSpells ?? []);
@@ -72,9 +79,17 @@ export const MagicScreen: React.FC = () => {
   // prefix ("Channelling (<Lore>)") is the channelling skill; the cast skill is
   // matched by its exact configured name.
   const channelSkill = c.skills.find(s => s.name.startsWith(magic.channellingSkillPrefix));
+  const channelSkillName = channelSkill?.name
+    ?? Object.keys(skillAdvances).find(name => name.startsWith(magic.channellingSkillPrefix));
   const langSkill = c.skills.find(s => s.name === magic.castSkill);
-  const channelTarget = (channelCh?.current ?? 0) + (channelSkill?.adv ?? 0);
-  const castTarget = (castCh?.current ?? 0) + (langSkill?.adv ?? 0);
+  const channelAdvance = channelSkillName
+    ? (skillAdvances[channelSkillName] ?? channelSkill?.adv ?? 0)
+    : 0;
+  const castAdvance = skillAdvances[magic.castSkill] ?? langSkill?.adv ?? 0;
+  const hasCastSkill = langSkill !== undefined
+    || Object.prototype.hasOwnProperty.call(skillAdvances, magic.castSkill);
+  const channelTarget = (channelCh?.current ?? 0) + channelAdvance;
+  const castTarget = (castCh?.current ?? 0) + castAdvance;
 
   const channel = () => {
     const r = resolveTest({ target: channelTarget, modifier: condMod.total, label: 'Channelling' }, system.test);
@@ -145,7 +160,9 @@ export const MagicScreen: React.FC = () => {
       body += `→ Not enough SL — spell fizzles. The energy disperses harmlessly.`;
     }
 
-    Alert.alert(`${spell.name} — ${outcomeLabel(r.outcome)}`, body);
+    const resolution = oc.cast ? 'CAST' : 'FIZZLE';
+    const miscast = miscastDouble(r.roll) ? ' · MISCAST' : '';
+    Alert.alert(`${spell.name} — ${resolution}${miscast}`, body);
   };
 
   return (
@@ -158,7 +175,7 @@ export const MagicScreen: React.FC = () => {
             <span className="mag-sep">·</span>
             <span className="mag-sub">{spells.length} spells known</span>
             <span className="mag-sep">·</span>
-            <span className="mag-sub">{magic.castSkill} {langSkill ? `+${langSkill.adv}` : '—'}</span>
+            <span className="mag-sub">{magic.castSkill} {hasCastSkill ? `+${castAdvance}` : '—'}</span>
           </>
         }
       />

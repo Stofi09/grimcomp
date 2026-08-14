@@ -3,7 +3,7 @@
 // persisted under `gc.customChars`. NewCharScreen `add`s to this; useCharacter
 // reads from it; RosterScreen lists from it.
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useStoredState, clearStoredKeys } from './useStoredState';
 import { useContent } from '@/content/useContent';
 import { FALLBACK_CHARACTER_ID, type Character } from '@/data/character';
@@ -74,15 +74,26 @@ const FALLBACK_CHARACTER: Character = {
 export function useRoster() {
   const [custom, setCustom] = useStoredState<CustomMap>(KEY, {});
   const registry = useContent();
-  const templateList: Character[] = registry.allCharacterTemplates ?? [];
-  const templates: Record<string, Character> = {};
-  for (const c of templateList) templates[c.id] = c;
+  // Registry entity getters intentionally return fresh arrays. Anchor the
+  // roster views to the registry instance so callbacks and downstream memos do
+  // not churn on every render.
+  const templateList = useMemo<Character[]>(
+    () => registry.allCharacterTemplates,
+    [registry],
+  );
+  const templates = useMemo<Record<string, Character>>(
+    () => Object.fromEntries(templateList.map(c => [c.id, c])),
+    [templateList],
+  );
 
   // Built-ins live in the content registry; custom live in localStorage.
   // Custom wins in the combined map if the same id ever collides (we mint
   // unique ids on creation so this shouldn't happen in practice).
-  const all: Record<string, Character> = { ...templates, ...custom };
-  const list: Character[] = Object.values(all);
+  const all = useMemo<Record<string, Character>>(
+    () => ({ ...templates, ...custom }),
+    [templates, custom],
+  );
+  const list = useMemo<Character[]>(() => Object.values(all), [all]);
 
   /** Add a freshly-created character. Returns the (possibly remapped) id. */
   const add = useCallback((c: Character): string => {
@@ -97,19 +108,20 @@ export function useRoster() {
       deletion is actually complete and a later character that reuses this id
       can't inherit the dead character's state. */
   const remove = useCallback((id: string) => {
+    if (!(id in custom)) return;
     clearStoredKeys(k => k.startsWith(`gc.${id}.`));
     setCustom(prev => {
       if (!(id in prev)) return prev;
       const { [id]: _drop, ...rest } = prev;
       return rest;
     });
-  }, [setCustom]);
+  }, [custom, setCustom]);
 
   /** Resolve a character id: registry template → custom character → first
       registry template → (registry still loading / empty) safe fallback. */
   const get = useCallback((id: string): Character => {
     return templates[id] ?? custom[id] ?? templateList[0] ?? FALLBACK_CHARACTER;
-  }, [all]);
+  }, [templates, custom, templateList]);
 
   /** Mint a fresh id (cN) that's not in use yet. */
   const nextId = useCallback((): string => {

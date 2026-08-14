@@ -2,7 +2,7 @@
   "$schema": "grimcomp.content.v2",
   "id": "core-skills",
   "name": "Core Rulebook — Skills",
-  "version": "2026.06.17",
+  "version": "2026.07.25",
   "skills": [
     { "id": "sk.art", "name": "Art", "char": "dex", "advanced": true, "grouped": true, "description": "Create works of art in a chosen medium — painting, sculpture, engraving." },
     { "id": "sk.athletics", "name": "Athletics", "char": "ag", "advanced": false, "grouped": false, "description": "Run, jump, and perform feats of agile movement." },
@@ -31,6 +31,7 @@
     { "id": "sk.lore", "name": "Lore", "char": "int", "advanced": true, "grouped": true, "description": "Know a chosen field of knowledge in depth." },
     { "id": "sk.melee", "name": "Melee", "char": "ws", "advanced": false, "grouped": true, "description": "Fight in close combat with a chosen group of weapons." },
     { "id": "sk.navigation", "name": "Navigation", "char": "i", "advanced": false, "grouped": false, "description": "Find your way by map, star, and landmark." },
+    { "id": "sk.outdoor-survival", "name": "Outdoor Survival", "char": "int", "advanced": false, "grouped": false, "description": "Find shelter, food, water, and safe routes in the wilderness." },
     { "id": "sk.perception", "name": "Perception", "char": "i", "advanced": false, "grouped": false, "description": "Notice details, spot the hidden, and read a situation." },
     { "id": "sk.pick-lock", "name": "Pick Lock", "char": "dex", "advanced": true, "grouped": false, "description": "Open locks without the key." },
     { "id": "sk.play", "name": "Play", "char": "dex", "advanced": true, "grouped": true, "description": "Perform on a chosen musical instrument." },

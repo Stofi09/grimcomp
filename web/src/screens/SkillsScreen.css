@@ -45,3 +45,21 @@
   font-size: 10px;
   color: var(--ink3);
 }
+
+.skl-search-row {
+  display: flex;
+  margin-top: -8px;
+  margin-bottom: 8px;
+}
+
+.skl-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.skl-empty {
+  color: var(--ink3);
+  font-family: var(--font-body);
+  font-style: italic;
+}

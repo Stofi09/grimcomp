@@ -28,6 +28,14 @@ const EMPTY_OVERLAY: IdentityOverlay = {};
 const deriveInitials = (name: string): string =>
   name.split(/\s+/).filter(Boolean).map(s => s[0]?.toUpperCase()).join('').slice(0, 2) || '·';
 
+/** Merge persisted identity edits over a character template. Exported so
+    roster cards can present the same live identity as the active shell. */
+export function applyIdentityOverlay(tpl: Character, identity: IdentityOverlay): Character {
+  if (!identity || Object.keys(identity).length === 0) return tpl;
+  const name = identity.name?.trim() ? identity.name : tpl.name;
+  return { ...tpl, ...identity, name, initials: deriveInitials(name) };
+}
+
 export function useCharacter() {
   const [id, setId] = useStoredState<string>(KEY, FALLBACK_CHARACTER_ID);
   const { get } = useRoster();
@@ -35,11 +43,7 @@ export function useCharacter() {
   // Identity overlay edited on the Overview screen. Merged over the template so
   // every screen, the rail, and the roster reflect the edits live.
   const [identity] = useStoredState<IdentityOverlay>(characterKey(id, 'identity'), EMPTY_OVERLAY);
-  const template = useMemo<Character>(() => {
-    if (!identity || Object.keys(identity).length === 0) return tpl;
-    const name = identity.name?.trim() ? identity.name : tpl.name;
-    return { ...tpl, ...identity, name, initials: deriveInitials(name) };
-  }, [tpl, identity]);
+  const template = useMemo<Character>(() => applyIdentityOverlay(tpl, identity), [tpl, identity]);
   const setActive = useCallback((next: string) => setId(next), [setId]);
   return { id, template, setActive };
 }

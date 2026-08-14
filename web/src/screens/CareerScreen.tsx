@@ -13,7 +13,7 @@ import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Table, TableRow, Cell } from '@/components/Table';
 import { colors } from '@/theme';
-import { Alert } from '@/ui/alert';
+import { Alert } from '@/ui/alertStore';
 import './CareerScreen.css';
 
 export const CareerScreen: React.FC = () => {
@@ -34,25 +34,24 @@ export const CareerScreen: React.FC = () => {
   // Per-rank requirements come from the content registry: match the active
   // character's career name to a Career, then read the NEXT rank's required
   // skill advances. career.level is the *current* (1-based) rank, so the next
-  // rank is at index career.level. Missing requirements leave advancement
-  // unblocked and surface a placeholder.
+  // rank is at index career.level. Missing requirements still allow a
+  // GM-approved advance, but the UI must not claim that the requirements are
+  // automatically met.
   const registryCareer = careers.find(cr => cr.name === c.career);
   const nextRankReqs = registryCareer?.ranks[career.level]?.requirements ?? [];
   const required = nextRankReqs.map(r => ({ name: r.skill, min: r.min, adv: skillAdv[r.skill] ?? 0 }));
   const ready = required.filter(s => s.adv >= s.min).length;
-  // When a character's per-rank requirements aren't modelled, don't hard-block
-  // advancement — let them spend the XP rather than be stuck forever.
-  const ok = required.length > 0 ? ready === required.length : true;
+  const requirementsModelled = required.length > 0;
+  const ok = requirementsModelled && ready === required.length;
 
-  // Per-rank picked talents — kept simple: the first N talents in the
-  // character template are considered "taken" at the current rank.
-  const talents = c.talents.slice(0, 4).map((t, i) => ({
-    name: t.name,
-    done: i < career.level - 1 || t.times > 1,
+  const [addedTalentNames] = useStoredState<string[]>(characterKey(id, 'talents.added'), []);
+  const ownedTalentNames = new Set([...c.talents.map(talent => talent.name), ...addedTalentNames]);
+  const talents = (registryCareer?.advanceScheme?.talents ?? []).map(name => ({
+    name,
+    done: ownedTalentNames.has(name),
   }));
 
-  const tryAdvance = () => {
-    if (!ok) return;
+  const advance = () => {
     if (!career.canAdvance) {
       Alert.alert('Top of career', `${c.name} is already at the highest rank.`);
       return;
@@ -68,6 +67,22 @@ export const CareerScreen: React.FC = () => {
     Alert.alert('Advanced!', `You are now a ${nextRank.name} (${nextRank.status}).`);
   };
 
+  const tryAdvance = () => {
+    if (requirementsModelled && !ok) return;
+    if (!requirementsModelled) {
+      Alert.alert(
+        'Requirements need GM review',
+        `The loaded content does not define the requirements for ${nextRankName}. Advance only after your GM confirms them.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: `Advance · ${ADVANCE_COST} XP`, onPress: advance },
+        ],
+      );
+      return;
+    }
+    advance();
+  };
+
   const nextRankName = career.ranks[Math.min(career.ranks.length - 1, career.level)]?.name ?? '';
 
   return (
@@ -81,6 +96,12 @@ export const CareerScreen: React.FC = () => {
             <span className="car-sub">Currently {career.name} (rank {career.level})</span>
             <span className="car-sep">·</span>
             <span className="car-sub">{xp.current} XP available</span>
+            {registryCareer?.approximate ? (
+              <>
+                <span className="car-sep">·</span>
+                <span className="car-sub">approximate career details</span>
+              </>
+            ) : null}
           </>
         }
       />
@@ -114,7 +135,7 @@ export const CareerScreen: React.FC = () => {
                 {rank.name}
               </span>
               <span className="car-level-meta">{rank.status}</span>
-              <span className="car-level-meta">{cumulativeXp} XP earned</span>
+              <span className="car-level-meta">{cumulativeXp} XP to reach</span>
             </div>
           );
         })}
@@ -122,7 +143,7 @@ export const CareerScreen: React.FC = () => {
 
       <Section
         title={career.canAdvance ? `Advance to rank ${career.level + 1}` : 'Top of career'}
-        aside={required.length > 0 ? `${ready}/${required.length} skills ready` : 'requirements not yet modelled'}
+        aside={requirementsModelled ? `${ready}/${required.length} skills ready` : 'GM review required'}
       />
 
       <Card flush>
@@ -130,7 +151,7 @@ export const CareerScreen: React.FC = () => {
           title={`${nextRankName} requirements`}
           right={
             <Pill variant={ok ? 'success' : 'warn'}>
-              {ok ? 'Ready to advance' : 'Not yet met'}
+              {ok ? 'Ready to advance' : requirementsModelled ? 'Not yet met' : 'Requirements unavailable'}
             </Pill>
           }
         />
@@ -160,6 +181,15 @@ export const CareerScreen: React.FC = () => {
               </TableRow>
             );
           })}
+          {!requirementsModelled ? (
+            <TableRow last>
+              <Cell flex={5.2}>
+                <span style={{ color: colors.ink3, fontStyle: 'italic' }}>
+                  This rank has no requirements in the loaded career data. Confirm them with the GM before advancing.
+                </span>
+              </Cell>
+            </TableRow>
+          ) : null}
         </Table>
         <div className="car-advance-foot">
           <div className="car-row-between">
@@ -169,16 +199,23 @@ export const CareerScreen: React.FC = () => {
             </div>
             <Button
               variant="primary"
-              disabled={!ok || !career.canAdvance}
+              disabled={(requirementsModelled && !ok) || !career.canAdvance}
               onPress={tryAdvance}
             >
-              {career.canAdvance ? `Advance to rank ${career.level + 1}` : 'Maxed'}
+              {career.canAdvance
+                ? requirementsModelled
+                  ? `Advance to rank ${career.level + 1}`
+                  : 'Advance with GM approval'
+                : 'Maxed'}
             </Button>
           </div>
         </div>
       </Card>
 
-      <Section title="Rank talents (4)" />
+      <Section
+        title={`Career talents (${talents.length})`}
+        aside={registryCareer?.approximate ? 'approximate fallback list' : undefined}
+      />
       <div className="car-talent-row">
         {talents.map((t) => (
           <button
@@ -188,7 +225,7 @@ export const CareerScreen: React.FC = () => {
             onClick={() =>
               Alert.alert(
                 t.name,
-                t.done ? 'Already taken at this rank.' : 'Buy this on the Talents screen.'
+                t.done ? 'Already acquired.' : 'Available to buy on the Talents screen.'
               )
             }
           >

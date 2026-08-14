@@ -1,8 +1,9 @@
 import type * as React from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { useCharacter } from '@/hooks/useCharacter';
+import { useCharacterSummary } from '@/hooks/useCharacterSummary';
 import { useRoster } from '@/hooks/useRoster';
-import { FALLBACK_CHARACTER_ID } from '@/data/character';
+import { FALLBACK_CHARACTER_ID, type Character } from '@/data/character';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
@@ -10,7 +11,7 @@ import { Pill } from '@/components/Pill';
 import { Button } from '@/components/Button';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
-import { Alert } from '@/ui/alert';
+import { Alert } from '@/ui/alertStore';
 import { colors } from '@/theme';
 import './RosterScreen.css';
 
@@ -19,6 +20,87 @@ interface Props {
 }
 
 const DEFAULT_PARTY_NAME = 'The Eberfeld Road Wardens';
+
+interface RosterCardProps {
+  template: Character;
+  active: boolean;
+  custom: boolean;
+  onSwitch: (id: string) => void;
+  onDelete: (id: string, name: string) => void;
+}
+
+const RosterCard: React.FC<RosterCardProps> = ({
+  template,
+  active,
+  custom,
+  onSwitch,
+  onDelete,
+}) => {
+  const summary = useCharacterSummary(template);
+  const c = summary.character;
+
+  return (
+    <div
+      className="rost-cell-wrap"
+      onContextMenu={custom
+        ? (e) => { e.preventDefault(); onDelete(c.id, c.name); }
+        : undefined}
+    >
+      <Card style={{
+        flex: 1,
+        ...(active ? { borderColor: colors.brass, boxShadow: 'var(--shadow-deep)' } : null),
+      }}>
+        <button
+          type="button"
+          className="btn-reset rost-card-btn"
+          onClick={() => onSwitch(c.id)}
+          aria-label={`Switch to ${c.name}`}
+        >
+          <div className="rost-card-row">
+            <Avatar initials={c.initials} accent={c.accent} size={56} fontSize={22} />
+            <div className="rost-card-main">
+              <div className="rost-name-row">
+                <span className="rost-name">{c.name}</span>
+                <div className="rost-pills">
+                  {custom ? <Pill variant="ghost" size={10}>CUSTOM</Pill> : null}
+                  {active ? <Pill variant="brass" size={10}>ACTIVE</Pill> : null}
+                </div>
+              </div>
+              <span className="rost-meta">
+                {c.species} · {summary.careerName} · rank {summary.careerLevel} · {summary.status}
+              </span>
+              <div className="rost-stats-row">
+                <div className="rost-stat">
+                  <span className="rost-meta-mono">WOUNDS</span>
+                  <span className="rost-big-val">{summary.wounds}/{summary.maxWounds}</span>
+                </div>
+                <div className="rost-stat">
+                  <span className="rost-meta-mono">SPENDABLE XP</span>
+                  <span className="rost-big-val rost-big-val--brass">{summary.xpCurrent}</span>
+                </div>
+                <div className="rost-chev">
+                  <Icon name="chev" size={16} color={colors.ink3} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </button>
+
+        {custom ? (
+          <button
+            type="button"
+            className="btn-reset rost-delete"
+            onClick={() => onDelete(c.id, c.name)}
+            aria-label={`Delete ${c.name}`}
+            title={`Delete ${c.name}`}
+          >
+            <Icon name="minus" size={15} color={colors.ink3} />
+          </button>
+        ) : null}
+      </Card>
+    </div>
+  );
+};
 
 export const RosterScreen: React.FC<Props> = ({ onNav }) => {
   const { id: activeId, template: active, setActive } = useCharacter();
@@ -70,65 +152,16 @@ export const RosterScreen: React.FC<Props> = ({ onNav }) => {
       <Section title="Active party" />
 
       <div className="rost-grid">
-        {list.map(c => {
-          const isActive = c.id === activeId;
-          const isCustom = c.id in custom;
-          return (
-            <div
-              key={c.id}
-              className="rost-cell-wrap"
-              onContextMenu={isCustom ? (e) => { e.preventDefault(); confirmDelete(c.id, c.name); } : undefined}
-            >
-              <Card style={{ flex: 1, ...(isActive ? { borderColor: colors.brass, boxShadow: 'var(--shadow-deep)' } : null) }}>
-                <button
-                  type="button"
-                  className="btn-reset rost-card-btn"
-                  onClick={() => switchTo(c.id)}
-                  aria-label={`Switch to ${c.name}`}
-                >
-                  <div className="rost-card-row">
-                    <Avatar initials={c.initials} accent={c.accent} size={56} fontSize={22} />
-                    <div className="rost-card-main">
-                      <div className="rost-name-row">
-                        <span className="rost-name">{c.name}</span>
-                        <div className="rost-pills">
-                          {isCustom ? <Pill variant="ghost" size={10}>CUSTOM</Pill> : null}
-                          {isActive ? <Pill variant="brass" size={10}>ACTIVE</Pill> : null}
-                        </div>
-                      </div>
-                      <span className="rost-meta">{c.species} · {c.career} · rank {c.careerLevel} · {c.status}</span>
-                      <div className="rost-stats-row">
-                        <div className="rost-stat">
-                          <span className="rost-meta-mono">WOUNDS</span>
-                          <span className="rost-big-val">{c.wounds.current}/{c.wounds.max}</span>
-                        </div>
-                        <div className="rost-stat">
-                          <span className="rost-meta-mono">SPENDABLE XP</span>
-                          <span className="rost-big-val rost-big-val--brass">{c.xpCurrent}</span>
-                        </div>
-                        <div className="rost-chev">
-                          <Icon name="chev" size={16} color={colors.ink3} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </button>
-
-                {isCustom ? (
-                  <button
-                    type="button"
-                    className="btn-reset rost-delete"
-                    onClick={() => confirmDelete(c.id, c.name)}
-                    aria-label={`Delete ${c.name}`}
-                    title={`Delete ${c.name}`}
-                  >
-                    <Icon name="minus" size={15} color={colors.ink3} />
-                  </button>
-                ) : null}
-              </Card>
-            </div>
-          );
-        })}
+        {list.map(c => (
+          <RosterCard
+            key={c.id}
+            template={c}
+            active={c.id === activeId}
+            custom={c.id in custom}
+            onSwitch={switchTo}
+            onDelete={confirmDelete}
+          />
+        ))}
 
         <div className="rost-cell-wrap">
           <button
@@ -140,7 +173,7 @@ export const RosterScreen: React.FC<Props> = ({ onNav }) => {
               <div className="rost-empty">
                 <Icon name="plus" size={22} color={colors.ink3} />
                 <span className="rost-empty-title">New character</span>
-                <span className="rost-empty-sub">blank, from template, or imported</span>
+                <span className="rost-empty-sub">guided race, characteristics, and career setup</span>
               </div>
             </Card>
           </button>

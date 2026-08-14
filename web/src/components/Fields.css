@@ -5,6 +5,7 @@
 }
 
 .fld-label {
+  display: block;
   font-family: var(--font-body);
   font-weight: 700;
   font-size: 9.5px;

@@ -1,0 +1,133 @@
+.ref-search-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 12px 0;
+}
+
+.ref-search-chip {
+  padding: 5px 9px;
+  border: 1px solid var(--borderSoft);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink2);
+  font-family: var(--font-body);
+  font-size: 10.5px;
+}
+
+.ref-search-chip:hover {
+  border-color: var(--border);
+}
+
+.ref-search-chip--active {
+  border-color: var(--empireDeep);
+  background: var(--empire);
+  color: var(--bone);
+}
+
+.ref-search-detail {
+  padding: 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--brass);
+  border-radius: 5px;
+  background: var(--surface2);
+}
+
+.ref-search-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ref-search-detail-name,
+.ref-search-detail-meta {
+  display: block;
+}
+
+.ref-search-detail-name {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+
+.ref-search-detail-meta {
+  margin-top: 2px;
+  color: var(--ink3);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+}
+
+.ref-search-detail-body {
+  margin: 10px 0 0;
+  color: var(--ink2);
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-line;
+}
+
+.ref-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ref-search-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--borderSoft);
+  border-radius: 4px;
+  background: var(--surface);
+  text-align: left;
+}
+
+.ref-search-result:hover,
+.ref-search-result--selected {
+  border-color: var(--brass);
+  background: var(--surface2);
+}
+
+.ref-search-result-main {
+  min-width: 0;
+}
+
+.ref-search-result-name,
+.ref-search-result-meta {
+  display: block;
+}
+
+.ref-search-result-name {
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ref-search-result-meta,
+.ref-search-result-category,
+.ref-search-limit {
+  color: var(--ink3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.ref-search-result-meta {
+  margin-top: 2px;
+}
+
+.ref-search-result-category {
+  flex: none;
+  text-transform: uppercase;
+}
+
+.ref-search-empty,
+.ref-search-limit {
+  padding: 16px 4px;
+  color: var(--ink3);
+  font-family: var(--font-body);
+  font-style: italic;
+}

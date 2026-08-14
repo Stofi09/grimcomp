@@ -6,6 +6,13 @@
 /** How the player settled on their career (WFRP 4e p.36–37). */
 export type CareerMode = 'first' | 'three' | 'choose';
 
+/** Roll `count` dice with results in 1…`sides`, then add a flat modifier. */
+export function rollStat(count: number, sides: number, plus: number): number {
+  let total = plus;
+  for (let i = 0; i < count; i += 1) total += Math.floor(Math.random() * sides) + 1;
+  return total;
+}
+
 /**
  * XP banked from letting fate decide at creation (WFRP 4e p.36–37):
  *  - random Species: +20 XP
@@ -18,6 +25,39 @@ export function startingXp(speciesRandom: boolean, mode: CareerMode): number {
   const species = speciesRandom ? 20 : 0;
   const career = mode === 'first' ? 50 : mode === 'three' ? 25 : 0;
   return species + career;
+}
+
+/** XP awarded by the career choice alone (used by the career-option labels). */
+export function careerChoiceXp(mode: CareerMode): number {
+  return startingXp(false, mode);
+}
+
+/**
+ * Spread free creation advances deterministically across the available choices.
+ * The wizard does not yet ask the player to distribute every point manually, so
+ * a balanced legal allocation is a safer default than silently creating a
+ * character with none of their free advances. Duplicate choices are ignored.
+ */
+export function distributeStartingAdvances(
+  choices: string[],
+  total: number,
+  maxPerChoice = Number.POSITIVE_INFINITY,
+): Record<string, number> {
+  const unique = [...new Set(choices)].filter(Boolean);
+  const out = Object.fromEntries(unique.map(choice => [choice, 0]));
+  if (unique.length === 0 || total <= 0 || maxPerChoice <= 0) return out;
+
+  let remaining = Math.floor(total);
+  let index = 0;
+  while (remaining > 0 && unique.some(choice => out[choice] < maxPerChoice)) {
+    const choice = unique[index % unique.length];
+    if (out[choice] < maxPerChoice) {
+      out[choice] += 1;
+      remaining -= 1;
+    }
+    index += 1;
+  }
+  return out;
 }
 
 export type StatusTier = 'Brass' | 'Silver' | 'Gold';

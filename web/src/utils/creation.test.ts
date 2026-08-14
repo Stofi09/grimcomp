@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  startingXp, statusTier, startingMoney, startingMoneyDice,
-  inferCareerCapabilities, pickDistinct,
+  startingXp, careerChoiceXp, statusTier, startingMoney, startingMoneyDice,
+  distributeStartingAdvances, inferCareerCapabilities, pickDistinct,
 } from './creation';
 
 describe('startingXp — randomisation rewards (CRB p.36–37)', () => {
@@ -10,6 +10,32 @@ describe('startingXp — randomisation rewards (CRB p.36–37)', () => {
     expect(startingXp(true, 'three')).toBe(45);   // 20 + 25
     expect(startingXp(false, 'three')).toBe(25);  // 0 + 25
     expect(startingXp(false, 'choose')).toBe(0);  // fully chosen
+  });
+
+  it('reports the career award without folding species XP into the option label', () => {
+    expect(careerChoiceXp('first')).toBe(50);
+    expect(careerChoiceXp('three')).toBe(25);
+    expect(careerChoiceXp('choose')).toBe(0);
+  });
+});
+
+describe('distributeStartingAdvances', () => {
+  it('balances the five characteristic advances across three choices', () => {
+    expect(distributeStartingAdvances(['ws', 'bs', 's'], 5)).toEqual({ ws: 2, bs: 2, s: 1 });
+  });
+
+  it('allocates 40 career-skill advances without exceeding 10', () => {
+    const result = distributeStartingAdvances(
+      ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'],
+      40,
+      10,
+    );
+    expect(Object.values(result).reduce((sum, value) => sum + value, 0)).toBe(40);
+    expect(Math.max(...Object.values(result))).toBeLessThanOrEqual(10);
+  });
+
+  it('ignores duplicate choices and stops when every choice reaches its cap', () => {
+    expect(distributeStartingAdvances(['one', 'one'], 40, 10)).toEqual({ one: 10 });
   });
 });
 

@@ -8,9 +8,12 @@ import {
   applyDamage,
   advantageBonus,
   resolveOpposed,
+  resolveAttackOutcome,
   computeHitDamage,
   weaponQualityNotes,
   hasQuality,
+  normalizeWeaponDistance,
+  weaponDistance,
 } from './combat';
 import type { HitLocationRow } from '@/content/types';
 
@@ -24,6 +27,26 @@ const LOCATIONS: HitLocationRow[] = [
   { min: 80, max: 89, key: 'leg_l', label: 'Left Leg' },
   { min: 90, max: 100, key: 'leg_r', label: 'Right Leg' },
 ];
+
+describe('weapon reach/range shape', () => {
+  it('drops a stale melee reach when a weapon becomes ranged', () => {
+    const weapon = normalizeWeaponDistance(
+      { name: 'Longbow', reach: 'Average', range: '50' },
+      true,
+    );
+    expect(weapon).toEqual({ name: 'Longbow', range: '50' });
+    expect(weaponDistance(weapon, true)).toBe('50');
+  });
+
+  it('drops a stale ranged range when a weapon becomes melee', () => {
+    const weapon = normalizeWeaponDistance(
+      { name: 'Sword', reach: 'Average', range: '50' },
+      false,
+    );
+    expect(weapon).toEqual({ name: 'Sword', reach: 'Average' });
+    expect(weaponDistance(weapon, false)).toBe('Average');
+  });
+});
 
 describe('reverseDigits — WFRP 4e hit-location roll', () => {
   it('swaps tens and units', () => {
@@ -164,6 +187,28 @@ describe('resolveOpposed — melee as an Opposed Test', () => {
 
   it('equal SLs are a draw — the melee attack does not land', () => {
     expect(resolveOpposed(2, 2)).toEqual({ attackerWins: false, winner: 'draw', netSL: 0 });
+  });
+});
+
+describe('resolveAttackOutcome', () => {
+  it('lands when the attacker wins the opposed test even if both tests failed', () => {
+    const result = resolveAttackOutcome(false, -1, -3);
+    expect(result).toEqual({
+      landed: true,
+      damageSl: 2,
+      opposed: { attackerWins: true, winner: 'attacker', netSL: 2 },
+    });
+  });
+
+  it('uses net opposed SL for damage', () => {
+    const result = resolveAttackOutcome(true, 2, -1);
+    expect(result.landed).toBe(true);
+    expect(result.damageSl).toBe(3);
+  });
+
+  it('still requires success and uses raw SL for an unopposed attack', () => {
+    expect(resolveAttackOutcome(false, -1)).toEqual({ landed: false, damageSl: 0 });
+    expect(resolveAttackOutcome(true, 2)).toEqual({ landed: true, damageSl: 2 });
   });
 });
 

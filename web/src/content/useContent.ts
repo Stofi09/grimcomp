@@ -2,7 +2,7 @@
 // content packs or the registry directly.
 
 import { useContext } from 'react';
-import { ContentContext } from './ContentProvider';
+import { ContentContext, ContentStatusContext, type ContentStatus } from './contentContext';
 import type { ContentRegistry } from './registry';
 import type {
   Spell, Prayer, RollTable, XpCostRow, XpRules,
@@ -15,6 +15,10 @@ import type { NavModel } from '@/data/nav';
 
 export function useContent(): ContentRegistry {
   return useContext(ContentContext);
+}
+
+export function useContentStatus(): ContentStatus {
+  return useContext(ContentStatusContext);
 }
 
 /** The resolved navigation model (rail sections, routing table, breadcrumbs). */

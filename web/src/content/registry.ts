@@ -14,9 +14,10 @@ import type {
   ConditionDef, XpRules, XpCostBand, CharacteristicDef, CreationConfig,
   HitLocationRow, HitLocationKey, CriticalDef, CriticalTableDef, WoundsRules, Deity,
   NoteSeedsConfig, XpEntry, SystemRules, SystemOverlay, ScreenDef, ScreenGroupDef,
-  ResourceDef, Capabilities,
+  ResourceDef, Capabilities, ReferenceDef,
 } from './types';
 import { xpCostRowsToBands } from './validate';
+import { enrichCoreCareer } from './careerEnrichment';
 import { DEFAULT_TEST_RULES } from '@/utils/roll';
 import type { Character } from '@/data/character';
 import { type NavModel, buildDefaultNavModel, resolveNavModel } from '@/data/nav';
@@ -176,6 +177,7 @@ export class ContentRegistry {
   private readonly careerMap = new Map<string, Career>();
   private readonly skillMap = new Map<string, SkillDef>();
   private readonly talentMap = new Map<string, TalentDef>();
+  private readonly referenceMap = new Map<string, ReferenceDef>();
   private readonly weaponMap = new Map<string, WeaponDef>();
   private readonly armourMap = new Map<string, ArmourDef>();
   private readonly trappingMap = new Map<string, TrappingDef>();
@@ -222,9 +224,12 @@ export class ContentRegistry {
       for (const p of pack.prayers ?? []) this.prayerMap.set(p.id, p);
       for (const t of pack.tables ?? []) this.tableMap.set(t.id, t);
       for (const r of pack.races ?? []) this.raceMap.set(r.id, r);
-      for (const c of pack.careers ?? []) this.careerMap.set(c.id, c);
+      for (const c of pack.careers ?? []) {
+        this.careerMap.set(c.id, pack.id === 'core-careers' ? enrichCoreCareer(c) : c);
+      }
       for (const sk of pack.skills ?? []) this.skillMap.set(sk.id, sk);
       for (const tl of pack.talents ?? []) this.talentMap.set(tl.id, tl);
+      for (const ref of pack.references ?? []) this.referenceMap.set(ref.id, ref);
       for (const w of pack.weapons ?? []) this.weaponMap.set(w.id, w);
       for (const a of pack.armour ?? []) this.armourMap.set(a.id, a);
       for (const tr of pack.trappings ?? []) this.trappingMap.set(tr.id, tr);
@@ -327,7 +332,8 @@ export class ContentRegistry {
     const maps: Record<string, { delete(id: string): boolean }> = {
       spells: this.spellMap, prayers: this.prayerMap, tables: this.tableMap,
       races: this.raceMap, careers: this.careerMap, skills: this.skillMap,
-      talents: this.talentMap, weapons: this.weaponMap, armour: this.armourMap,
+      talents: this.talentMap, references: this.referenceMap,
+      weapons: this.weaponMap, armour: this.armourMap,
       trappings: this.trappingMap, deities: this.deityMap, characters: this.characterMap,
     };
     for (const [section, ids] of Object.entries(queue)) {
@@ -410,6 +416,10 @@ export class ContentRegistry {
 
   get allTalentDefs(): TalentDef[] {
     return [...this.talentMap.values()];
+  }
+
+  get allReferences(): ReferenceDef[] {
+    return [...this.referenceMap.values()];
   }
 
   get allWeapons(): WeaponDef[] {

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { useContentPacks } from '@/content/useContentPacks';
-import { useContentStatus } from '@/content/ContentProvider';
+import { useContent, useContentStatus } from '@/content/useContent';
 import { validatePack } from '@/content/validate';
 import { Hero } from '@/components/Hero';
 import { Card } from '@/components/Card';
@@ -11,7 +11,12 @@ import { EditSheet } from '@/components/EditSheet';
 import { useXpRule } from '@/hooks/useSettings';
 import { useRoster } from '@/hooks/useRoster';
 import { useCharacter } from '@/hooks/useCharacter';
-import { Alert } from '@/ui/alert';
+import {
+  buildSettingsExport,
+  grimCompanionStorageKeys,
+  type ExportScope,
+} from '@/utils/settingsExport';
+import { Alert } from '@/ui/alertStore';
 import { colors } from '@/theme';
 import './SettingsScreen.css';
 
@@ -35,77 +40,27 @@ const Row: React.FC<RowProps> = ({ title, hint, value, right, last }) => (
   </div>
 );
 
-// Read every gc.* key straight out of localStorage. Mirrors the RN original's
-// AsyncStorage.getAllKeys()/multiGet() but synchronous on the web.
-function gcKeys(): string[] {
-  const out: string[] = [];
-  try {
-    for (let i = 0; i < window.localStorage.length; i += 1) {
-      const k = window.localStorage.key(i);
-      if (k && k.startsWith('gc.')) out.push(k);
-    }
-  } catch { /* privacy mode — nothing to export */ }
-  return out;
-}
-
 export const SettingsScreen: React.FC = () => {
   const [xpRule, setXpRule] = useXpRule();
   const { id, template } = useCharacter();
   const { all, custom } = useRoster();
+  const content = useContent();
   const { packs: userPacks, add: addPack, remove: removePack, setEnabled } = useContentPacks();
   const { errors: contentErrors } = useContentStatus();
-  const [exportSheet, setExportSheet] = useState<{ scope: 'character' | 'roster'; json: string } | null>(null);
+  const [exportSheet, setExportSheet] = useState<{ scope: ExportScope; json: string } | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
 
   const packFileRef = useRef<HTMLInputElement>(null);
   const charFileRef = useRef<HTMLInputElement>(null);
+  const coreVersion = content.packs.find(pack => pack.id === 'core-rules')?.version ?? 'Unknown';
 
   // Build a portable JSON snapshot. Caller chooses: just the active character
   // template + their live overlays (gc.<id>.*), or the whole roster + all
   // overlays. We collect everything keyed under `gc.` to make import a
   // straightforward `setItem` loop later.
-  const buildExport = (scope: 'character' | 'roster'): string => {
-    const keys = gcKeys();
-    const wanted = scope === 'character'
-      ? keys.filter(k => k.startsWith(`gc.${id}.`) || k === 'gc.activeCharId')
-      : keys;
-    const dump: Record<string, unknown> = {
-      $schema: 'grimcomp.v1',
-      exportedAt: new Date().toISOString(),
-      scope,
-      character: scope === 'character' ? template.name : undefined,
-    };
-    for (const k of wanted) {
-      const v = window.localStorage.getItem(k);
-      if (v == null) continue;
-      try { dump[k] = JSON.parse(v); }
-      catch { dump[k] = v; }
-    }
-    // A custom character's *definition* lives in the roster-wide `gc.customChars`
-    // map, not under `gc.<id>.*` — so a per-character export would omit it and the
-    // character would resolve to a default template on import. Carry just this
-    // character's entry (scoped so we don't leak the rest of the roster). Built-in
-    // templates need no definition: they come from the content packs.
-    if (scope === 'character' && custom[id]) {
-      dump['gc.customChars'] = { [id]: custom[id] };
-    }
-    // Notes live in a single global store (gc.notes / gc.notes.filter), not
-    // under gc.<id>.*. Carry them in a per-character export too — otherwise a
-    // character re-imported onto a fresh device silently loses every note.
-    if (scope === 'character') {
-      for (const gk of ['gc.notes', 'gc.notes.filter']) {
-        const v = window.localStorage.getItem(gk);
-        if (v == null) continue;
-        try { dump[gk] = JSON.parse(v); }
-        catch { dump[gk] = v; }
-      }
-    }
-    return JSON.stringify(dump, null, 2);
-  };
-
-  const openExport = (scope: 'character' | 'roster') => {
-    setExportSheet({ scope, json: buildExport(scope) });
+  const openExport = (scope: ExportScope) => {
+    setExportSheet({ scope, json: buildSettingsExport(scope, id, template.name, custom) });
   };
 
   // Replaces RN's Share.share — trigger a real file download via a Blob URL.
@@ -140,7 +95,7 @@ export const SettingsScreen: React.FC = () => {
           text: 'Wipe',
           style: 'destructive',
           onPress: () => {
-            const keys = gcKeys();
+            const keys = grimCompanionStorageKeys();
             for (const k of keys) {
               try { window.localStorage.removeItem(k); } catch { /* ignore */ }
             }
@@ -154,17 +109,17 @@ export const SettingsScreen: React.FC = () => {
 
   // --- Content-pack import (file + paste) -----------------------------------
 
-  const handlePackImport = (text: string, label: string) => {
+  const handlePackImport = (text: string, label: string): boolean => {
     let raw: unknown;
     try { raw = JSON.parse(text); }
     catch (e) {
       Alert.alert('Invalid JSON', `${label} is not valid JSON.\n${e instanceof Error ? e.message : ''}`);
-      return;
+      return false;
     }
     const { pack, errors, warnings } = validatePack(raw);
     if (errors.length > 0 || !pack) {
       Alert.alert('Invalid content pack', errors.join('\n').slice(0, 800) || 'Unknown validation error.');
-      return;
+      return false;
     }
     addPack(pack);
     // Surface non-fatal warnings (e.g. a mistyped section name that was silently
@@ -173,6 +128,7 @@ export const SettingsScreen: React.FC = () => {
       ? `\n\n${warnings.length} warning${warnings.length === 1 ? '' : 's'}:\n${warnings.join('\n')}`.slice(0, 800)
       : '';
     Alert.alert('Pack imported', `"${pack.name}" (${pack.id}) is now active.${warnNote}`);
+    return true;
   };
 
   const onPackFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -188,9 +144,10 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const submitPaste = () => {
-    handlePackImport(pasteText, 'pasted JSON');
-    setPasteOpen(false);
-    setPasteText('');
+    if (handlePackImport(pasteText, 'pasted JSON')) {
+      setPasteOpen(false);
+      setPasteText('');
+    }
   };
 
   // --- Character / roster import (grimcomp.v1 export) ------------------------
@@ -294,11 +251,12 @@ export const SettingsScreen: React.FC = () => {
           hint="Strict refuses purchases you can't afford. Flexible lets you overspend (GM trust mode)."
           value={xpRule === 'strict' ? 'Strict (refuse overdraft)' : 'Flexible (allow overdraft)'}
           right={
-            <div className="set-actions">
+            <div className="set-actions" role="group" aria-label="XP rule">
               <button
                 type="button"
                 className={`btn-reset set-pill-btn${xpRule === 'strict' ? ' set-pill-btn--on' : ''}`}
                 onClick={() => setXpRule('strict')}
+                aria-pressed={xpRule === 'strict'}
               >
                 <span className="set-pill-btn-text">Strict</span>
               </button>
@@ -306,6 +264,7 @@ export const SettingsScreen: React.FC = () => {
                 type="button"
                 className={`btn-reset set-pill-btn${xpRule === 'flexible' ? ' set-pill-btn--on' : ''}`}
                 onClick={() => setXpRule('flexible')}
+                aria-pressed={xpRule === 'flexible'}
               >
                 <span className="set-pill-btn-text">Flexible</span>
               </button>
@@ -340,12 +299,12 @@ export const SettingsScreen: React.FC = () => {
         <Row
           title="Rulebook"
           hint="WFRP 4e core book references used for spells, prayers, and miscast tables."
-          value="2026.04.01"
+          value={coreVersion}
         />
 
         <Row
           title="Export"
-          hint="Download a JSON snapshot of the active character or the entire roster + overlays."
+          hint="Download the active character (without global notes/settings) or the entire roster + overlays."
           value="JSON"
           right={
             <div className="set-actions">
@@ -463,6 +422,7 @@ export const SettingsScreen: React.FC = () => {
       >
         <textarea
           className="set-paste-input"
+          aria-label="Content pack JSON"
           value={pasteText}
           onChange={e => setPasteText(e.target.value)}
           placeholder='{ "$schema": "grimcomp.content.v2", ... }'

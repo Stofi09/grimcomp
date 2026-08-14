@@ -1,29 +1,6 @@
 import React from 'react';
 import { colors } from '@/theme';
-
-export type IconName =
-  | 'shield' | 'grid' | 'scroll' | 'star' | 'crown' | 'book'
-  | 'sword' | 'heart' | 'sparkle' | 'flame' | 'pack' | 'mask'
-  | 'tome' | 'quill' | 'users' | 'gear' | 'plus' | 'search'
-  | 'bell' | 'chev' | 'dice' | 'minus' | 'check' | 'info'
-  | 'menu';
-
-/** Runtime set of valid icon names (the Icon switch renders null for any other
-    value). Used to coerce pack-authored icon strings to a real glyph. */
-export const ICON_NAMES: ReadonlySet<string> = new Set<IconName>([
-  'shield', 'grid', 'scroll', 'star', 'crown', 'book',
-  'sword', 'heart', 'sparkle', 'flame', 'pack', 'mask',
-  'tome', 'quill', 'users', 'gear', 'plus', 'search',
-  'bell', 'chev', 'dice', 'minus', 'check', 'info', 'menu',
-]);
-
-/** Fallback glyph for an unknown / omitted icon name. */
-export const DEFAULT_ICON: IconName = 'info';
-
-/** Map a pack-authored icon string to a real IconName, falling back to DEFAULT_ICON. */
-export function coerceIcon(name: string | undefined): IconName {
-  return name !== undefined && ICON_NAMES.has(name) ? (name as IconName) : DEFAULT_ICON;
-}
+import type { IconName } from './iconNames';
 
 interface IconProps {
   name: IconName;

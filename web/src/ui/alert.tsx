@@ -1,59 +1,21 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import {
+  closeCurrentAlert,
+  getCurrentAlert,
+  subscribeToAlerts,
+  type AlertButton,
+} from './alertStore';
 import './alert.css';
 
 // API-compatible replacement for React Native's Alert.alert.
 // Alerts queue FIFO; AlertHost (mounted once, near the app root) renders the
 // front of the queue as a modal parchment sheet.
 
-export interface AlertButton {
-  text: string;
-  onPress?: () => void;
-  style?: 'default' | 'cancel' | 'destructive';
-}
-
-interface PendingAlert {
-  id: number;
-  title: string;
-  message?: string;
-  buttons?: AlertButton[];
-}
-
-let queue: readonly PendingAlert[] = [];
-let nextId = 1;
-const listeners = new Set<() => void>();
-
-function notify(): void {
-  for (const listener of listeners) listener();
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-function getCurrent(): PendingAlert | null {
-  return queue.length > 0 ? queue[0] : null;
-}
-
-function closeCurrent(): void {
-  queue = queue.slice(1);
-  notify();
-}
-
-export const Alert = {
-  alert(title: string, message?: string, buttons?: AlertButton[]): void {
-    queue = [...queue, { id: nextId++, title, message, buttons }];
-    notify();
-  },
-};
-
 const FALLBACK_BUTTONS: AlertButton[] = [{ text: 'OK' }];
 
 export function AlertHost() {
-  const current = useSyncExternalStore(subscribe, getCurrent);
+  const current = useSyncExternalStore(subscribeToAlerts, getCurrentAlert);
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const prevFocusRef = useRef<HTMLElement | null>(null);
   const dismissRef = useRef<() => void>(() => {});
@@ -72,7 +34,7 @@ export function AlertHost() {
 
   const press = (button: AlertButton): void => {
     // Close first so an onPress that fires another Alert queues correctly.
-    closeCurrent();
+    closeCurrentAlert();
     button.onPress?.();
   };
 
@@ -85,7 +47,7 @@ export function AlertHost() {
       press(cancelButton);
       return;
     }
-    if (buttons.length <= 1) closeCurrent();
+    if (buttons.length <= 1) closeCurrentAlert();
   };
 
   // Focus the sheet on open (and on each queued alert); restore focus when

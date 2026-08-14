@@ -9,11 +9,21 @@ interface StepperProps {
   min?: number;
   max?: number;
   step?: number;
+  decreaseLabel?: string;
+  increaseLabel?: string;
   /** Optional controlled callback. If omitted the Stepper manages its own state. */
   onChange?: (next: number) => void;
 }
 
-export const Stepper: React.FC<StepperProps> = ({ value, onChange, min = 0, max, step = 1 }) => {
+export const Stepper: React.FC<StepperProps> = ({
+  value,
+  onChange,
+  min = 0,
+  max,
+  step = 1,
+  decreaseLabel = 'Decrease',
+  increaseLabel = 'Increase',
+}) => {
   const [internal, setInternal] = useState(value);
   const cur = onChange ? value : internal;
 
@@ -34,8 +44,9 @@ export const Stepper: React.FC<StepperProps> = ({ value, onChange, min = 0, max,
       <button
         type="button"
         className="btn-reset gc-stepper-btn"
-        aria-label="Decrease"
+        aria-label={decreaseLabel}
         onClick={() => change(-step)}
+        disabled={cur <= min}
       >
         −
       </button>
@@ -45,8 +56,9 @@ export const Stepper: React.FC<StepperProps> = ({ value, onChange, min = 0, max,
       <button
         type="button"
         className="btn-reset gc-stepper-btn"
-        aria-label="Increase"
+        aria-label={increaseLabel}
         onClick={() => change(+step)}
+        disabled={typeof max === 'number' && cur >= max}
       >
         +
       </button>

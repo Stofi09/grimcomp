@@ -11,7 +11,7 @@ import { Pill, type PillVariant } from '@/components/Pill';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Table, TableRow, Cell } from '@/components/Table';
-import { Alert } from '@/ui/alert';
+import { Alert } from '@/ui/alertStore';
 import { colors } from '@/theme';
 import './XpScreen.css';
 

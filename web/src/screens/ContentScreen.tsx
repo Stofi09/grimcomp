@@ -13,7 +13,7 @@ import { Pill } from '@/components/Pill';
 import { Icon } from '@/components/Icon';
 import { EditSheet } from '@/components/EditSheet';
 import { Table, TableRow, Cell } from '@/components/Table';
-import { Alert } from '@/ui/alert';
+import { Alert } from '@/ui/alertStore';
 import { useContent } from '@/content/useContent';
 import { useContentEdits } from '@/content/useContentEdits';
 import { validatePack } from '@/content/validate';
@@ -37,9 +37,25 @@ function refWarnings(section: EditableSection, entry: Record<string, unknown>, r
       if (typeof sp === 'string' && !raceIds.has(sp)) w.push(`• species "${sp}" — no race with that id`);
     }
     const skillNames = new Set(reg.allSkillDefs.map(s => s.name));
+    const resolvesSkill = (name: string) =>
+      skillNames.has(name) || [...skillNames].some(base => name.startsWith(`${base} (`));
+    const scheme = entry.advanceScheme as { skills?: unknown[]; talents?: unknown[] } | undefined;
+    for (const skill of scheme?.skills ?? []) {
+      if (typeof skill === 'string' && !resolvesSkill(skill)) {
+        w.push(`• career skill "${skill}" — no matching skill definition`);
+      }
+    }
     for (const rk of (entry.ranks as Array<{ requirements?: Array<{ skill?: unknown }> }> | undefined) ?? []) {
       for (const req of rk?.requirements ?? []) {
-        if (typeof req?.skill === 'string' && !skillNames.has(req.skill)) w.push(`• requirement skill "${req.skill}" — no skill with that name`);
+        if (typeof req?.skill === 'string' && !resolvesSkill(req.skill)) {
+          w.push(`• requirement skill "${req.skill}" — no matching skill definition`);
+        }
+      }
+    }
+    const talentNames = new Set(reg.allTalentDefs.map(t => t.name));
+    for (const talent of scheme?.talents ?? []) {
+      if (typeof talent === 'string' && !talentNames.has(talent)) {
+        w.push(`• career talent "${talent}" — no talent with that name`);
       }
     }
   } else if (section === 'races') {
@@ -327,6 +343,7 @@ export const ContentScreen: React.FC = () => {
         {sheet ? (
           <textarea
             className="cnt-editor"
+            aria-label={`${sheet.mode === 'new' ? 'New' : 'Edit'} ${meta.singular} JSON`}
             value={sheet.text}
             onChange={(e) => setSheet(s => (s ? { ...s, text: e.target.value } : s))}
             spellCheck={false}
@@ -347,6 +364,7 @@ export const ContentScreen: React.FC = () => {
         {shareText != null ? (
           <textarea
             className="cnt-editor"
+            aria-label="Shared content pack JSON"
             value={shareText}
             onChange={(e) => setShareText(e.target.value)}
             spellCheck={false}

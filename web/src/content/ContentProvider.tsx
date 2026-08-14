@@ -4,22 +4,18 @@
 // registry to screens through the useContent hooks. A second context carries
 // load status (loading flag + collected pack errors) for the settings screen.
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ContentRegistry } from './registry';
 import type { ContentPack } from './types';
 import { loadBundledPacks } from './loader';
 import { validatePack } from './validate';
 import { useContentPacks } from './useContentPacks';
 import { useContentEdits } from './useContentEdits';
-
-export const ContentContext = createContext<ContentRegistry>(new ContentRegistry([]));
-
-interface ContentStatus {
-  loading: boolean;
-  errors: string[];
-}
-
-const ContentStatusContext = createContext<ContentStatus>({ loading: true, errors: [] });
+import {
+  ContentContext,
+  ContentStatusContext,
+  type ContentStatus,
+} from './contentContext';
 
 interface BundledState {
   bundled: ContentPack[];
@@ -77,7 +73,3 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
     </ContentContext.Provider>
   );
 };
-
-export function useContentStatus(): ContentStatus {
-  return useContext(ContentStatusContext);
-}

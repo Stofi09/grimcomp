@@ -1,6 +1,6 @@
 # Grim Companion (web)
 
-A grimdark fantasy RPG character companion, rebuilt as a **plain React + Vite static site** — no iOS/Android dependency. It ships as static files (`npm run build`) you can host anywhere, and **all game content lives in editable JSON** so spells, races, careers, the XP economy, character creation, and even the starter characters can be added, removed, or rebalanced **without touching code or rebuilding**.
+A grimdark fantasy RPG character companion, rebuilt as a **plain React + Vite static site** — no iOS/Android dependency. It ships as static files (`pnpm build`) you can host anywhere, and its authored rules content lives in editable JSON so spells, races, careers, the XP economy, character creation, and even the starter characters can be added, removed, or rebalanced **without touching code or rebuilding**. Small built-in fallbacks keep incomplete packs usable and are identified as approximate where they supply rule details.
 
 This is a port of the original Expo/React-Native app (kept at the repo root). Same parchment look, same screens, same rules — now in the browser, and far more configurable.
 
@@ -10,30 +10,31 @@ This is a port of the original Expo/React-Native app (kept at the repo root). Sa
 
 ```bash
 cd web
-npm install
-npm run dev        # local dev server (hot reload)
-npm run build      # static production build → web/dist/
-npm run preview    # serve the production build locally
-npm run tsc        # type-check the app (test files run under Vitest, see below)
-npm run lint       # ESLint (typescript-eslint + react-hooks)
-npm test           # run the unit suite once (Vitest)
-npm run test:watch # run the unit suite in watch mode
+pnpm install
+pnpm dev        # local dev server (hot reload)
+pnpm build      # static production build → web/dist/
+pnpm preview    # serve the production build locally
+pnpm tsc        # type-check the app (test files run under Vitest, see below)
+pnpm lint       # ESLint (typescript-eslint + react-hooks)
+pnpm test       # run the unit suite once (Vitest)
+pnpm test:watch # run the unit suite in watch mode
 ```
 
 Deploy by copying **`web/dist/`** to any static host (GitHub Pages, Netlify, Vercel, S3, nginx, a USB stick). The build uses relative asset paths (`base: './'`), so it works from a subdirectory too — no server config required.
 
-The app stores all player data (characters, advances, wounds, XP, notes, imported packs) in the browser's **localStorage** — nothing is sent anywhere, and it works fully offline.
+The app stores all player data (characters, advances, wounds, XP, notes, imported packs) in the browser's **localStorage** — nothing is sent anywhere, and it works fully offline. Storage belongs to that browser profile and site origin; clearing site data removes it, so use the Settings exports described under [Backup, sharing & portability](#backup-sharing--portability) when the data matters.
 
 ---
 
 ## How content works
 
-All game data is authored as **content packs** — JSON files under [`public/content/`](public/content/). At startup the app fetches [`manifest.json`](public/content/manifest.json), then loads every pack it lists, validates each one, and merges them into a single registry that every screen reads from.
+The primary game data is authored as **content packs** — JSON files under [`public/content/`](public/content/). At startup the app fetches [`manifest.json`](public/content/manifest.json), then loads every pack it lists, validates each one, and merges them into a single registry that every screen reads from. Runtime defaults cover a missing system section, and bundled careers missing detailed schemes receive conservative fallback data marked **approximate** in the UI.
 
 ```
 public/content/
 ├── manifest.json          ← the load order (edit this to add/remove packs)
 ├── core-rules.json        ← conditions, XP economy, hit locations, criticals, wounds rule, characteristics, note seeds
+├── core-chaos.json        ← searchable, explicitly approximate Chaos & Mutation companion entries
 ├── core-races.json        ← playable species
 ├── core-careers.json      ← careers + rank progressions + advancement requirements
 ├── core-skills.json       ← skill definitions
@@ -78,8 +79,8 @@ Every pack is one JSON object with a schema tag, identity, and any subset of con
 > The legacy tag `grimcomp.content.v1` is still accepted and auto-upgraded (v1 `conditions` were plain strings and `xpCosts` was a flat table; both are normalized into the v2 shapes below).
 
 Sections fall into two merge styles:
-- **Entity sections** (`spells`, `prayers`, `races`, `careers`, `skills`, `talents`, `weapons`, `armour`, `trappings`, `deities`, `characters`, `tables`) merge **by `id`** — add new ids, or reuse an id to override.
-- **Singleton sections** (`conditions`, `characteristics`, `xpRules`, `system`, `hitLocations`, `figureLabels`, `criticals`, `woundsRules`, `creation`, `noteSeeds`) are **replaced wholesale** by the last pack that defines them (except `xpRules` and `system`, which overlay field-by-field).
+- **Entity sections** (`spells`, `prayers`, `races`, `careers`, `skills`, `talents`, `references`, `weapons`, `armour`, `trappings`, `deities`, `characters`, `tables`) merge **by `id`** — add new ids, or reuse an id to override.
+- **Singleton sections** (`conditions`, `characteristics`, `resources`, `hitLocations`, `criticals`, `criticalTables`, `woundsRules`, `creation`, `noteSeeds`, `screens`, `screenGroups`) are **replaced wholesale** by the last pack that defines them. `xpRules`, `system`, and `capabilities` overlay field-by-field; `figureLabels` overlays by location key; and `xpLogSeeds` overlays by character id.
 
 ---
 
@@ -157,7 +158,7 @@ In `core-careers.json`:
 }
 ```
 
-`species` lists the race ids eligible to take it (drives the New Character wizard). Optional per-rank `requirements` (skill display name + minimum advances) gate the **Career** screen's "advance" button; ranks without requirements stay unblocked. Optional `advanceScheme.characteristics` lists the characteristics the career advances — one **outside** it is a non-career advance on the Characteristics screen and costs `xpRules.nonCareerCharacteristicMultiplier` (×2). A career with no `advanceScheme` treats every characteristic as in-career.
+`species` lists the race ids eligible to take it (drives the New Character wizard). Optional per-rank `requirements` (skill display name + minimum advances) gate the **Career** screen's "advance" button; when a rank has no modelled requirements, advancing remains possible only through an explicit GM-review confirmation. Optional `advanceScheme.characteristics` lists the characteristics the career advances — one **outside** it is a non-career advance on the Characteristics screen and costs `xpRules.nonCareerCharacteristicMultiplier` (×2). A career with no `advanceScheme` treats every characteristic as in-career. Bundled core careers that omit a scheme are enriched with conservative playable fallbacks at load time; authored fields always win, and fallback-derived details are labelled **approximate**.
 
 ### Rebalance the XP economy
 
@@ -210,7 +211,7 @@ In `core-creation.json`:
 
 `statRoll` is the starting-characteristic formula (`2d10 + 20` by default — change to e.g. `{ "count": 3, "sides": 6, "plus": 25 }`). `pettyLore`/`anyDeity` control which spells/prayers a fresh caster/priest keeps.
 
-The **New Character** wizard runs the full WFRP 4e procedure: Name & Species (with a random-species roll for +20 XP and the Fate/Resilience **Extra** allocation) → Characteristics → **Career** → Review. The career step lists **every species-eligible career** (grouped by class), with the randomisation rewards — accept the first roll (+50 XP), roll three and pick one (+25 XP), or choose freely (+0 XP), banked as starting XP — plus starting money rolled by the rank-1 Status tier. An `archetype` whose `careerId` matches the chosen career clones that starter `templateId` (full pregen kit — weapons, armour, trappings, spells/prayers); any other career builds from species traits + the career's `advanceScheme.skills` + a generic kit.
+The **New Character** wizard is a streamlined rank-one flow: Name & Species (including a single accept-first random roll for +20 XP and the Fate/Resilience **Extra** allocation) → Characteristics → **Career** → Review. Later steps stay locked until their prerequisites are complete. Characteristic rerolls are free and award no XP. The career step lists **every species-eligible career** (grouped by class); its rewarded random choices lock after their first result, while choosing freely awards +0 XP. Replacing a random species manually, or switching a rolled career flow to **Choose freely**, forfeits that reward; selecting one of the three careers offered by **Roll 3** retains its +25 XP. For a career with a loaded advance scheme, fresh characters receive balanced defaults for the five career-Characteristic advances and 40 career-Skill advances plus one career Talent; species benefits, rank-one Status money, and a basic kit are also applied. A career without a starting skill scheme is called out as a basic start so the missing skills can be added later. Matching archetypes contribute only novice spell/prayer identity—experienced demo-character advances and equipment are never cloned. **Finish & switch** persists the character, makes it active, and navigates straight to its Overview.
 
 ### Change the game system itself (dice, formulas, currency)
 
@@ -254,15 +255,15 @@ The `system` section in `core-rules.json` defines the *mechanics*, not just the 
 The `system.combat` / `system.magic` / `system.faith` bindings above drive these WFRP 4e procedures (pure logic in `src/utils/`, toggled by the capability flags in `core-rules.json`):
 
 - **Combat damage** (`utils/combat.ts`). An attack derives its hit location by reversing the to-hit roll. The **Combat → "Take a hit"** action resolves incoming damage as `Damage − (Toughness Bonus + Armour Points at the struck location)` and applies the result to Wounds; reaching (or being struck at) **0 Wounds** raises a Critical Wound, rolled on the struck location's `criticalTables` entry when one exists. Armour Points come from the live armour list, summed per location.
-- **Advantage, Opposed melee & weapon qualities** (`utils/combat.ts`). The Combat screen tracks **Advantage** (+10 per point to your attack tests; a damaging hit offers +1, taking Wounds resets it). The attack sheet takes an optional **defence** value to resolve a melee attack as an **Opposed Test** (higher SL wins; the net SL feeds damage). Weapon qualities fold into the number where they change it (**Damaging** uses the units die if higher than SL; **Impale** adds a die on a double); the rest surface as reminders.
+- **Advantage, Opposed melee & weapon qualities** (`utils/combat.ts`). The Combat screen tracks **Advantage** (+10 per point to your attack tests; a damaging hit offers +1, taking Wounds resets it). The attack sheet takes an optional **defence** value to resolve a melee attack as an **Opposed Test**: higher SL wins even when both tests fail, and the net opposed SL feeds damage. Unopposed attacks still require a successful attack test and use that test's SL. Weapon qualities fold into the number where they change it (**Damaging** uses the units die if higher than SL; **Impale** adds a die on a double); the rest surface as reminders.
 - **Spellcasting** (`utils/magic.ts`). **Channelling** banks Success Levels across rounds into a pool (persisted per character). A cast adds the pool to the casting-test SL and compares the total to the spell's **CN**; SL over the CN fuels **Overcasting** (one effect per 2 surplus SL). A double triggers a Miscast (gated by `magicMiscastOnDouble`); a fumbled casting test never casts.
 - **Faith.** A **Blessing** is invoked with no test and never risks Wrath; a **Miracle** rolls a Pray Test and can trigger the **Wrath of the Gods** when the roll's units die is ≤ the character's Sin (gated by `faithWrath`). See `prayers[].type` above.
-- **Wounds.** `Bleeding` drains 1 Wound per stack on **End of round**; a Fate point can be **burned** to cheat death. Max Wounds follows `system.formulas.maxWounds`.
+- **Wounds and recovery clocks.** `Bleeding` drains 1 Wound per stack on **End of round**; a Fate point can be **burned** to cheat death. **End of scene** clears only conditions whose data explicitly sets `clearsAtSceneEnd`; it does not refresh Fortune, reduce other conditions, or advance injuries. **Advance healing day** reduces each Critical Wound's healing time by one day and removes those that reach zero. Fortune refresh is a separate **new session** action on Overview. Max Wounds follows `system.formulas.maxWounds`.
 
 ### Edit rules data (conditions, hit locations, criticals, wounds)
 
 All in `core-rules.json`:
-- **`conditions`** — `{ "name", "penalty"?, "maxStacks"?, "clearsAtSceneEnd"?, "description"? }`. `penalty` is the per-stack test modifier; `maxStacks` is the tap-cycle cap; `clearsAtSceneEnd` drops all stacks at scene end instead of ticking down by 1.
+- **`conditions`** — `{ "name", "penalty"?, "maxStacks"?, "clearsAtSceneEnd"?, "description"? }`. `penalty` is the per-stack test modifier; `maxStacks` is the tap-cycle cap; `clearsAtSceneEnd` makes the explicit **End of scene** action drop every stack. Conditions without that flag are left unchanged by the scene action. Overview and Wounds render a separate, keyboard-accessible info button beside each condition so `description` and the stack metadata are available without a hidden long-press gesture.
 - **`hitLocations`** — d100 bands `{ "min", "max", "key", "label" }` (`key` ∈ head/body/arm_l/arm_r/leg_l/leg_r). `figureLabels` are the body-diagram annotations per key. The core pack ships the canonical WFRP table (01–09 Head, 10–24 Left Arm, 25–44 Right Arm, 45–79 Body, 80–89 Left Leg, 90–100 Right Leg); Combat derives the struck location by **reversing the digits** of a successful to-hit roll (e.g. `27 → 72`) and looking it up in these bands.
 - **`criticals`** — the flat prefab critical-injury pool `{ "name", "effect", "days" }` (the fallback when no location table matches).
 - **`criticalTables`** — location-specific d100 critical tables `{ "locations": ["arm_l", "arm_r"], "rows": [{ "min", "max", "name", "effect", "days" }] }`. Arms and legs share a table (list both keys). When present, a critical at a struck location rolls on its own table instead of drawing a random `criticals` prefab.
@@ -277,7 +278,7 @@ In `core-characters.json`, the `characters` array holds full character templates
 
 ## Validation & debugging
 
-- Imported packs are validated before they're accepted; errors are shown in the import dialog.
+- Imported packs are validated before they're accepted. A failed pasted import shows an error while keeping the paste sheet open and preserving the JSON for correction; a file import reports the same validation error without installing a partial pack.
 - If a **core** pack fails to load or parse, the app keeps running on whatever loaded and surfaces the errors (splash screen on hard failure, and in **Settings**). Common causes: trailing commas, a missing `$schema`, or a duplicate `id` within a section.
 - JSON must be strict (no comments, no trailing commas). Validate a file quickly with:
   ```bash
@@ -288,19 +289,28 @@ In `core-characters.json`, the `characters` array holds full character templates
 
 ## Tests & data migrations
 
-A [Vitest](https://vitest.dev) unit suite covers the rules-critical pure logic: the d100/dice **roll engine** (`src/utils/roll.ts`), the **formula evaluator** (`src/utils/formula.ts`), **combat resolution** (`src/utils/combat.ts` — hit location, armour soak, the 0-Wounds Critical, Advantage, Opposed tests, quality-aware damage), **spellcasting** (`src/utils/magic.ts` — SL-vs-CN and Overcasting), **advancement** (`src/utils/advancement.ts` — talent caps, non-career pricing), **character creation** (`src/utils/creation.ts` — starting XP/money, capability inference), **critical tables** (`src/content/tables.ts`), the **persistence store** (`src/hooks/storageCore.ts`), **content-pack validation** (`src/content/validate.ts`), and **storage migrations** (`src/storage/migrations.ts`). Run it with `npm test` (or `npm run test:watch`).
+A [Vitest](https://vitest.dev) suite covers the rules-critical pure logic and the QA-sensitive UI flows: the d100/dice **roll engine** (`src/utils/roll.ts`), the **formula evaluator** (`src/utils/formula.ts`), **combat resolution** (`src/utils/combat.ts` — hit location, armour soak, the 0-Wounds Critical, Advantage, Opposed tests, weapon distance, and quality-aware damage), **spellcasting** (`src/utils/magic.ts` — SL-vs-CN and Overcasting), **advancement** (`src/utils/advancement.ts` — talent caps, non-career pricing), **character creation** (`src/utils/creation.ts` plus `NewCharScreen.test.tsx`), **separate recovery clocks** (`src/utils/recovery.ts`), **critical tables** (`src/content/tables.ts`), the **persistence store** (`src/hooks/storageCore.ts`), **content-pack validation** (`src/content/validate.ts`), scoped **Settings exports**, reference history, accessible fields/condition help, and **storage migrations** (`src/storage/migrations.ts`). Run it with `pnpm test` (or `pnpm test:watch`).
 
-Tests live next to the code they cover as `*.test.ts`. They're **excluded from `npm run tsc`** (which type-checks only the app) because they use Node APIs (`node:fs`) to load the real content packs; Vitest type-checks and runs them itself, so both `npm run tsc` and `npm test` stay green.
+Tests live next to the code they cover as `*.test.ts` or `*.test.tsx`. They're **excluded from `pnpm tsc`** (which type-checks only the app) because some use Node APIs (`node:fs`) or a per-file jsdom environment; Vitest transforms and runs them itself, so both `pnpm tsc` and `pnpm test` stay green.
 
 **Storage migrations.** All player data is stored as `gc.*` JSON keys in `localStorage`. `runStorageMigrations()` (called once in `main.tsx` before React renders) stamps and versions that data, so a future breaking change to a data shape can *rewrite* existing saves rather than silently hydrating them as the wrong shape. The migration table is empty today on purpose — the framework ships one release ahead of the first breaking change so it's proven before anything depends on it.
 
 ## Backup, sharing & portability
 
 **Settings** provides full data portability:
-- **Export** — download a JSON snapshot of the active character or the whole roster (including all live overlays: advances, wounds, XP, conditions, inventory).
-- **Import data** — load an exported snapshot back in (useful for moving between devices/browsers).
+
+- **This char** — exports only the active character's `gc.<id>.*` overlays, the active-character pointer, and that character's definition when it is custom. It deliberately excludes global notes, filters/settings, reference history, and imported content packs because those stores cannot be attributed safely to one character. If the character depends on homebrew content, install the same pack separately on the destination.
+- **All** — exports every `gc.*` key, including the whole roster and all live overlays plus global notes, settings/filters, recent-reference history, character-creation draft state, and imported content packs. Review this broader file before sharing it.
+- **Import data** — loads matching keys from a `grimcomp.v1` export and then reloads. Custom-character definitions are merged with the destination roster; incoming values replace other matching keys.
 - **Content packs** — import/paste homebrew packs, toggle them, or remove them.
 - **Reset local data** — wipe everything and start fresh.
+
+## Everyday UI behavior
+
+- The rail and Characters roster read live character overlays, so Fate/Fortune, wounds, XP, identity, and career changes update without a reload.
+- **Search** in the app bar and Reference screen searches the loaded offline rules. Reference's **Recently viewed** list is populated by entries opened from that screen's search; it is not seeded with sample history.
+- **Trappings → Edit wealth** edits the active character's denominations from `system.currency.units`; the base-unit total updates from those persisted values.
+- Bounded steppers disable their decrease/increase controls at the minimum/maximum. Form labels, choice-group state, modal focus handling, and the Settings XP-mode selection are exposed to keyboard and assistive-technology users.
 
 ---
 
@@ -315,13 +325,13 @@ web/
 │   ├── hooks/           ← persisted state (localStorage), per-character domain hooks
 │   ├── storage/         ← versioned localStorage migrations (run once at boot)
 │   ├── components/      ← UI kit (Card, Table, Stepper, Icon, HitLocationFigure, …)
-│   ├── screens/         ← the 17 screens + ScreenContainer
+│   ├── screens/         ← the 18 screens + ScreenContainer
 │   ├── ui/              ← Alert dialog system
 │   ├── styles/          ← theme.css (design tokens) + base.css
 │   └── App.tsx          ← content provider + router + shell
 └── dist/                ← static build output (deploy this)
 ```
 
-Rules-critical pure logic (`utils/roll.ts`, `utils/formula.ts`, `utils/combat.ts`, `utils/magic.ts`, `content/validate.ts`, `storage/migrations.ts`) is covered by a Vitest unit suite — see **Tests & data migrations** above.
+Rules-critical pure logic (`utils/roll.ts`, `utils/formula.ts`, `utils/combat.ts`, `utils/magic.ts`, `utils/advancement.ts`, `utils/recovery.ts`, `content/validate.ts`, `storage/migrations.ts`) is covered by the Vitest suite — see **Tests & data migrations** above.
 
-The `src/` code is intentionally content-agnostic: it knows the *shapes* of game data (TypeScript types) but never hardcodes the *values* — those all come from the JSON packs.
+The runtime is content-driven: screens consume the resolved registry rather than importing core JSON directly. Code-level defaults still provide a safe system/resource baseline, conservative approximate enrichment for incomplete bundled careers, and the streamlined creation wizard's basic starter kit; authored pack data remains the source of truth wherever it is present.

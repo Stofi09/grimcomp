@@ -1,5 +1,7 @@
 import type * as React from 'react';
 import { useState } from 'react';
+import { colors } from '@/theme';
+import { Icon } from './Icon';
 import './Chip.css';
 
 interface ChipProps {
@@ -14,9 +16,11 @@ interface ChipProps {
    * the chip self-cycles 0 → 1 → 2 → 0 on tap.
    */
   onPress?: () => void;
+  /** Optional explicit rule/help action rendered beside the state control. */
+  onInfoPress?: () => void;
 }
 
-export const Chip: React.FC<ChipProps> = ({ label, count, on, onPress }) => {
+export const Chip: React.FC<ChipProps> = ({ label, count, on, onPress, onInfoPress }) => {
   // Uncontrolled fallback for screens that don't manage their own state.
   const [internalCount, setInternalCount] = useState(count ?? 0);
   const controlled = !!onPress;
@@ -31,7 +35,7 @@ export const Chip: React.FC<ChipProps> = ({ label, count, on, onPress }) => {
     setInternalCount(c => (c >= 2 ? 0 : c + 1));
   };
 
-  return (
+  const stateControl = (
     <button
       type="button"
       className={isOn ? 'btn-reset gc-chip gc-chip--on' : 'btn-reset gc-chip'}
@@ -46,5 +50,22 @@ export const Chip: React.FC<ChipProps> = ({ label, count, on, onPress }) => {
         </span>
       ) : null}
     </button>
+  );
+
+  if (!onInfoPress) return stateControl;
+
+  return (
+    <span className="gc-chip-group">
+      {stateControl}
+      <button
+        type="button"
+        className="btn-reset gc-chip-info"
+        aria-label={`Read ${label} rule`}
+        title={`Read ${label} rule`}
+        onClick={onInfoPress}
+      >
+        <Icon name="info" size={12} color={colors.ink3} />
+      </button>
+    </span>
   );
 };

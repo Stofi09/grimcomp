@@ -42,7 +42,7 @@ const HIT_LOCATION_KEYS = ['head', 'body', 'arm_l', 'arm_r', 'leg_l', 'leg_r'];
 /** Sections keyed by a unique entry id — the ones `deletions` can tombstone. */
 const ID_KEYED_SECTIONS = new Set<string>([
   'spells', 'prayers', 'tables', 'races', 'careers', 'skills', 'talents',
-  'weapons', 'armour', 'trappings', 'deities', 'characters',
+  'references', 'weapons', 'armour', 'trappings', 'deities', 'characters',
 ]);
 
 /** Every top-level key the v2 schema knows about. Others warn (not fail). */
@@ -50,7 +50,7 @@ const KNOWN_KEYS = new Set([
   '$schema', 'id', 'name', 'version',
   'spells', 'prayers', 'tables', 'conditions', 'xpCosts', 'xpRules', 'system',
   'characteristics', 'races', 'careers', 'skills', 'talents', 'weapons',
-  'armour', 'trappings', 'hitLocations', 'figureLabels', 'criticals',
+  'references', 'armour', 'trappings', 'hitLocations', 'figureLabels', 'criticals',
   'criticalTables', 'woundsRules', 'deities', 'creation', 'characters',
   'xpLogSeeds', 'noteSeeds', 'screens', 'screenGroups', 'resources',
   'capabilities', 'deletions',
@@ -229,7 +229,12 @@ export function validatePack(raw: unknown): ValidationResult {
           p(`${where} "advanceScheme.characteristics" must be an array of characteristic keys.`);
         } else if (isObject(as) && as.skills !== undefined && (!Array.isArray(as.skills) || as.skills.some(s => !isString(s)))) {
           p(`${where} "advanceScheme.skills" must be an array of skill names.`);
+        } else if (isObject(as) && as.talents !== undefined && (!Array.isArray(as.talents) || as.talents.some(t => !isString(t)))) {
+          p(`${where} "advanceScheme.talents" must be an array of talent names.`);
         }
+      }
+      if (entry.approximate !== undefined && typeof entry.approximate !== 'boolean') {
+        p(`${where} "approximate" must be a boolean.`);
       }
       if (!Array.isArray(entry.ranks)) {
         p(`${where} "ranks" must be an array.`);
@@ -270,6 +275,16 @@ export function validatePack(raw: unknown): ValidationResult {
     extra: (entry, where, p) => {
       if (entry.max !== undefined && !isNumber(entry.max)) p(`${where} "max" must be a number.`);
       if (entry.maxChar !== undefined && !isString(entry.maxChar)) p(`${where} "maxChar" must be a characteristic key.`);
+    },
+  });
+
+  checkSection('references', {
+    strings: ['category', 'name', 'description'],
+    extra: (entry, where, p) => {
+      if (entry.meta !== undefined && !isString(entry.meta)) p(`${where} "meta" must be a string.`);
+      if (entry.approximate !== undefined && typeof entry.approximate !== 'boolean') {
+        p(`${where} "approximate" must be a boolean.`);
+      }
     },
   });
 

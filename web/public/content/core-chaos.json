@@ -1,0 +1,136 @@
+{
+  "$schema": "grimcomp.content.v2",
+  "id": "core-chaos",
+  "name": "Grim Companion — Chaos & Mutation",
+  "version": "2026.07.25",
+  "references": [
+    {
+      "id": "chaos.corruption-test",
+      "category": "Chaos & Mutation",
+      "name": "Corruption Test",
+      "meta": "Corruption · test",
+      "description": "When exposed to a corrupting influence, make the Test chosen by the GM. On a failure, gain Corruption based on the danger; protection, distance, and brief exposure may reduce it.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.threshold",
+      "category": "Chaos & Mutation",
+      "name": "Corruption Threshold",
+      "meta": "Toughness Bonus + Willpower Bonus",
+      "description": "Your sheet tracks a threshold from Toughness Bonus and Willpower Bonus. Reaching it signals a serious consequence: resolve the event with the GM, then reduce or clear Corruption as your table prefers.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.dark-whisper",
+      "category": "Chaos & Mutation",
+      "name": "Dark Whispers",
+      "meta": "Mental mutation",
+      "description": "Faint voices offer persuasive but dangerous advice. The character suffers a penalty to concentration when resisting an obvious temptation, but may gain a clue when accepting a meaningful complication.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.warped-senses",
+      "category": "Chaos & Mutation",
+      "name": "Warped Senses",
+      "meta": "Mental mutation",
+      "description": "One sense perceives traces of magic and corruption as colour, scent, sound, or texture. It can reveal the unnatural, though intense manifestations may cause Fatigued or Stunned.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.compulsion",
+      "category": "Chaos & Mutation",
+      "name": "Unnatural Compulsion",
+      "meta": "Mental mutation",
+      "description": "Choose a narrow ritual, taboo, or fixation. Ignoring it for a scene requires a Cool Test; failure imposes a short-lived penalty until the compulsion is satisfied or overcome.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.bestial-features",
+      "category": "Chaos & Mutation",
+      "name": "Bestial Features",
+      "meta": "Physical mutation",
+      "description": "The character develops conspicuous animal traits. Gain a situational benefit appropriate to the feature, such as keen scent or natural climbing, and a penalty to ordinary social acceptance.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.chitin",
+      "category": "Chaos & Mutation",
+      "name": "Chitinous Hide",
+      "meta": "Physical mutation",
+      "description": "Hard plates grow over part of the body. Treat the covered locations as having 1 natural Armour Point, while delicate movement or attempts to conceal the mutation become harder.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.extra-joint",
+      "category": "Chaos & Mutation",
+      "name": "Extra Joint",
+      "meta": "Physical mutation",
+      "description": "A limb bends in an impossible place. Gain an edge when escaping bonds or squeezing through tight spaces, but suffer a penalty when using ordinary armour fitted to that location.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.luminous-eyes",
+      "category": "Chaos & Mutation",
+      "name": "Luminous Eyes",
+      "meta": "Physical mutation",
+      "description": "The eyes glow in darkness. The character can see in very low light, but the glow makes hiding harder and is difficult to pass off as natural.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.living-shadow",
+      "category": "Chaos & Mutation",
+      "name": "Living Shadow",
+      "meta": "Unnatural mutation",
+      "description": "The character's shadow moves a heartbeat out of time. It grants a small advantage to intimidation and occult displays, but attentive witnesses can recognise it as unnatural.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.regeneration",
+      "category": "Chaos & Mutation",
+      "name": "Unnatural Regeneration",
+      "meta": "Unnatural mutation",
+      "description": "At the end of a quiet scene, recover additional Wounds equal to Toughness Bonus. Fire, sanctified wounds, or another weakness chosen with the GM can suppress this recovery.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.warp-flare",
+      "category": "Chaos & Mutation",
+      "name": "Warp Flare",
+      "meta": "Unnatural mutation",
+      "description": "Strong emotion releases visible magical energy. Once per session it may illuminate an area or unsettle nearby foes, but doing so immediately draws unwanted attention.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.horns",
+      "category": "Chaos & Mutation",
+      "name": "Crown of Horns",
+      "meta": "Physical mutation",
+      "description": "Horns grow from the skull. They may be used as an improvised close-combat weapon, but normal headgear no longer fits and disguising them requires substantial effort.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.withered-limb",
+      "category": "Chaos & Mutation",
+      "name": "Withered Limb",
+      "meta": "Physical mutation",
+      "description": "One limb becomes weak, twisted, or partly numb. Tests relying on that limb are harder, though pain or effects targeting it may be reduced at the GM's discretion.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.mutation-care",
+      "category": "Chaos & Mutation",
+      "name": "Treating a Mutation",
+      "meta": "Downtime · campaign",
+      "description": "Mutation is a campaign consequence rather than an ordinary wound. Concealment, dangerous surgery, cleansing rites, and bargains may each help, but every cure should carry a cost or uncertain outcome.",
+      "approximate": true
+    },
+    {
+      "id": "chaos.public-discovery",
+      "category": "Chaos & Mutation",
+      "name": "Public Discovery",
+      "meta": "Social consequence",
+      "description": "If a visible mutation is recognised, begin with fear, suspicion, or hostility appropriate to the community. Give the character a chance to flee, explain, disguise, or call on trusted allies before escalating.",
+      "approximate": true
+    }
+  ]
+}

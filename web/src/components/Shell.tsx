@@ -36,7 +36,16 @@ export const Shell: React.FC<ShellProps> = ({ current, onNav, children }) => {
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const drawerRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const drawerActive = !isWide && drawerOpen;
+  const openDrawer = useCallback(() => {
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // Do not leave the trigger focused inside the aria-hidden page background
+    // while the modal drawer is open.
+    previousFocusRef.current?.blur();
+    setDrawerOpen(true);
+  }, []);
 
   // Crossing into the wide layout makes the inline rail authoritative, so the
   // drawer must not linger underneath it.
@@ -44,9 +53,9 @@ export const Shell: React.FC<ShellProps> = ({ current, onNav, children }) => {
     if (isWide) setDrawerOpen(false);
   }, [isWide]);
 
-  // Esc closes the drawer + lock body scroll while it's up.
+  // Esc closes the drawer and the page behind it cannot scroll while it is up.
   useEffect(() => {
-    if (!drawerOpen) return;
+    if (!drawerActive) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -54,13 +63,26 @@ export const Shell: React.FC<ShellProps> = ({ current, onNav, children }) => {
       }
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [drawerOpen, closeDrawer]);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [drawerActive, closeDrawer]);
 
-  // Move focus into the drawer when it opens, and keep Tab inside it.
+  // Move focus into the drawer when it opens and restore the trigger on close.
   useEffect(() => {
-    if (drawerActive) drawerRef.current?.focus();
-  }, [drawerActive]);
+    if (drawerActive) {
+      drawerRef.current?.focus();
+      return;
+    }
+    if (!drawerOpen && previousFocusRef.current !== null) {
+      const previous = previousFocusRef.current;
+      previousFocusRef.current = null;
+      if (previous.isConnected) previous.focus();
+    }
+  }, [drawerActive, drawerOpen]);
   useFocusTrap(drawerRef, drawerActive);
 
   // Character-scoped crumbs carry a placeholder token; swap in the active PC so
@@ -75,20 +97,27 @@ export const Shell: React.FC<ShellProps> = ({ current, onNav, children }) => {
 
   return (
     <div className="shell-root">
-      <div className="shell">
+      <div className="shell" aria-hidden={drawerActive || undefined}>
         {isWide ? <Rail current={current} onNav={onNav} /> : null}
         <div className="shell-main">
           <AppBar
             crumbs={crumbs}
             showMenu={!isWide}
-            onMenuPress={() => setDrawerOpen(true)}
+            onMenuPress={openDrawer}
           />
           <div className="shell-content">{children}</div>
         </div>
       </div>
 
       {drawerActive ? (
-        <div className="shell-drawer-root" role="dialog" aria-modal="true" ref={drawerRef} tabIndex={-1}>
+        <div
+          className="shell-drawer-root"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Main navigation"
+          ref={drawerRef}
+          tabIndex={-1}
+        >
           <div className="shell-drawer-rail">
             <Rail
               current={current}

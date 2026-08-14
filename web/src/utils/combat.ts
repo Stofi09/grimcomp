@@ -10,6 +10,30 @@
 import type { HitLocationKey, HitLocationRow } from '@/content/types';
 import { isDouble } from './roll';
 
+// --- Weapon reach/range shape ----------------------------------------------
+
+export interface WeaponDistance {
+  reach?: string;
+  range?: string;
+}
+
+/**
+ * Weapons use exactly one distance field. Normalising at editor boundaries
+ * prevents a hidden melee `reach` from masking a ranged weapon's `range` (and
+ * vice versa) after its group changes.
+ */
+export function normalizeWeaponDistance<T extends WeaponDistance>(weapon: T, ranged: boolean): T {
+  const normalized = { ...weapon };
+  if (ranged) delete normalized.reach;
+  else delete normalized.range;
+  return normalized;
+}
+
+/** Read the distance field appropriate to the weapon's current group. */
+export function weaponDistance(weapon: WeaponDistance, ranged: boolean): string | undefined {
+  return ranged ? weapon.range : weapon.reach;
+}
+
 /**
  * WFRP 4e hit location (CRB p.159): reverse the digits of the successful to-hit
  * roll. 27 → 72, 6 → 60, a double like 33 → 33. A roll reading 00 (i.e. 100)
@@ -161,6 +185,38 @@ export function resolveOpposed(attackerSL: number, defenderSL: number): OpposedR
   };
 }
 
+export interface AttackOutcome {
+  landed: boolean;
+  /** SL added to damage: own SL unopposed, winner's net SL when opposed. */
+  damageSl: number;
+  /** Present only for an Opposed Test. */
+  opposed?: OpposedResult;
+}
+
+/**
+ * Turn test results into the hit/damage inputs used by the combat screen.
+ * In an Opposed Test, the higher SL wins even when both participants failed;
+ * the winner's net SL (not the attacker's raw SL) feeds damage.
+ */
+export function resolveAttackOutcome(
+  attackerSuccess: boolean,
+  attackerSL: number,
+  defenderSL?: number,
+): AttackOutcome {
+  if (defenderSL !== undefined) {
+    const opposed = resolveOpposed(attackerSL, defenderSL);
+    return {
+      landed: opposed.attackerWins,
+      damageSl: opposed.attackerWins ? opposed.netSL : 0,
+      opposed,
+    };
+  }
+  return {
+    landed: attackerSuccess,
+    damageSl: attackerSuccess ? Math.max(0, attackerSL) : 0,
+  };
+}
+
 // --- Weapon qualities that touch damage (CRB p.293) ---
 
 /**
@@ -177,7 +233,7 @@ export function hasQuality(qualities: string[], name: string): boolean {
 export interface HitDamageInput {
   /** Weapon Damage before the SL bonus (e.g. SB+4 already evaluated). */
   baseDamage: number;
-  /** SL that feeds damage — the attacker's own SL on the hit (≥0 on a landed hit). */
+  /** SL that feeds damage — own SL unopposed, net opposed SL otherwise. */
   sl: number;
   /** The to-hit roll (its units digit feeds Damaging; a double triggers Impale). */
   toHitRoll: number;

@@ -1,4 +1,14 @@
 /* Chip — toggleable condition/state chip with a count badge. */
+.gc-chip-group {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.gc-chip-group .gc-chip {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 .gc-chip {
   display: inline-flex;
   flex-direction: row;
@@ -10,6 +20,28 @@
   border-radius: 4px;
   cursor: pointer;
   box-sizing: border-box;
+}
+
+.gc-chip-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-height: 28px;
+  background-color: var(--surface2);
+  border: 1px solid var(--borderSoft);
+  border-left: 0;
+  border-radius: 0 4px 4px 0;
+  cursor: pointer;
+}
+
+.gc-chip-info:hover {
+  background-color: var(--hoverHighlight);
+  border-color: var(--border);
+}
+
+.gc-chip-info:active {
+  opacity: 0.7;
 }
 
 .gc-chip:hover:not(.gc-chip--on) {

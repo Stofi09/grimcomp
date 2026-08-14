@@ -86,3 +86,22 @@
   gap: 8px;
   margin-bottom: 4px;
 }
+
+@media (max-width: 560px) {
+  .gc-hero {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .gc-hero-actions {
+    align-self: flex-end;
+    flex-wrap: wrap;
+    margin-bottom: 0;
+  }
+
+  .gc-hero-h1 {
+    font-size: 40px;
+    line-height: 40px;
+  }
+}

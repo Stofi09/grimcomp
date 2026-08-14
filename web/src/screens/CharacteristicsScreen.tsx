@@ -19,7 +19,7 @@ import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Table, TableRow, Cell } from '@/components/Table';
 import { colors } from '@/theme';
-import { Alert } from '@/ui/alert';
+import { Alert } from '@/ui/alertStore';
 import './CharacteristicsScreen.css';
 
 // Display label for a cost band ("0–5", or "46+" for the open-ended top band).
@@ -51,11 +51,18 @@ export const CharacteristicsScreen: React.FC = () => {
     return i >= 0 ? i : bands.length - 1;
   };
   const perAdvance = (adv: number) => bands[bandIndexFor(adv)]?.cost ?? 0;
-  // A purchase raises the characteristic by +buyStep — five advances, all within
-  // the same band — so it costs buyStep times the per-advance rate, doubled when
-  // the characteristic is outside the career's advance scheme.
+  // Sum every individual advance because a +buyStep purchase can cross a cost
+  // band (for example +5 → +10 starts with one point in 0–5, then four in 6–10).
+  const baseStepCost = (adv: number) => {
+    let total = 0;
+    for (let offset = 0; offset < buyStep; offset += 1) {
+      total += perAdvance(adv + offset);
+    }
+    return total;
+  };
+  // Non-career pricing applies after the correctly banded total is known.
   const stepCost = (adv: number, key: CharacteristicKey) =>
-    characteristicAdvanceCost(buyStep * perAdvance(adv), inCareer(key), nonCareerMult);
+    characteristicAdvanceCost(baseStepCost(adv), inCareer(key), nonCareerMult);
 
   const test = (key: CharacteristicKey) => {
     const c = list.find(x => x.key === key)!;
@@ -162,6 +169,8 @@ export const CharacteristicsScreen: React.FC = () => {
                 step={buyStep}
                 min={0}
                 max={40}
+                decreaseLabel={`Decrease ${x.name}`}
+                increaseLabel={`Increase ${x.name}`}
                 onChange={(next) => onAdvChange(x.key, x.adv, next)}
               />
               <span className="chr-stat-cost">

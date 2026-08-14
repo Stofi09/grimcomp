@@ -10,7 +10,8 @@ import { useCharacterCollection } from '@/hooks/useCharacterCollection';
 import { useContent, useHitLocations, useCriticals, useConditionList, useSystemRules, useCapabilities } from '@/content/useContent';
 import { critFromTable } from '@/content/tables';
 import type { HitLocationRow, HitLocationKey, CriticalDef, CriticalTableDef } from '@/content/types';
-import { Alert } from '@/ui/alert';
+import { advanceCriticalHealingDay, clearSceneEndConditions } from '@/utils/recovery';
+import { Alert } from '@/ui/alertStore';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card, CardHead } from '@/components/Card';
@@ -63,50 +64,55 @@ export const WoundsScreen: React.FC = () => {
   const woundsMax = derived.maxWounds;
   const restAmount = derived.restRecovery;
 
-  // Live critical wounds + the shared conditions map (so "End of scene" can
-  // tick conditions down too).
+  // Live critical wounds + the shared condition map. Their clocks stay
+  // separate: criticals heal by day; only explicitly flagged conditions clear
+  // at the end of a scene.
   const crits = useCharacterCollection<Critical>('criticals', c.criticals);
-  const [condMap, setCondMap] = useStoredState<Record<string, number>>(
+  const [, setCondMap] = useStoredState<Record<string, number>>(
     characterKey(id, 'conditions'),
     Object.fromEntries(names.map(t => [t, 0])),
   );
 
   const endOfScene = () => {
-    // Fortune refreshes back up to Fate at a new session/scene.
-    vitals.refreshFortune();
-    // Tick every active critical's heal-days down by 1; remove any that reach 0.
-    const before = crits.items.length;
-    const next = crits.items
-      .map(cr => ({ ...cr, days: Math.max(0, cr.days - 1) }))
-      .filter(cr => cr.days > 0);
-    const healed = before - next.length;
-    crits.replace(next);
-
-    // Tick down most conditions by 1 (per WFRP 4e p.169 — they fade unless
-    // sustained). Conditions flagged clearsAtSceneEnd (Surprised) drop all
-    // stacks at once.
-    let removed = 0;
+    let clearedConditions = 0;
+    let clearedStacks = 0;
     setCondMap(prev => {
-      const out: Record<string, number> = { ...prev };
-      for (const k of Object.keys(out)) {
-        const v = out[k] ?? 0;
-        if (v <= 0) continue;
-        const dec = conditionDefs.find(d => d.name === k)?.clearsAtSceneEnd ? v : 1;
-        const after = Math.max(0, v - dec);
-        if (after === 0 && v > 0) removed += 1;
-        out[k] = after;
-      }
-      return out;
+      const result = clearSceneEndConditions(prev, conditionDefs);
+      clearedConditions = result.clearedConditions;
+      clearedStacks = result.clearedStacks;
+      return result.conditions;
     });
 
     Alert.alert(
       'End of scene',
-      `Fortune refreshed to ${vitals.fate}.\n` +
-      `${healed} critical${healed === 1 ? '' : 's'} healed.\n` +
-      `${removed} condition${removed === 1 ? '' : 's'} cleared, the rest tick down by 1.`,
+      clearedConditions > 0
+        ? `Cleared ${clearedStacks} stack${clearedStacks === 1 ? '' : 's'} across ${clearedConditions} scene-end condition${clearedConditions === 1 ? '' : 's'}. Other conditions, Fortune, and healing days were not changed.`
+        : 'No active conditions use the scene-end clock. Fortune and healing days were not changed.',
     );
-    // Silence unused-var lint
-    void condMap;
+  };
+
+  const advanceHealingDay = () => {
+    if (crits.items.length === 0) {
+      Alert.alert('Advance healing day', 'No active critical wounds to advance.');
+      return;
+    }
+    const result = advanceCriticalHealingDay(crits.items);
+    crits.replace(result.criticals);
+    Alert.alert(
+      'Healing day advanced',
+      `${result.criticals.length} critical${result.criticals.length === 1 ? '' : 's'} still healing; ${result.healed} resolved. Scene conditions and Fortune were not changed.`,
+    );
+  };
+
+  const showConditionRule = (name: string) => {
+    const def = conditionDefs.find(candidate => candidate.name === name);
+    const details = [
+      def?.description || 'No rule text is included in the loaded content.',
+      def?.penalty ? `Test modifier: ${def.penalty} per stack.` : '',
+      `Maximum tracked stacks: ${def?.maxStacks ?? 2}.`,
+      def?.clearsAtSceneEnd ? 'All stacks clear at the end of the scene.' : '',
+    ].filter(Boolean);
+    Alert.alert(name, details.join('\n\n'));
   };
 
   // End of round: Bleeding drains 1 Wound per stack (WFRP 4e p.169). At 0
@@ -220,28 +226,44 @@ export const WoundsScreen: React.FC = () => {
               End of round{(conds['Bleeding'] ?? 0) > 0 ? ` (Bleeding ×${conds['Bleeding']})` : ''}
             </Button>
             <Button
+              iconLeft={<Icon name="flame" size={13} color={colors.ink} />}
+              style={{ alignSelf: 'stretch' }}
+              onPress={endOfScene}
+            >
+              End of scene (scene conditions)
+            </Button>
+            <Button
+              iconLeft={<Icon name="heart" size={13} color={colors.ink} />}
+              style={{ alignSelf: 'stretch' }}
+              onPress={advanceHealingDay}
+            >
+              Advance healing day
+            </Button>
+            <Button
               iconLeft={<Icon name="star" size={13} color={colors.ink} />}
               style={{ alignSelf: 'stretch' }}
               onPress={cheatDeath}
             >
               Burn Fate — cheat death
             </Button>
-            <Button
-              iconLeft={<Icon name="flame" size={13} color={colors.ink} />}
-              style={{ alignSelf: 'stretch' }}
-              onPress={endOfScene}
-            >
-              End of scene
-            </Button>
           </div>
         </Card>
       </div>
 
-      <Section title="Conditions" aside="tap to add a stack · long-press for the rule" />
+      <Section title="Conditions" aside="tap to change stacks · info opens the rule" />
       <div className="wnd-chips">
         {names.map(t => {
           const n = conds[t] ?? 0;
-          return <Chip key={t} label={t} count={n} on={n > 0} onPress={() => cycle(t)} />;
+          return (
+            <Chip
+              key={t}
+              label={t}
+              count={n}
+              on={n > 0}
+              onPress={() => cycle(t)}
+              onInfoPress={() => showConditionRule(t)}
+            />
+          );
         })}
       </div>
 
@@ -288,7 +310,7 @@ export const WoundsScreen: React.FC = () => {
           {crits.items.length === 0 ? (
             <TableRow last>
               <Cell flex={1} textStyle={{ color: colors.ink3, fontStyle: 'italic' }}>
-                No active criticals. End of scene ticks down healing days.
+                No active criticals. "Advance healing day" ticks down healing days.
               </Cell>
             </TableRow>
           ) : null}

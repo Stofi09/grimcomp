@@ -1,5 +1,4 @@
-import type { IconName } from '@/components/Icon';
-import { coerceIcon } from '@/components/Icon';
+import { coerceIcon, type IconName } from '@/components/iconNames';
 import type { CompiledFormula } from '@/utils/formula';
 import { compileFormula } from '@/utils/formula';
 import type { ScreenKind, ScreenDef, ScreenGroupDef } from '@/content/types';

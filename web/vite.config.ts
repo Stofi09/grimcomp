@@ -17,6 +17,6 @@ export default defineConfig({
   // browser). Component tests can opt into jsdom later per-file.
   test: {
     environment: 'node',
-    include: ['src/**/*.{test,spec}.ts'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
 });

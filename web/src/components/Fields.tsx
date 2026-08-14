@@ -11,18 +11,44 @@ interface FieldProps {
   style?: React.CSSProperties | null;
 }
 
-const FieldFrame: React.FC<FieldProps & { children: React.ReactNode }> = ({
+interface FieldFrameProps extends FieldProps {
+  children: React.ReactNode;
+  controlId?: string;
+  labelId?: string;
+  hintId?: string;
+  group?: boolean;
+}
+
+const FieldFrame: React.FC<FieldFrameProps> = ({
   label,
   hint,
   style,
   children,
-}) => (
-  <div className="fld" style={style ?? undefined}>
-    <div className="fld-label">{label}</div>
-    {children}
-    {hint ? <div className="fld-hint">{hint}</div> : null}
-  </div>
-);
+  controlId,
+  labelId,
+  hintId,
+  group,
+}) => {
+  const groupProps = group
+    ? {
+        role: 'group',
+        'aria-labelledby': labelId,
+        'aria-describedby': hint ? hintId : undefined,
+      }
+    : {};
+
+  return (
+    <div className="fld" style={style ?? undefined} {...groupProps}>
+      {controlId ? (
+        <label className="fld-label" htmlFor={controlId}>{label}</label>
+      ) : (
+        <div className="fld-label" id={labelId}>{label}</div>
+      )}
+      {children}
+      {hint ? <div className="fld-hint" id={hintId}>{hint}</div> : null}
+    </div>
+  );
+};
 
 interface TextFieldProps extends FieldProps {
   value: string;
@@ -43,34 +69,50 @@ export const TextField: React.FC<TextFieldProps> = ({
   autoCapitalize = 'sentences',
   multiline,
   numberOfLines = 4,
-}) => (
-  <FieldFrame label={label} hint={hint} style={style}>
-    {multiline ? (
-      <textarea
-        className="fld-input fld-input-multiline"
-        style={{ minHeight: 22 * numberOfLines }}
-        rows={numberOfLines}
-        value={value}
-        onChange={e => onChangeText(e.target.value)}
-        placeholder={placeholder}
-        autoCorrect="off"
-        spellCheck={false}
-        autoCapitalize={autoCapitalize}
-      />
-    ) : (
-      <input
-        type="text"
-        className="fld-input"
-        value={value}
-        onChange={e => onChangeText(e.target.value)}
-        placeholder={placeholder}
-        autoCorrect="off"
-        spellCheck={false}
-        autoCapitalize={autoCapitalize}
-      />
-    )}
-  </FieldFrame>
-);
+}) => {
+  const controlId = React.useId();
+  const hintId = `${controlId}-hint`;
+  const describedBy = hint ? hintId : undefined;
+
+  return (
+    <FieldFrame
+      label={label}
+      hint={hint}
+      style={style}
+      controlId={controlId}
+      hintId={hintId}
+    >
+      {multiline ? (
+        <textarea
+          id={controlId}
+          className="fld-input fld-input-multiline"
+          style={{ minHeight: 22 * numberOfLines }}
+          rows={numberOfLines}
+          value={value}
+          onChange={e => onChangeText(e.target.value)}
+          placeholder={placeholder}
+          aria-describedby={describedBy}
+          autoCorrect="off"
+          spellCheck={false}
+          autoCapitalize={autoCapitalize}
+        />
+      ) : (
+        <input
+          id={controlId}
+          type="text"
+          className="fld-input"
+          value={value}
+          onChange={e => onChangeText(e.target.value)}
+          placeholder={placeholder}
+          aria-describedby={describedBy}
+          autoCorrect="off"
+          spellCheck={false}
+          autoCapitalize={autoCapitalize}
+        />
+      )}
+    </FieldFrame>
+  );
+};
 
 interface NumberFieldProps extends FieldProps {
   value: number;
@@ -88,6 +130,8 @@ export const NumberField: React.FC<NumberFieldProps> = ({
   min,
   max,
 }) => {
+  const controlId = React.useId();
+  const hintId = `${controlId}-hint`;
   const [raw, setRaw] = React.useState(String(value));
   React.useEffect(() => { setRaw(String(value)); }, [value]);
   const commit = (text: string) => {
@@ -106,13 +150,21 @@ export const NumberField: React.FC<NumberFieldProps> = ({
     onChangeNumber(clamped);
   };
   return (
-    <FieldFrame label={label} hint={hint} style={style}>
+    <FieldFrame
+      label={label}
+      hint={hint}
+      style={style}
+      controlId={controlId}
+      hintId={hintId}
+    >
       <input
+        id={controlId}
         type="text"
         className="fld-input fld-input-num"
         inputMode="numeric"
         value={raw}
         onChange={e => commit(e.target.value)}
+        aria-describedby={hint ? hintId : undefined}
         autoCorrect="off"
         spellCheck={false}
       />
@@ -136,8 +188,17 @@ export function PickerField<T extends string>({
   onChange,
   options,
 }: PickerFieldProps<T>) {
+  const labelId = React.useId();
+  const hintId = `${labelId}-hint`;
   return (
-    <FieldFrame label={label} hint={hint} style={style}>
+    <FieldFrame
+      label={label}
+      hint={hint}
+      style={style}
+      labelId={labelId}
+      hintId={hintId}
+      group
+    >
       <div className="fld-options">
         {options.map(opt => {
           const on = opt.value === value;
@@ -147,6 +208,7 @@ export function PickerField<T extends string>({
               type="button"
               className={`btn-reset fld-option${on ? ' fld-option-on' : ''}`}
               onClick={() => onChange(opt.value)}
+              aria-pressed={on}
             >
               {opt.label}
             </button>
@@ -171,12 +233,21 @@ export function MultiPickerField<T extends string>({
   onChange,
   options,
 }: MultiPickerFieldProps<T>) {
+  const labelId = React.useId();
+  const hintId = `${labelId}-hint`;
   const toggle = (v: T) => {
     if (selected.includes(v)) onChange(selected.filter(x => x !== v));
     else onChange([...selected, v]);
   };
   return (
-    <FieldFrame label={label} hint={hint} style={style}>
+    <FieldFrame
+      label={label}
+      hint={hint}
+      style={style}
+      labelId={labelId}
+      hintId={hintId}
+      group
+    >
       <div className="fld-options">
         {options.map(opt => {
           const on = selected.includes(opt.value);
@@ -186,6 +257,7 @@ export function MultiPickerField<T extends string>({
               type="button"
               className={`btn-reset fld-option${on ? ' fld-option-on' : ''}`}
               onClick={() => toggle(opt.value)}
+              aria-pressed={on}
             >
               {opt.label}
             </button>
@@ -203,11 +275,20 @@ interface QualitiesFieldProps extends FieldProps {
 }
 
 export const QualitiesField: React.FC<QualitiesFieldProps> = ({ label, hint, style, value, onChange }) => {
+  const controlId = React.useId();
+  const hintId = `${controlId}-hint`;
   const [raw, setRaw] = React.useState(value.join(', '));
   React.useEffect(() => { setRaw(value.join(', ')); }, [value]);
   return (
-    <FieldFrame label={label} hint={hint} style={style}>
+    <FieldFrame
+      label={label}
+      hint={hint}
+      style={style}
+      controlId={controlId}
+      hintId={hintId}
+    >
       <input
+        id={controlId}
         type="text"
         className="fld-input"
         value={raw}
@@ -218,6 +299,7 @@ export const QualitiesField: React.FC<QualitiesFieldProps> = ({ label, hint, sty
           onChange(parts);
         }}
         placeholder="e.g. Defensive, Penetrating"
+        aria-describedby={hint ? hintId : undefined}
         autoCorrect="off"
         spellCheck={false}
         autoCapitalize="words"

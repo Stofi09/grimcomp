@@ -5,6 +5,7 @@ import { useNavModel } from '@/content/useContent';
 import { useXp } from '@/hooks/useXp';
 import { useCareer } from '@/hooks/useCareer';
 import { useDerived } from '@/hooks/useDerived';
+import { useVitals } from '@/hooks/useVitals';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useStoredState } from '@/hooks/useStoredState';
 import { Icon } from './Icon';
@@ -23,6 +24,7 @@ export const Rail: React.FC<RailProps> = ({ current, onNav, onClose, width = RAI
   const navModel = useNavModel();
   const xp = useXp();
   const career = useCareer();
+  const vitals = useVitals();
   const { maxWounds } = useDerived();
   const [wounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
   // Per-character nav gating (e.g. Magic only for casters) is content-declared
@@ -58,7 +60,7 @@ export const Rail: React.FC<RailProps> = ({ current, onNav, onClose, width = RAI
           </div>
           <div className="rail-vitals">
             <Vital label="Wnd" value={`${wounds}`} sub={`/${maxWounds}`} accent={colors.empire} />
-            <Vital label="Fate" value={`${c.fate}`} sub={`·${c.fortune}`} accent={colors.brass} />
+            <Vital label="Fate" value={`${vitals.fate}`} sub={`·${vitals.fortune}`} accent={colors.brass} />
             <Vital label="XP" value={`${xp.current}`} accent={colors.brass} last />
           </div>
         </button>

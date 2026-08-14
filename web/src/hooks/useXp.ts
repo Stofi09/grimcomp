@@ -15,13 +15,13 @@ export interface XpEntry {
   kind: XpKind;
 }
 
-interface State {
+export interface XpState {
   current: number;
   spent: number;
   log: XpEntry[];
 }
 
-const seedFor = (tpl: Character | null, seedLog: XpEntry[]): State => ({
+const seedFor = (tpl: Character | null, seedLog: XpEntry[]): XpState => ({
   current: tpl?.xpCurrent ?? 0,
   spent: tpl?.xpSpent ?? 0,
   log: [...seedLog],
@@ -46,7 +46,7 @@ export function useXp() {
   // The per-character log seed comes from the content registry (the
   // core-characters pack), not from code.
   const seedLog: XpEntry[] = registry.xpLogSeeds?.[id] ?? [];
-  const [state, setState] = useStoredState<State>(characterKey(id, 'xp'), seedFor(tpl, seedLog));
+  const [state, setState] = useStoredState<XpState>(characterKey(id, 'xp'), seedFor(tpl, seedLog));
   const [xpRule] = useXpRule();
 
   const spend = useCallback((amount: number, reason: string, kind: XpKind = 'skill'): XpResult => {

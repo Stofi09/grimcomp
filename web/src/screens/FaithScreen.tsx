@@ -8,7 +8,7 @@ import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
 import { useResolvePrayers, useTable, useDeities, useSystemRules, useCreation, useCapabilities } from '@/content/useContent';
 import { rollOnTable, rollForTable } from '@/content/tables';
 import type { Prayer } from '@/content/types';
-import { Alert } from '@/ui/alert';
+import { Alert } from '@/ui/alertStore';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card, CardHead } from '@/components/Card';
@@ -29,13 +29,22 @@ export const FaithScreen: React.FC = () => {
   const caps = useCapabilities();
   const creation = useCreation();
   const [sin, setSin] = useStoredState(characterKey(id, 'sin'), 0);
+  // Mirror SkillsScreen's live overlay rather than freezing Pray at the
+  // character-template value after the user purchases more advances.
+  const [skillAdvances] = useStoredState<Record<string, number>>(
+    characterKey(id, 'skills.adv'),
+    Object.fromEntries(c.skills.map(skill => [skill.name, skill.adv])),
+  );
 
   const prayers = useResolvePrayers(c.knownPrayers ?? []);
   const wrathTable = useTable(faith.wrathTable);
   const deities = useDeities();
   const prayCh = chars.find(x => x.key === faith.prayChar);
   const praySkill = c.skills.find(s => s.name === faith.praySkill);
-  const prayTarget = (prayCh?.current ?? 0) + (praySkill?.adv ?? 0);
+  const prayAdvance = skillAdvances[faith.praySkill] ?? praySkill?.adv ?? 0;
+  const hasPraySkill = praySkill !== undefined
+    || Object.prototype.hasOwnProperty.call(skillAdvances, faith.praySkill);
+  const prayTarget = (prayCh?.current ?? 0) + prayAdvance;
 
   // WFRP 4e: a Blessing is a minor invocation that needs NO Test and never risks
   // Wrath; a Miracle is a Pray Test that does. Honour an explicit `type`, else
@@ -172,7 +181,7 @@ export const FaithScreen: React.FC = () => {
             <span className="fth-sep">·</span>
             <span className="fth-sub">{prayers.length} prayers</span>
             <span className="fth-sep">·</span>
-            <span className="fth-sub">Pray {praySkill ? `+${praySkill.adv}` : '—'}</span>
+            <span className="fth-sub">Pray {hasPraySkill ? `+${prayAdvance}` : '—'}</span>
           </>
         }
       />

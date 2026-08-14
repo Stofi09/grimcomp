@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { type Trapping, type Weapon, type Armour } from '@/data/character';
-import { useCharacter } from '@/hooks/useCharacter';
+import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useDerived } from '@/hooks/useDerived';
 import { useCharacterCollection } from '@/hooks/useCharacterCollection';
+import { useStoredState } from '@/hooks/useStoredState';
 import { useSystemRules } from '@/content/useContent';
-import { Alert } from '@/ui/alert';
+import { Alert } from '@/ui/alertStore';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
@@ -22,13 +23,18 @@ import './TrappingsScreen.css';
 const blankTrapping = (): Trapping => ({ name: '', enc: 0 });
 
 export const TrappingsScreen: React.FC = () => {
-  const { template: c } = useCharacter();
+  const { id, template: c } = useCharacter();
   const maxEnc = useDerived().maxEncumbrance;
   const { currency } = useSystemRules();
+  const [wealth, setWealth] = useStoredState<Record<string, number>>(
+    characterKey(id, 'wealth'),
+    c.wealth,
+  );
+  const [wealthDraft, setWealthDraft] = useState<Record<string, number> | null>(null);
   // Total wealth in base units (brass pennies for WFRP), from the configured
   // denominations.
   const wealthBase = currency.units.reduce(
-    (a, u) => a + (c.wealth[u.key] ?? 0) * u.factor, 0,
+    (a, u) => a + (wealth[u.key] ?? 0) * u.factor, 0,
   );
 
   // Live collections — weapons + armour share their storage keys with
@@ -65,6 +71,11 @@ export const TrappingsScreen: React.FC = () => {
     setEditing(null);
     Alert.alert('Dropped', `${name} removed from inventory.`);
   };
+  const saveWealth = () => {
+    if (!wealthDraft) return;
+    setWealth(wealthDraft);
+    setWealthDraft(null);
+  };
 
   return (
     <ScreenContainer>
@@ -72,12 +83,20 @@ export const TrappingsScreen: React.FC = () => {
         title="Trappings"
         subRow={<span className="trp-sub">Inventory, encumbrance, and coin.</span>}
         actions={
-          <Button
-            iconLeft={<Icon name="plus" size={13} color={colors.ink} />}
-            onPress={openNew}
-          >
-            New item
-          </Button>
+          <>
+            <Button
+              iconLeft={<Icon name="quill" size={13} color={colors.ink} />}
+              onPress={() => setWealthDraft({ ...wealth })}
+            >
+              Edit wealth
+            </Button>
+            <Button
+              iconLeft={<Icon name="plus" size={13} color={colors.ink} />}
+              onPress={openNew}
+            >
+              New item
+            </Button>
+          </>
         }
       />
 
@@ -104,7 +123,7 @@ export const TrappingsScreen: React.FC = () => {
             <span className="trp-wealth-value tabular">
               {currency.units.map(u => (
                 <span key={u.key}>
-                  {c.wealth[u.key] ?? 0}<span className="trp-frac"> {u.label} </span>
+                  {wealth[u.key] ?? 0}<span className="trp-frac"> {u.label} </span>
                 </span>
               ))}
             </span>
@@ -180,6 +199,29 @@ export const TrappingsScreen: React.FC = () => {
             />
           </>
         ) : null}
+      </EditSheet>
+
+      <EditSheet
+        visible={wealthDraft !== null}
+        title="Edit wealth"
+        subtitle={`Coin is stored per character. Totals are shown in ${currency.baseLabel}.`}
+        onClose={() => setWealthDraft(null)}
+        onSave={saveWealth}
+      >
+        {wealthDraft ? currency.units.map(unit => (
+          <NumberField
+            key={unit.key}
+            label={unit.label}
+            value={wealthDraft[unit.key] ?? 0}
+            onChangeNumber={next => setWealthDraft(previous => previous && ({
+              ...previous,
+              [unit.key]: next,
+            }))}
+            min={0}
+            max={9999999}
+            hint={`1 ${unit.label} = ${unit.factor} ${currency.baseLabel}.`}
+          />
+        )) : null}
       </EditSheet>
     </ScreenContainer>
   );

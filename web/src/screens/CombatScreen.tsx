@@ -13,10 +13,11 @@ import { resolveTest, outcomeLabel, formatTestResult, isDouble, rollExploding } 
 import { charVars, evalFormula } from '@/utils/formula';
 import {
   apByLocation, apAt, hitLocationFromRoll, applyDamage,
-  advantageBonus, resolveOpposed, computeHitDamage, weaponQualityNotes, hasQuality,
+  advantageBonus, resolveAttackOutcome, computeHitDamage, weaponQualityNotes, hasQuality,
+  normalizeWeaponDistance, weaponDistance,
   type ApLocation,
 } from '@/utils/combat';
-import { Alert } from '@/ui/alert';
+import { Alert } from '@/ui/alertStore';
 import { Hero } from '@/components/Hero';
 import { Card, CardHead } from '@/components/Card';
 import { Pill } from '@/components/Pill';
@@ -166,27 +167,28 @@ export const CombatScreen: React.FC = () => {
     const advBonus = advantageBonus(advantage);
     const r = resolveTest({ target, modifier: condMod.total + advBonus, label: w.name }, system.test);
 
-    // Opposed melee (defence > 0): the attacker must pass their OWN test and win
-    // the Opposed Test (higher SL). A failed attack roll misses regardless of how
-    // the defender rolled — only a landed hit deals damage, using the attacker's
-    // own SL (WFRP 4e: Weapon Damage + the hit's SL).
+    // Opposed melee (defence > 0): higher SL wins even if both tests fail, and
+    // the winner's net opposed SL feeds damage. Unopposed attacks still require
+    // the attacker's own test to succeed and use that test's SL.
     const opposed = atk.defence > 0;
     let opposedLine = '';
     let landed: boolean;
+    let dmgSl: number;
     if (opposed) {
       const dr = resolveTest({ target: atk.defence, label: 'Defender' }, system.test);
-      const res = resolveOpposed(r.sl, dr.sl);
-      landed = r.success && res.attackerWins;
-      const verdict = !r.success
-        ? 'you miss'
-        : res.winner === 'attacker' ? `you win by ${res.netSL} SL`
+      const attack = resolveAttackOutcome(r.success, r.sl, dr.sl);
+      const res = attack.opposed!;
+      landed = attack.landed;
+      dmgSl = attack.damageSl;
+      const verdict = res.winner === 'attacker' ? `you win by ${res.netSL} SL`
         : res.winner === 'defender' ? 'defender turns it aside' : 'draw — nothing lands';
       opposedLine = `\n\nOpposed: you ${fmtSL(r.sl)} vs defender ${fmtSL(dr.sl)} ` +
         `(rolled ${dr.roll} vs ${atk.defence}) → ${verdict}.`;
     } else {
-      landed = r.success;
+      const attack = resolveAttackOutcome(r.success, r.sl);
+      landed = attack.landed;
+      dmgSl = attack.damageSl;
     }
-    const dmgSl = landed ? Math.max(0, r.sl) : 0;
 
     // Damage with quality tweaks (Damaging / Impale fold into the number). The
     // Impale die explodes (WFRP 4e); matched the same way computeHitDamage gates it.
@@ -303,8 +305,10 @@ export const CombatScreen: React.FC = () => {
       Alert.alert('Name required', 'Give the weapon a name.');
       return;
     }
-    if (wEdit.index == null) weapons.add(wEdit.draft);
-    else weapons.update(wEdit.index, wEdit.draft);
+    const ranged = charForWeapon(wEdit.draft, combat) === combat.rangedChar;
+    const weapon = normalizeWeaponDistance(wEdit.draft, ranged);
+    if (wEdit.index == null) weapons.add(weapon);
+    else weapons.update(wEdit.index, weapon);
     setWEdit(null);
   };
 
@@ -430,7 +434,9 @@ export const CombatScreen: React.FC = () => {
                   </Cell>
                   <Cell flex={1.1} textStyle={{ color: colors.ink3 }}>{w.group}</Cell>
                   <Cell num flex={0.6}>{w.enc}</Cell>
-                  <Cell flex={1} textStyle={{ fontFamily: 'var(--font-mono)' }}>{w.reach || w.range || '—'}</Cell>
+                  <Cell flex={1} textStyle={{ fontFamily: 'var(--font-mono)' }}>
+                    {weaponDistance(w, charForWeapon(w, combat) === combat.rangedChar) || '—'}
+                  </Cell>
                   <Cell flex={0.9} textStyle={{ fontFamily: 'var(--font-mono)' }}>{w.dmg}</Cell>
                   <Cell flex={1.4}>
                     <div className="cmb-qual-row">
@@ -523,7 +529,12 @@ export const CombatScreen: React.FC = () => {
             <PickerField<string>
               label="Group"
               value={wEdit.draft.group}
-              onChange={(v) => setWEdit(s => s && ({ ...s, draft: { ...s.draft, group: v } }))}
+              onChange={(v) => setWEdit(s => {
+                if (!s) return s;
+                const draft = { ...s.draft, group: v };
+                const ranged = charForWeapon(draft, combat) === combat.rangedChar;
+                return { ...s, draft: normalizeWeaponDistance(draft, ranged) };
+              })}
               options={wEdit.draft.group && !groupOptions.some(o => o.value === wEdit.draft.group)
                 ? [...groupOptions, { value: wEdit.draft.group, label: wEdit.draft.group }]
                 : groupOptions}
@@ -538,11 +549,12 @@ export const CombatScreen: React.FC = () => {
             />
             <TextField
               label={charForWeapon(wEdit.draft, combat) === combat.rangedChar ? 'Range' : 'Reach'}
-              value={(charForWeapon(wEdit.draft, combat) === combat.rangedChar ? wEdit.draft.range : wEdit.draft.reach) ?? ''}
+              value={weaponDistance(wEdit.draft, charForWeapon(wEdit.draft, combat) === combat.rangedChar) ?? ''}
               onChangeText={t => setWEdit(s => {
                 if (!s) return s;
                 const ranged = charForWeapon(s.draft, combat) === combat.rangedChar;
-                return { ...s, draft: { ...s.draft, [ranged ? 'range' : 'reach']: t } };
+                const draft = normalizeWeaponDistance(s.draft, ranged);
+                return { ...s, draft: { ...draft, [ranged ? 'range' : 'reach']: t } };
               })}
               placeholder={charForWeapon(wEdit.draft, combat) === combat.rangedChar ? 'e.g. 90' : 'e.g. Average'}
               autoCapitalize="none"

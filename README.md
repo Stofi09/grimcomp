@@ -4,7 +4,7 @@ A WFRP 4e tablet/phone companion app for managing characters in Warhammer Fantas
 
 Sample character: **Sigmund Braun** — Human Roadwarden, rank 2.
 
-> **Web version:** there is also a browser build under [`web/`](web/) — a plain React + Vite static site that ports the same screens and rules, with **all game content (spells, races, careers, the XP economy, even the rules engine) driven by editable JSON content packs** so it can be reconfigured for other systems without rebuilding. It runs fully offline (localStorage) and deploys as static files. See [`web/README.md`](web/README.md) for content authoring, configuration, tests, and deployment.
+> **Web version:** there is also a browser build under [`web/`](web/) — a plain React + Vite static site that ports the same screens and rules, with its authored rules content (spells, races, careers, the XP economy, and system configuration) driven by editable JSON content packs so it can be reconfigured without rebuilding. Small code-level defaults keep incomplete packs usable. It runs fully offline (localStorage) and deploys as static files. See [`web/README.md`](web/README.md) for content authoring, configuration, tests, and deployment.
 
 ## Stack
 

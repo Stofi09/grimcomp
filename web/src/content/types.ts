@@ -377,6 +377,8 @@ export interface CareerAdvanceScheme {
   /** Career-skill display names (informational; skill pricing keys off the
       character's own `career` flag today). */
   skills?: string[];
+  /** Talents normally offered by this career. Names resolve against TalentDef. */
+  talents?: string[];
 }
 
 export interface Career {
@@ -387,6 +389,8 @@ export interface Career {
   species: string[];
   ranks: CareerRankDef[];
   advanceScheme?: CareerAdvanceScheme;
+  /** True when missing rulebook details were filled with bundled fallbacks. */
+  approximate?: boolean;
 }
 
 export interface SkillDef {
@@ -407,6 +411,17 @@ export interface TalentDef {
   /** The characteristic whose Bonus caps ranks (e.g. Hardy → Toughness Bonus).
       Used when `max` is absent. Omit both for a talent with no listed cap. */
   maxChar?: CharacteristicKey;
+}
+
+/** A searchable rules/reference entry that does not need a dedicated mechanic. */
+export interface ReferenceDef {
+  id: string;
+  category: string;
+  name: string;
+  meta?: string;
+  description: string;
+  /** Marks intentionally non-canonical or provisional companion material. */
+  approximate?: boolean;
 }
 
 export interface WeaponDef {
@@ -545,6 +560,7 @@ export interface ContentPack {
   careers?: Career[];
   skills?: SkillDef[];
   talents?: TalentDef[];
+  references?: ReferenceDef[];
   weapons?: WeaponDef[];
   armour?: ArmourDef[];
   trappings?: TrappingDef[];

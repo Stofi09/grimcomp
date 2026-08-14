@@ -23,7 +23,7 @@ import { Icon } from '@/components/Icon';
 import { EditSheet } from '@/components/EditSheet';
 import { TextField, NumberField } from '@/components/Fields';
 import { colors } from '@/theme';
-import { Alert } from '@/ui/alert';
+import { Alert } from '@/ui/alertStore';
 import './OverviewScreen.css';
 
 interface IdentDraft {
@@ -60,7 +60,7 @@ export const OverviewScreen: React.FC = () => {
   const xp = useXp();
   const career = useCareer();
   const vitals = useVitals();
-  const { conds, cycle, names } = useConditions();
+  const { conds, cycle, names, defs: conditionDefs } = useConditions();
   // All derived stats (max wounds, walk/run, corruption threshold) come from
   // the system formulas in the content packs, evaluated against the live
   // characteristics.
@@ -72,6 +72,17 @@ export const OverviewScreen: React.FC = () => {
   const xpTotal = xp.total;
   const corrThresh = derived.corruptionThreshold;
   const woundsMax = derived.maxWounds;
+
+  const showConditionRule = (name: string) => {
+    const def = conditionDefs.find(candidate => candidate.name === name);
+    const details = [
+      def?.description || 'No rule text is included in the loaded content.',
+      def?.penalty ? `Test modifier: ${def.penalty} per stack.` : '',
+      `Maximum tracked stacks: ${def?.maxStacks ?? 2}.`,
+      def?.clearsAtSceneEnd ? 'All stacks clear at the end of the scene.' : '',
+    ].filter(Boolean);
+    Alert.alert(name, details.join('\n\n'));
+  };
 
   // Identity sub-row. Freshly-created characters have no age/height/looks/
   // motivation yet (the wizard doesn't collect them), so build the row from
@@ -130,7 +141,7 @@ export const OverviewScreen: React.FC = () => {
         }
       />
 
-      <Section title="Vitals" aside="round 4 · scene 2" />
+      <Section title="Vitals" />
 
       <div className="ovw-vitals-grid">
         <Card bordered style={{ flexGrow: 1, minWidth: 280, flexBasis: '40%' }}>
@@ -246,11 +257,20 @@ export const OverviewScreen: React.FC = () => {
         </Card>
       </div>
 
-      <Section title="Current Conditions" aside="tap to apply · long-press for rule" />
+      <Section title="Current Conditions" aside="tap to change stacks · info opens the rule" />
       <div className="ovw-chips">
         {names.map(t => {
           const n = conds[t] ?? 0;
-          return <Chip key={t} label={t} count={n} on={n > 0} onPress={() => cycle(t)} />;
+          return (
+            <Chip
+              key={t}
+              label={t}
+              count={n}
+              on={n > 0}
+              onPress={() => cycle(t)}
+              onInfoPress={() => showConditionRule(t)}
+            />
+          );
         })}
       </div>
 
