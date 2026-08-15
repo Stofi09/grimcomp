@@ -24,9 +24,11 @@ jobs:
       # Must precede setup-node: `cache: pnpm` needs pnpm already on PATH.
       # Version comes from the root package.json `packageManager` field.
       - uses: pnpm/action-setup@v4
+      # node-version must stay >= 22.13: pnpm 11.5 loads node:sqlite, so it
+      # crashes on Node 20 during setup-node's own `pnpm store path` probe.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
