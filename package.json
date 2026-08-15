@@ -2,6 +2,7 @@
   "name": "grimcomp",
   "version": "1.0.0",
   "main": "node_modules/expo/AppEntry.js",
+  "packageManager": "pnpm@11.5.0",
   "scripts": {
     "start": "node scripts/dev-ios.js 'iPad Pro 13-inch (M5)'",
     "start:metro": "node scripts/dev-ios.js 'iPad Pro 13-inch (M5)' --no-launch",

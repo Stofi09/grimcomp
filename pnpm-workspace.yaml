@@ -1,0 +1,17 @@
+# Root workspace settings for the Expo/React Native app.
+#
+# nodeLinker: hoisted gives a flat node_modules like npm's. React Native's
+# Metro bundler and native autolinking both walk the tree expecting flat
+# layout; pnpm's default isolated/symlinked store breaks them.
+#
+# allowBuilds is pnpm >= 11.5's replacement for onlyBuiltDependencies — an
+# unlisted package with a build script is a HARD error (ERR_PNPM_IGNORED_BUILDS).
+# sharp is native and used only by `pnpm run icons` (scripts/generate-icons.js);
+# CI passes --ignore-scripts to skip building it for a typecheck.
+#
+# web/ is a SEPARATE workspace root (web/pnpm-workspace.yaml sets `packages: []`)
+# so installs there don't get hijacked by this file — pnpm walks up until it
+# finds one.
+nodeLinker: hoisted
+allowBuilds:
+  sharp: true

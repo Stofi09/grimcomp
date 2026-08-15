@@ -25,24 +25,24 @@ UI language: English.
 ## Getting started
 
 ```sh
-npm install
+pnpm install
 
 # These three are equivalent — they boot the iPad, start Metro, and
 # auto-open Expo Go on the iPad via `xcrun simctl openurl <UDID>`.
-npm start
-npm run ios
-npm run ios:ipad
+pnpm start
+pnpm run ios
+pnpm run ios:ipad
 
 # Form-factor variants
-npm run ios:ipad:11    # iPad Pro 11-inch (M5)
-npm run ios:iphone     # iPhone 17 Pro
+pnpm run ios:ipad:11    # iPad Pro 11-inch (M5)
+pnpm run ios:iphone     # iPhone 17 Pro
 
 # Other entry points
-npm run start:metro    # boots the iPad + Metro QR, no auto-launch (scan with phone)
-npm run start:raw      # pure `expo start`, no pinning at all
-npm run android        # opens Android emulator
-npm run web            # browser preview
-npm run icons          # regenerate the App Store icon
+pnpm run start:metro    # boots the iPad + Metro QR, no auto-launch (scan with phone)
+pnpm run start:raw      # pure `expo start`, no pinning at all
+pnpm run android        # opens Android emulator
+pnpm run web            # browser preview
+pnpm run icons          # regenerate the App Store icon
 ```
 
 ### Why so many scripts? Pinning a simulator per project
@@ -70,7 +70,7 @@ name in that project's `package.json`:
 Or skip the script and rely on the env var as a fallback:
 
 ```sh
-EXPO_IOS_DEVICE='iPhone 17 Pro' npm run ios
+EXPO_IOS_DEVICE='iPhone 17 Pro' pnpm run ios
 ```
 
 List devices with `xcrun simctl list devices available`. The script gives
@@ -109,7 +109,7 @@ eas credentials
 ### Pre-flight audit
 
 ```sh
-npm run audit:ios
+pnpm run audit:ios
 ```
 
 Sanity-checks `app.json` + `eas.json` for the common TestFlight blockers
@@ -123,11 +123,11 @@ you spend cloud build minutes. Mirrors `david-mobil/scripts/audit-ios-config.js`
 # On the first run EAS will offer to create the App Store Connect entry —
 # accept, then paste the resulting ascAppId into eas.json so future
 # submits are fully unattended.
-npm run submit:ios:testflight
+pnpm run submit:ios:testflight
 
 # Or split build and submit (handy if you want to inspect the .ipa first):
-npm run build:ios     # cloud build, auto-increments build number
-npm run submit:ios    # uploads the latest production build
+pnpm run build:ios     # cloud build, auto-increments build number
+pnpm run submit:ios    # uploads the latest production build
 ```
 
 After the submit step finishes, the build appears in App Store Connect → Apps → Grim Companion → TestFlight, usually within ~10 minutes of finishing processing. Add internal testers in App Store Connect to install via the TestFlight app.
@@ -135,7 +135,7 @@ After the submit step finishes, the build appears in App Store Connect → Apps 
 ### Quick internal preview build (ad-hoc, no App Store)
 
 ```sh
-npm run build:ios:preview
+pnpm run build:ios:preview
 ```
 
 Produces a `.ipa` you can install on registered devices via the EAS QR code — useful for sanity-checking before the slower TestFlight pipeline.
@@ -153,7 +153,7 @@ src/
                    # HitLocationFigure
   screens/         # 17 screens — see App.tsx for the routing table
 scripts/
-  generate-icons.js  # SVG → PNG, run via `npm run icons`
+  generate-icons.js  # SVG → PNG, run via `pnpm run icons`
 App.tsx            # font loading + screen switcher + Shell wrapper
 ```
 
