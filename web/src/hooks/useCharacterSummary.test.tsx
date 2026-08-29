@@ -9,6 +9,7 @@ import type { XpState } from './useXp';
 import { characterKey } from './useCharacter';
 import { useCharacterSummary } from './useCharacterSummary';
 import { _resetStoredCache, useStoredState } from './useStoredState';
+import { talentIdentityKey } from '@/utils/talents';
 import charactersPack from '../../public/content/core-characters.json';
 import racesPack from '../../public/content/core-races.json';
 import rulesPack from '../../public/content/core-rules.json';
@@ -94,5 +95,21 @@ describe('useCharacterSummary', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Award XP' }));
 
     expect(screen.getByTestId('xp').textContent).toBe(String(template.xpCurrent + 25));
+  });
+
+  it('derives the same summary from legacy-name and canonical Talent ranks', () => {
+    localStorage.setItem(characterKey('c1', 'talents.times'), JSON.stringify({ Hardy: 3 }));
+    _resetStoredCache();
+    renderSummary();
+    const legacyWounds = screen.getByTestId('wounds').textContent;
+
+    cleanup();
+    localStorage.setItem(characterKey('c1', 'talents.times'), JSON.stringify({
+      [talentIdentityKey({ name: 'Hardy', definitionId: 'tal.hardy' })]: 3,
+    }));
+    _resetStoredCache();
+    renderSummary();
+
+    expect(screen.getByTestId('wounds').textContent).toBe(legacyWounds);
   });
 });

@@ -14,6 +14,17 @@
   color: var(--ink4);
 }
 
+.tal-tracking-notice {
+  margin: -8px 0 2px;
+  padding: 9px 12px;
+  border-left: 2px solid var(--brass);
+  background: var(--surface2);
+  color: var(--ink2);
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  line-height: 17px;
+}
+
 /* grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 } */
 .tal-grid {
   display: flex;
@@ -73,6 +84,56 @@
   margin-top: 6px;
   line-height: 18px;
   font-family: var(--font-body);
+}
+
+.tal-rules-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--divider);
+}
+
+.tal-rules-meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.tal-source,
+.tal-status-short,
+.tal-rule-line,
+.tal-restriction {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 14px;
+}
+
+.tal-source,
+.tal-status-short {
+  color: var(--brass);
+  text-transform: uppercase;
+}
+
+.tal-status,
+.tal-picker-status {
+  color: var(--empire);
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 15px;
+}
+
+.tal-rule-line {
+  color: var(--ink3);
+}
+
+.tal-restriction,
+.tal-picker-restriction {
+  color: var(--empire);
+  font-weight: 700;
 }
 
 /* times column wrapper: { alignItems: 'flex-end', marginLeft: 14 } */
@@ -154,19 +215,28 @@
   flex-direction: column;
   gap: 6px;
   margin-top: 12px;
+  max-height: 330px;
+  padding-right: 3px;
+  overflow-y: auto;
 }
 
 .tal-picker-option {
-  position: relative;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
+  align-items: stretch;
+  gap: 5px;
   padding: 10px 12px;
   border: 1px solid var(--borderSoft);
   border-radius: 4px;
   background: var(--surface);
   text-align: left;
+}
+
+.tal-picker-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .tal-picker-option:hover,
@@ -190,13 +260,21 @@
 }
 
 .tal-picker-max {
-  position: absolute;
-  top: 10px;
-  right: 12px;
+  flex: 0 0 auto;
   color: var(--brass);
   font-family: var(--font-mono);
   font-size: 9px;
   text-transform: uppercase;
+}
+
+.tal-picker-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--ink3);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 14px;
 }
 
 .tal-picker-empty {
@@ -204,4 +282,16 @@
   color: var(--ink3);
   font-family: var(--font-body);
   font-style: italic;
+}
+
+@media (max-width: 620px) {
+  .tal-picker-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .tal-times-col {
+    margin-left: 8px;
+  }
 }

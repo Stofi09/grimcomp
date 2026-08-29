@@ -4,7 +4,7 @@ import { useCareer } from '@/hooks/useCareer';
 import { useXp } from '@/hooks/useXp';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
-import { useCareers, useXpRules } from '@/content/useContent';
+import { useCareers, useTalentDefs, useXpRules } from '@/content/useContent';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card, CardHead } from '@/components/Card';
@@ -14,6 +14,14 @@ import { Icon } from '@/components/Icon';
 import { Table, TableRow, Cell } from '@/components/Table';
 import { colors } from '@/theme';
 import { Alert } from '@/ui/alertStore';
+import {
+  canonicalizeAddedTalentRefs,
+  isTalentCareerOption,
+  resolveStoredTalentRef,
+  storedTalentRefFor,
+  talentDefForTalent,
+} from '@/utils/talents';
+import { careerDefForCharacter } from '@/utils/careers';
 import './CareerScreen.css';
 
 export const CareerScreen: React.FC = () => {
@@ -21,6 +29,7 @@ export const CareerScreen: React.FC = () => {
   const career = useCareer();
   const xp = useXp();
   const careers = useCareers();
+  const talentDefs = useTalentDefs();
   // XP to advance to the next rank of the current career (WFRP 4e core p.49 →
   // 100 by default), sourced from the content registry's XP economy.
   const ADVANCE_COST = useXpRules().careerAdvanceCost;
@@ -31,24 +40,42 @@ export const CareerScreen: React.FC = () => {
     Object.fromEntries(c.skills.map(s => [s.name, s.adv]))
   );
 
-  // Per-rank requirements come from the content registry: match the active
-  // character's career name to a Career, then read the NEXT rank's required
+  // Per-rank requirements come from the content registry: resolve the active
+  // character's stable Career id (with a legacy-name fallback), then read the NEXT rank's required
   // skill advances. career.level is the *current* (1-based) rank, so the next
   // rank is at index career.level. Missing requirements still allow a
   // GM-approved advance, but the UI must not claim that the requirements are
   // automatically met.
-  const registryCareer = careers.find(cr => cr.name === c.career);
+  const registryCareer = careerDefForCharacter(careers, c);
   const nextRankReqs = registryCareer?.ranks[career.level]?.requirements ?? [];
   const required = nextRankReqs.map(r => ({ name: r.skill, min: r.min, adv: skillAdv[r.skill] ?? 0 }));
   const ready = required.filter(s => s.adv >= s.min).length;
   const requirementsModelled = required.length > 0;
   const ok = requirementsModelled && ready === required.length;
 
-  const [addedTalentNames] = useStoredState<string[]>(characterKey(id, 'talents.added'), []);
-  const ownedTalentNames = new Set([...c.talents.map(talent => talent.name), ...addedTalentNames]);
+  const [storedAddedTalents] = useStoredState<unknown>(characterKey(id, 'talents.added'), []);
+  const templateTalentRefs = c.talents.map(talent => storedTalentRefFor(talentDefs, talent));
+  const addedTalentEntries = canonicalizeAddedTalentRefs(
+    talentDefs,
+    storedAddedTalents,
+    templateTalentRefs,
+  )
+    .map(ref => resolveStoredTalentRef(talentDefs, ref));
+  const ownedTalents = [
+    ...c.talents.map(talent => ({
+      name: talent.name,
+      definition: talentDefForTalent(talentDefs, talent),
+    })),
+    ...addedTalentEntries.map(entry => ({ name: entry.name, definition: entry.definition })),
+  ];
   const talents = (registryCareer?.advanceScheme?.talents ?? []).map(name => ({
     name,
-    done: ownedTalentNames.has(name),
+    done: ownedTalents.some(owned => isTalentCareerOption(
+      new Set([name]),
+      talentDefs,
+      owned.definition,
+      owned.name,
+    )),
   }));
 
   const advance = () => {

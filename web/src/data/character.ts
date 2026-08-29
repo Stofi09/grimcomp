@@ -18,6 +18,8 @@ export interface Characteristic {
 }
 
 export interface Skill {
+  /** Stable loaded definition id for catalog-added skills; legacy/template skills may omit it. */
+  definitionId?: string;
   name: string;
   char: CharacteristicKey;
   adv: number;
@@ -27,6 +29,10 @@ export interface Skill {
 }
 
 export interface Talent {
+  /** Stable loaded definition id for catalog-added talents; legacy/template talents may omit it. */
+  definitionId?: string;
+  /** Concrete choice for a parameterised talent, such as the selected Wind. */
+  specialization?: string;
   name: string;
   times: number;
   desc: string;
@@ -80,6 +86,8 @@ export interface Character {
       display name, resolved by id first and falling back to name for legacy data. */
   raceId?: string;
   class: string;
+  /** Stable loaded Career id. Legacy sheets may omit it and resolve by `career`. */
+  careerId?: string;
   career: string;             // currently-occupied career name
   careerLevel: number;
   careerLevelName: string;

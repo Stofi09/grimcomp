@@ -47,6 +47,14 @@
   tab-size: 2;
 }
 
+.cnt-editor-hint {
+  margin: 0 0 10px;
+  color: var(--ink3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
 .cnt-editor:focus {
   outline: none;
   border-color: var(--brass);

@@ -2,7 +2,7 @@
   "$schema": "grimcomp.content.v2",
   "id": "core-talents",
   "name": "Core Rulebook — Talents",
-  "version": "2026.06.17",
+  "version": "2026.08.21",
   "talents": [
     { "id": "tal.accurate-shot", "name": "Accurate Shot", "description": "Ignore an amount of a target's Armour Points with ranged attacks." },
     { "id": "tal.acute-sense", "name": "Acute Sense", "description": "One sense is unusually keen; bonus to Perception tests using it.", "maxChar": "i" },
@@ -40,6 +40,16 @@
     { "id": "tal.criminal", "name": "Criminal", "description": "You know the underworld's ways; +SL among thieves and fences." },
     { "id": "tal.deadeye-shot", "name": "Deadeye Shot", "description": "Aim for the head; place ranged hits with deadly accuracy." },
     { "id": "tal.dealmaker", "name": "Dealmaker", "description": "+SL on Haggle and Evaluate; you strike a better bargain." },
+    {
+      "id": "tal.detect-artefact",
+      "name": "Detect Artefact",
+      "description": "Sense whether an object is a magical artefact and discern more with a strong result.",
+      "maxChar": "i",
+      "tests": "Intuition Tests to detect magical artefacts",
+      "sourceBook": "WFRP Core Rulebook",
+      "sourcePage": 135,
+      "rulesStatus": "bibliographic"
+    },
     { "id": "tal.diceman", "name": "Diceman", "description": "Reroll a failed Gamble test involving dice." },
     { "id": "tal.dirty-fighting", "name": "Dirty Fighting", "description": "Land damaging unarmed strikes; fight without honour to win." },
     { "id": "tal.disarm", "name": "Disarm", "description": "Knock or twist a weapon from an opponent's grasp." },
@@ -83,6 +93,26 @@
     { "id": "tal.linguistics", "name": "Linguistics", "description": "Learn languages quickly; +SL on Language tests." },
     { "id": "tal.lip-reading", "name": "Lip Reading", "description": "Read words from the movement of distant lips." },
     { "id": "tal.luck", "name": "Luck", "description": "Raise your maximum Fortune; fate smiles a little wider on you.", "maxChar": "fel" },
+    {
+      "id": "tal.magic-resistance",
+      "name": "Magic Resistance",
+      "description": "Reduce the effectiveness of spells affecting you, while foregoing spellcasting Talents.",
+      "maxChar": "t",
+      "sourceBook": "WFRP Core Rulebook",
+      "sourcePage": 140,
+      "rulesNote": "Uses the official errata: Max is Toughness Bonus, replacing the printed Max 1; consult the errata for the revised effect.",
+      "rulesStatus": "bibliographic"
+    },
+    {
+      "id": "tal.magical-sense",
+      "name": "Magical Sense",
+      "description": "Sense the Winds of Magic within spellcasters and learn more with a strong result.",
+      "maxChar": "i",
+      "tests": "Intuition Tests to detect Wizards",
+      "sourceBook": "WFRP Core Rulebook",
+      "sourcePage": 140,
+      "rulesStatus": "bibliographic"
+    },
     { "id": "tal.magnum-opus", "name": "Magnum Opus", "description": "Craft a single masterwork far beyond ordinary quality." },
     { "id": "tal.marksman", "name": "Marksman", "description": "Your Ballistic Skill advances more readily; a steady aim.", "maxChar": "bs" },
     { "id": "tal.master-of-disguise", "name": "Master of Disguise", "description": "Adopt convincing disguises; +SL to pass as someone else." },
@@ -165,6 +195,15 @@
     { "id": "tal.warrior-born", "name": "Warrior Born", "description": "Your Weapon Skill advances more readily; war comes naturally.", "maxChar": "ws" },
     { "id": "tal.waterman", "name": "Waterman", "description": "+SL on tests aboard riverboats and in handling cargo afloat." },
     { "id": "tal.wealthy", "name": "Wealthy", "description": "Raise your Status; coin flows more freely to your purse." },
-    { "id": "tal.well-prepared", "name": "Well Prepared", "description": "Produce a needed mundane item you happen to have on you." }
+    { "id": "tal.well-prepared", "name": "Well Prepared", "description": "Produce a needed mundane item you happen to have on you." },
+    {
+      "id": "tal.witch",
+      "name": "Witch!",
+      "description": "Learn and work dangerous, improvised magic outside a sanctioned arcane tradition.",
+      "maxChar": "wp",
+      "sourceBook": "WFRP Core Rulebook",
+      "sourcePage": 147,
+      "rulesStatus": "bibliographic"
+    }
   ]
 }

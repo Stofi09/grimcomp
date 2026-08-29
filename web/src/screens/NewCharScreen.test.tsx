@@ -27,9 +27,9 @@ const registry = new ContentRegistry([
   creationPack,
 ] as unknown as ContentPack[]);
 
-function renderCreator(onNav = vi.fn()) {
+function renderCreator(onNav = vi.fn(), content = registry) {
   render(
-    <ContentContext.Provider value={registry}>
+    <ContentContext.Provider value={content}>
       <NewCharScreen onNav={onNav} />
     </ContentContext.Provider>,
   );
@@ -120,6 +120,48 @@ describe('NewCharScreen', () => {
     random.mockRestore();
   });
 
+  it('hides reference-only careers and keeps manual-only careers out of random rolls', () => {
+    const restrictedCareers = JSON.parse(JSON.stringify(careersPack)) as ContentPack;
+    for (const career of restrictedCareers.careers ?? []) {
+      career.creationAvailable = false;
+      career.randomEligible = false;
+    }
+    const manualOnly = restrictedCareers.careers?.find(career => career.id === 'car.roadwarden');
+    const randomCareer = restrictedCareers.careers?.find(career => career.id === 'car.wizard');
+    if (!manualOnly || !randomCareer) throw new Error('Career test fixtures are missing');
+    manualOnly.creationAvailable = true;
+    manualOnly.randomEligible = false;
+    randomCareer.creationAvailable = true;
+    randomCareer.randomEligible = true;
+
+    const restrictedRegistry = new ContentRegistry([
+      rulesPack,
+      racesPack,
+      restrictedCareers,
+      skillsPack,
+      talentsPack,
+      charactersPack,
+      creationPack,
+    ] as unknown as ContentPack[]);
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    renderCreator(vi.fn(), restrictedRegistry);
+    reachCareerStep();
+
+    expect(screen.getByText(/2 careers open to Human\./)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Apothecary/ })).toBeNull();
+    const manualButton = screen.getByRole('button', { name: /^Roadwarden/ });
+    fireEvent.click(manualButton);
+    expect(manualButton.getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Roll & accept · +50 XP' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Roll one career' }));
+
+    expect(screen.getByText('Wizard')).toBeTruthy();
+    expect(screen.queryByText('Roadwarden')).toBeNull();
+    random.mockRestore();
+  });
+
   it('shows the total after species modifiers', () => {
     const random = vi.spyOn(Math, 'random').mockReturnValue(0);
     renderCreator();
@@ -148,8 +190,10 @@ describe('NewCharScreen', () => {
       talents: Array<{ career: boolean }>;
       weapons: Array<{ name: string }>;
       armour: unknown[];
+      careerId?: string;
       careerLevel: number;
     };
+    expect(created.careerId).toBe('car.roadwarden');
     expect(created.careerLevel).toBe(1);
     expect(created.characteristics.reduce((sum, c) => sum + c.adv, 0)).toBe(5);
     expect(created.skills.filter(s => s.career)).toHaveLength(8);
@@ -157,5 +201,53 @@ describe('NewCharScreen', () => {
     expect(created.talents.filter(t => t.career)).toHaveLength(1);
     expect(created.weapons.map(w => w.name)).toEqual(['Hand Weapon']);
     expect(created.armour).toEqual([]);
+  });
+
+  it('never grants an unspecialised parameterised Talent during creation', () => {
+    const careersWithGroupedTalent = JSON.parse(JSON.stringify(careersPack)) as ContentPack;
+    const roadwarden = careersWithGroupedTalent.careers?.find(career => career.id === 'car.roadwarden');
+    if (!roadwarden) throw new Error('Roadwarden test fixture is missing');
+    roadwarden.advanceScheme = {
+      ...roadwarden.advanceScheme,
+      talents: ['Suffuse with (Wind)', 'Acute Sense'],
+    };
+    const groupedTalentPack = {
+      $schema: 'grimcomp.content.v2',
+      id: 'test-grouped-talent',
+      name: 'Test grouped talent',
+      version: '1',
+      talents: [{
+        id: 'tal.suffuse-with-wind',
+        name: 'Suffuse with (Wind)',
+        description: 'Choose a Wind.',
+        max: 1,
+        specializations: ['Aqshy', 'Azyr'],
+      }],
+    } as ContentPack;
+    const groupedRegistry = new ContentRegistry([
+      rulesPack,
+      racesPack,
+      careersWithGroupedTalent,
+      skillsPack,
+      talentsPack,
+      groupedTalentPack,
+      charactersPack,
+      creationPack,
+    ] as unknown as ContentPack[]);
+
+    renderCreator(vi.fn(), groupedRegistry);
+    reachCareerStep();
+    fireEvent.click(screen.getByRole('button', { name: 'Roadwarden · APPROX' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Step 4: Review' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Finish & switch' }));
+
+    const custom = JSON.parse(localStorage.getItem('gc.customChars') ?? '{}');
+    const created = Object.values(custom)[0] as {
+      talents: Array<{ definitionId?: string; name: string; specialization?: string }>;
+    };
+    expect(created.talents).toEqual(expect.arrayContaining([
+      expect.objectContaining({ definitionId: 'tal.acute-sense', name: 'Acute Sense' }),
+    ]));
+    expect(created.talents.some(talent => talent.name.includes('Suffuse with'))).toBe(false);
   });
 });

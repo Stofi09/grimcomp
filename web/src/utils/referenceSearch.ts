@@ -1,4 +1,19 @@
 import type { ContentRegistry } from '@/content/registry';
+import {
+  careerMagicAccessLabel,
+  careerMagicAccessMeta,
+  careerRulesStatusLabel,
+  careerRulesStatusMeta,
+  careerSourceLabel,
+} from './careers';
+import { skillRulesStatusLabel, skillRulesStatusMeta, skillSourceLabel } from './skills';
+import { spellRulesStatusLabel, spellRulesStatusMeta, spellSourceLabel } from './spells';
+import {
+  TALENT_TRACKING_NOTICE,
+  talentRulesStatusLabel,
+  talentRulesStatusMeta,
+  talentSourceLabel,
+} from './talents';
 
 export type ReferenceCategory =
   | 'Careers'
@@ -21,18 +36,30 @@ export interface ReferenceItem {
 const nonEmpty = (...parts: Array<string | number | undefined>) =>
   parts.filter(part => part !== undefined && String(part).trim().length > 0).join(' · ');
 
+const nonEmptyUnique = (...parts: Array<string | number | undefined>) => [
+  ...new Set(parts
+    .filter(part => part !== undefined && String(part).trim().length > 0)
+    .map(part => String(part).trim())),
+].join(' · ');
+
 /** Turn the loaded registry into one searchable, display-ready reference list. */
 export function buildReferenceItems(registry: ContentRegistry): ReferenceItem[] {
   const careers: ReferenceItem[] = registry.allCareers.map(career => ({
     id: `career:${career.id}`,
     category: 'Careers',
     name: career.name,
-    meta: nonEmpty(
+    meta: nonEmptyUnique(
       career.class,
       `${career.ranks.length} ranks`,
-      career.approximate ? 'Approximate details' : undefined,
+      career.rulesStatus
+        ? careerRulesStatusMeta(career)
+        : career.approximate ? 'Approximate details' : undefined,
+      careerSourceLabel(career),
+      career.creationAvailable === false ? 'Unavailable at creation' : undefined,
+      careerMagicAccessMeta(career),
     ),
     detail: [
+      careerRulesStatusLabel(career),
       career.ranks.map(rank => {
         const requirements = rank.requirements?.length
           ? ` · requires ${rank.requirements.map(req => `${req.skill} +${req.min}`).join(', ')}`
@@ -48,33 +75,77 @@ export function buildReferenceItems(registry: ContentRegistry): ReferenceItem[] 
       career.advanceScheme?.talents?.length
         ? `Career talents: ${career.advanceScheme.talents.join(', ')}`
         : '',
+      career.rulesNote?.trim() ? `Rules note: ${career.rulesNote.trim()}` : '',
+      career.creationAvailable === false ? 'Creation: unavailable for new characters.' : '',
+      careerMagicAccessLabel(career),
     ].filter(Boolean).join('\n'),
   }));
   const skills: ReferenceItem[] = registry.allSkillDefs.map(skill => ({
     id: `skill:${skill.id}`,
     category: 'Skills',
     name: skill.name,
-    meta: nonEmpty(skill.advanced ? 'Advanced' : 'Basic', skill.char.toUpperCase()),
-    detail: skill.description || 'No description is included in the loaded content.',
+    meta: nonEmptyUnique(
+      skill.advanced ? 'Advanced' : 'Basic',
+      skill.grouped ? 'Grouped' : undefined,
+      skill.char.toUpperCase(),
+      skillRulesStatusMeta(skill),
+      skillSourceLabel(skill),
+    ),
+    detail: [
+      skillRulesStatusLabel(skill),
+      skill.description || 'No description is included in the loaded content.',
+      skill.rulesNote?.trim() ? `Rules note: ${skill.rulesNote.trim()}` : '',
+    ].filter(Boolean).join('\n'),
   }));
   const talents: ReferenceItem[] = registry.allTalentDefs.map(talent => ({
     id: `talent:${talent.id}`,
     category: 'Talents',
     name: talent.name,
-    meta: talent.max !== undefined
-      ? `Max ${talent.max}`
-      : talent.maxChar
-        ? `Max ${talent.maxChar.toUpperCase()} Bonus`
-        : 'No listed maximum',
-    detail: talent.description || 'No description is included in the loaded content.',
+    meta: nonEmptyUnique(
+      talent.max !== undefined
+        ? `Max ${talent.max}`
+        : talent.maxChar
+          ? `Max ${talent.maxChar.toUpperCase()} Bonus`
+          : 'No listed maximum',
+      talent.tests ? `Tests: ${talent.tests}` : undefined,
+      talent.specializations?.length ? `${talent.specializations.length} choices` : undefined,
+      talent.restriction ? 'Restricted' : undefined,
+      talentRulesStatusMeta(talent),
+      talentSourceLabel(talent),
+    ),
+    detail: [
+      talentRulesStatusLabel(talent),
+      talent.rulesStatus ? TALENT_TRACKING_NOTICE : '',
+      talent.description || 'No description is included in the loaded content.',
+      talent.specializations?.length
+        ? `Choices: ${talent.specializations.join(', ')}`
+        : '',
+      talent.tests?.trim() ? `Tests: ${talent.tests.trim()}` : '',
+      talent.restriction?.trim() ? `Restriction: ${talent.restriction.trim()}` : '',
+      talent.rulesNote?.trim() ? `Rules note: ${talent.rulesNote.trim()}` : '',
+    ].filter(Boolean).join('\n'),
   }));
-  const spells: ReferenceItem[] = registry.allSpells.map(spell => ({
-    id: `spell:${spell.id}`,
-    category: 'Spells',
-    name: spell.name,
-    meta: nonEmpty(spell.lore, `CN ${spell.cn}`, spell.range, spell.duration),
-    detail: nonEmpty(spell.target && `Target: ${spell.target}`, spell.description, spell.damage && `Damage: ${spell.damage}`),
-  }));
+  const spells: ReferenceItem[] = registry.allSpells.map(spell => {
+    const description = spell.rulesStatus === 'bibliographic' ? '' : spell.description;
+    return {
+      id: `spell:${spell.id}`,
+      category: 'Spells',
+      name: spell.name,
+      meta: nonEmptyUnique(
+        spell.lore,
+        `CN ${spell.cn}`,
+        spell.range,
+        spell.duration,
+        spellRulesStatusMeta(spell),
+        spellSourceLabel(spell),
+      ),
+      detail: [
+        spellRulesStatusLabel(spell),
+        nonEmpty(spell.target && `Target: ${spell.target}`, description, spell.damage && `Damage: ${spell.damage}`),
+        spell.rulesNote?.trim() ? `Rules note: ${spell.rulesNote.trim()}` : '',
+      ].filter(Boolean).join('\n'),
+    };
+  });
   const prayers: ReferenceItem[] = registry.allPrayers.map(prayer => ({
     id: `prayer:${prayer.id}`,
     category: 'Prayers',

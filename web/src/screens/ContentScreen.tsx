@@ -19,10 +19,11 @@ import { useContentEdits } from '@/content/useContentEdits';
 import { validatePack } from '@/content/validate';
 import { CONTENT_SCHEMA, EDITABLE_SECTIONS, USER_EDITS_PACK_ID, type EditableSection } from '@/content/types';
 import { SECTION_META } from '@/content/editable';
+import { talentDefForName } from '@/utils/talents';
 import { colors } from '@/theme';
 import './ContentScreen.css';
 
-interface Entry { id: string; name?: string }
+interface Entry { id: string; name?: string; sourceBook?: string }
 
 type SheetState = { mode: 'new' | 'edit'; id: string; text: string };
 
@@ -52,9 +53,8 @@ function refWarnings(section: EditableSection, entry: Record<string, unknown>, r
         }
       }
     }
-    const talentNames = new Set(reg.allTalentDefs.map(t => t.name));
     for (const talent of scheme?.talents ?? []) {
-      if (typeof talent === 'string' && !talentNames.has(talent)) {
+      if (typeof talent === 'string' && !talentDefForName(reg.allTalentDefs, talent)) {
         w.push(`• career talent "${talent}" — no talent with that name`);
       }
     }
@@ -287,25 +287,31 @@ export const ContentScreen: React.FC = () => {
             <Cell header flex={1}>Source</Cell>
             <Cell header flex={1.4} align="right"> </Cell>
           </TableRow>
-          {entries.map((e, i) => (
-            <TableRow key={e.id} last={i === entries.length - 1 && deletedIds.length === 0}>
-              <Cell flex={2} textStyle={{ fontFamily: 'var(--font-body)', fontWeight: 600 }}>{e.name ?? e.id}</Cell>
-              <Cell flex={2} textStyle={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: colors.ink3 }}>{e.id}</Cell>
-              <Cell flex={1}>
-                <Pill variant={customIds.has(e.id) ? 'brass' : 'ghost'} size={10}>
-                  {customIds.has(e.id) ? 'Custom' : 'Core'}
-                </Pill>
-              </Cell>
-              <Cell flex={1.4} align="right">
-                <div className="cnt-row-actions">
-                  <Button variant="ghost" onPress={() => openEdit(e)}>Edit</Button>
-                  {customIds.has(e.id)
-                    ? <Button variant="ghost" onPress={() => confirmRevert(e)}>Revert</Button>
-                    : <Button variant="ghost" onPress={() => confirmDelete(e)}>Delete</Button>}
-                </div>
-              </Cell>
-            </TableRow>
-          ))}
+          {entries.map((e, i) => {
+            const isCustom = customIds.has(e.id);
+            const source = isCustom
+              ? 'Custom'
+              : e.sourceBook?.trim()
+                ? e.sourceBook.trim()
+                : 'Bundled';
+            return (
+              <TableRow key={e.id} last={i === entries.length - 1 && deletedIds.length === 0}>
+                <Cell flex={2} textStyle={{ fontFamily: 'var(--font-body)', fontWeight: 600 }}>{e.name ?? e.id}</Cell>
+                <Cell flex={2} textStyle={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: colors.ink3 }}>{e.id}</Cell>
+                <Cell flex={1}>
+                  <Pill variant={isCustom ? 'brass' : 'ghost'} size={10}>{source}</Pill>
+                </Cell>
+                <Cell flex={1.4} align="right">
+                  <div className="cnt-row-actions">
+                    <Button variant="ghost" onPress={() => openEdit(e)}>Edit</Button>
+                    {isCustom
+                      ? <Button variant="ghost" onPress={() => confirmRevert(e)}>Revert</Button>
+                      : <Button variant="ghost" onPress={() => confirmDelete(e)}>Delete</Button>}
+                  </div>
+                </Cell>
+              </TableRow>
+            );
+          })}
           {deletedIds.map((id, i) => (
             <TableRow key={`del-${id}`} last={i === deletedIds.length - 1}>
               <Cell flex={2} textStyle={{ color: colors.ink3, fontStyle: 'italic' }}>{nameCache.current[id] ?? id}</Cell>
@@ -341,15 +347,18 @@ export const ContentScreen: React.FC = () => {
           : undefined}
       >
         {sheet ? (
-          <textarea
-            className="cnt-editor"
-            aria-label={`${sheet.mode === 'new' ? 'New' : 'Edit'} ${meta.singular} JSON`}
-            value={sheet.text}
-            onChange={(e) => setSheet(s => (s ? { ...s, text: e.target.value } : s))}
-            spellCheck={false}
-            autoCapitalize="off"
-            autoCorrect="off"
-          />
+          <>
+            {meta.editorHint ? <p className="cnt-editor-hint">{meta.editorHint}</p> : null}
+            <textarea
+              className="cnt-editor"
+              aria-label={`${sheet.mode === 'new' ? 'New' : 'Edit'} ${meta.singular} JSON`}
+              value={sheet.text}
+              onChange={(e) => setSheet(s => (s ? { ...s, text: e.target.value } : s))}
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+            />
+          </>
         ) : null}
       </EditSheet>
 

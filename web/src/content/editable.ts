@@ -11,17 +11,23 @@ export interface SectionMeta {
   singular: string;
   /** A minimal valid skeleton entry for creating a new one. */
   template: Record<string, unknown>;
+  /** Section-specific guidance shown beside the raw JSON editor. */
+  editorHint?: string;
 }
 
 export const SECTION_META: SectionMeta[] = [
   { key: 'careers', label: 'Careers', singular: 'career',
-    template: { id: 'car.new', name: 'New Career', class: 'Warrior', species: [], ranks: [{ level: 1, name: 'Rank 1', status: 'Brass 1' }] } },
+    template: { id: 'car.new', name: 'New Career', class: 'Warrior', species: [], ranks: [{ level: 1, name: 'Rank 1', status: 'Brass 1' }] },
+    editorHint: 'Optional career fields: "advanceScheme", "approximate" (legacy fallback flag), "sourceBook" (string), "sourcePage" (whole number ≥ 0), "rulesStatus" ("bibliographic" or "approximate"), "rulesNote", "creationAvailable" (boolean), "randomEligible" (boolean), and "magicAccess" ("none", "starting", or "later").' },
   { key: 'talents', label: 'Talents', singular: 'talent',
-    template: { id: 'tal.new', name: 'New Talent', description: '' } },
+    template: { id: 'tal.new', name: 'New Talent', description: '' },
+    editorHint: 'Optional talent fields: "max" (number), "maxChar" (characteristic key), "tests" (string), "specializations" (string array), "sourceBook" (string), "sourcePage" (whole number ≥ 0), "restriction" (eligibility text), "rulesStatus" ("bibliographic" or "approximate"), and "rulesNote" (a talent-specific note only).' },
   { key: 'skills', label: 'Skills', singular: 'skill',
-    template: { id: 'sk.new', name: 'New Skill', char: 'ws', advanced: false, grouped: false, description: '' } },
+    template: { id: 'sk.new', name: 'New Skill', char: 'ws', advanced: false, grouped: false, description: '' },
+    editorHint: 'Optional skill fields: "sourceBook" (string), "sourcePage" (whole number ≥ 0), "rulesStatus" ("bibliographic" or "approximate"), and "rulesNote" (a skill-specific note only).' },
   { key: 'spells', label: 'Spells', singular: 'spell',
-    template: { id: 'sp.new', name: 'New Spell', lore: 'Petty', cn: 0, range: 'Touch', target: '1', duration: 'Instant', description: '' } },
+    template: { id: 'sp.new', name: 'New Spell', lore: 'Petty', cn: 0, range: 'Touch', target: '1', duration: 'Instant', description: 'Describe the spell effect.' },
+    editorHint: 'Optional spell fields: "damage" (string), "sourceBook" (string), "sourcePage" (whole number ≥ 0), "rulesStatus" ("bibliographic" or "approximate"), and "rulesNote" (a spell-specific note only).' },
   { key: 'prayers', label: 'Prayers', singular: 'prayer',
     template: { id: 'p.new', name: 'New Prayer', deity: 'Any', range: 'Touch', target: '1', duration: 'Instant', description: '' } },
   { key: 'races', label: 'Species', singular: 'species',

@@ -1,64 +1,188 @@
 // Live talent ranks, scoped to the active character.
-import { useCallback } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useStoredState } from './useStoredState';
 import { useActiveCharId, characterKey } from './useCharacter';
 import { useRoster } from './useRoster';
-import { useCareers, useTalentDefs } from '@/content/useContent';
+import { useContent } from '@/content/useContent';
 import { type Talent } from '@/data/character';
+import {
+  canonicalizeAddedTalentRefs,
+  isTalentCareerOption,
+  migrateTalentTimes,
+  normalizeAddedTalentRefs,
+  resolveStoredTalentRef,
+  storedTalentRefFor,
+  talentIdentityKey,
+  type StoredTalentRef,
+  type TalentRefLike,
+  type TalentRankOwner,
+} from '@/utils/talents';
+import { careerDefForCharacter } from '@/utils/careers';
 
-type TimesMap = Record<string, number>;
+export interface LiveTalent extends Talent {
+  times: number;
+  /** Historical label retained for legacy XP-log refund matching. */
+  storedName: string;
+  /** True only for a character-scoped acquired overlay, never a template grant. */
+  added: boolean;
+}
 
 export function useTalents() {
   const id = useActiveCharId();
   const { get } = useRoster();
   const tpl = get(id);
-  const talentDefs = useTalentDefs();
-  const careers = useCareers();
-  const seed = Object.fromEntries(tpl.talents.map(t => [t.name, t.times]));
-  const [times, setTimes] = useStoredState<TimesMap>(characterKey(id, 'talents.times'), seed);
-  const [addedNames] = useStoredState<string[]>(characterKey(id, 'talents.added'), []);
+  const content = useContent();
+  // Registry entity getters return fresh arrays; anchor them to the registry so
+  // migration memos/effects do not churn on unrelated screen state changes.
+  const talentDefs = useMemo(() => content.allTalentDefs, [content]);
+  const careers = useMemo(() => content.allCareers, [content]);
 
-  const buyAnother = useCallback((name: string) => {
-    setTimes(prev => ({ ...prev, [name]: (prev[name] ?? 0) + 1 }));
-  }, [setTimes]);
+  const templateEntries = useMemo(() => tpl.talents.map(talent => {
+    const ref = storedTalentRefFor(talentDefs, talent);
+    return { talent, ref, resolved: resolveStoredTalentRef(talentDefs, ref) };
+  }), [talentDefs, tpl.talents]);
+  const templateRefs = useMemo(
+    () => templateEntries.map(entry => entry.ref),
+    [templateEntries],
+  );
+  const seed = useMemo(() => Object.fromEntries(templateEntries.map(({ talent, ref }) => (
+    [talentIdentityKey(ref), talent.times]
+  ))), [templateEntries]);
 
-  // Reverse a purchased rank (used by the undo path after a successful XP
-  // refund). Never drops a talent below a single rank — you can't un-know it.
-  const refundRank = useCallback((name: string) => {
-    setTimes(prev => ({ ...prev, [name]: Math.max(1, (prev[name] ?? 1) - 1) }));
-  }, [setTimes]);
+  const [storedTimes, setStoredTimes] = useStoredState<unknown>(characterKey(id, 'talents.times'), seed);
+  const [storedAdded, setStoredAdded] = useStoredState<unknown>(characterKey(id, 'talents.added'), []);
+  const addedRefs = useMemo(
+    () => canonicalizeAddedTalentRefs(talentDefs, storedAdded, templateRefs),
+    [storedAdded, talentDefs, templateRefs],
+  );
+  const resolvedAddedRefs = useMemo(
+    () => addedRefs.map(ref => resolveStoredTalentRef(talentDefs, ref)),
+    [addedRefs, talentDefs],
+  );
+  const rankOwners = useMemo<TalentRankOwner[]>(() => [
+    ...templateEntries.map(({ talent, ref, resolved }) => ({
+      ref,
+      aliases: [talent.name, resolved.name],
+      initial: talent.times,
+    })),
+    ...resolvedAddedRefs.map(resolved => ({
+      ref: resolved.stored,
+      aliases: [resolved.stored.name, resolved.name],
+      initial: 1,
+    })),
+  ], [resolvedAddedRefs, templateEntries]);
+  const migratedRanks = useMemo(
+    () => migrateTalentTimes(storedTimes, rankOwners),
+    [rankOwners, storedTimes],
+  );
+  const times = migratedRanks.times;
 
-  const forgetTalent = useCallback((name: string) => {
-    setTimes(prev => {
-      const next = { ...prev };
-      delete next[name];
+  // Persist legacy-name migrations exactly once. The computed canonical state
+  // is used immediately, so the first render is already correct.
+  useEffect(() => {
+    if (migratedRanks.migrated) setStoredTimes(migratedRanks.times);
+  }, [migratedRanks, setStoredTimes]);
+  useEffect(() => {
+    const unchanged = Array.isArray(storedAdded)
+      && storedAdded.length === addedRefs.length
+      && storedAdded.every((candidate, index) => {
+        if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return false;
+        const record = candidate as Record<string, unknown>;
+        const ref = addedRefs[index];
+        return Object.keys(record).every(key => ['name', 'definitionId', 'specialization'].includes(key))
+          && record.name === ref?.name
+          && record.definitionId === ref?.definitionId
+          && record.specialization === ref?.specialization;
+      });
+    if (!unchanged) setStoredAdded(addedRefs);
+  }, [addedRefs, setStoredAdded, storedAdded]);
+
+  const canonicalMutationRef = (talent: TalentRefLike): StoredTalentRef => (
+    storedTalentRefFor(talentDefs, talent)
+  );
+  const canonicalTimes = (value: unknown) => migrateTalentTimes(value, rankOwners).times;
+
+  const buyAnother = (talent: TalentRefLike) => {
+    const ref = canonicalMutationRef(talent);
+    const key = talentIdentityKey(ref);
+    setStoredTimes((previous: unknown) => {
+      const current = canonicalTimes(previous);
+      return { ...current, [key]: (current[key] ?? 0) + 1 };
+    });
+  };
+
+  const refundRank = (talent: TalentRefLike) => {
+    const ref = canonicalMutationRef(talent);
+    const key = talentIdentityKey(ref);
+    setStoredTimes((previous: unknown) => {
+      const current = canonicalTimes(previous);
+      return { ...current, [key]: Math.max(1, (current[key] ?? 1) - 1) };
+    });
+  };
+
+  const forgetTalent = (talent: TalentRefLike) => {
+    const ref = canonicalMutationRef(talent);
+    const key = talentIdentityKey(ref);
+    setStoredTimes((previous: unknown) => {
+      const next = canonicalTimes(previous);
+      delete next[key];
       return next;
     });
-  }, [setTimes]);
+  };
 
-  const templateTalents: (Talent & { times: number })[] = tpl.talents.map(t => ({
-    ...t,
-    times: times[t.name] ?? t.times,
-  }));
-  const templateNames = new Set(templateTalents.map(talent => talent.name));
-  const registryCareer = careers.find(candidate => candidate.name === tpl.career);
+  const addTalentRef = (ref: StoredTalentRef) => {
+    setStoredAdded((previous: unknown) => canonicalizeAddedTalentRefs(
+      talentDefs,
+      [...normalizeAddedTalentRefs(previous), ref],
+      templateRefs,
+    ));
+  };
+
+  const removeTalentRef = (talent: TalentRefLike) => {
+    const key = talentIdentityKey(canonicalMutationRef(talent));
+    setStoredAdded((previous: unknown) => canonicalizeAddedTalentRefs(
+      talentDefs,
+      previous,
+      templateRefs,
+    ).filter(ref => talentIdentityKey(ref) !== key));
+  };
+
+  const registryCareer = careerDefForCharacter(careers, tpl);
   const careerTalentNames = new Set(registryCareer?.advanceScheme?.talents ?? []);
-  const defsByName = new Map(talentDefs.map(def => [def.name, def]));
-  // Talents bought through the picker are stored as names + rank overlays rather
-  // than being written back into the immutable character template. Compose them
-  // here so every consumer (including derived Max Wounds) sees the same live list.
-  const addedTalents: (Talent & { times: number })[] = addedNames.flatMap(name => {
-    if (templateNames.has(name)) return [];
-    const def = defsByName.get(name);
-    if (!def) return [];
-    return [{
-      name: def.name,
-      times: times[def.name] ?? 1,
-      desc: def.description,
-      career: careerTalentNames.has(def.name),
-    }];
+  const templateTalents: LiveTalent[] = templateEntries.map(({ talent, ref, resolved }) => ({
+    ...talent,
+    name: resolved.name,
+    definitionId: ref.definitionId,
+    specialization: resolved.specialization,
+    times: times[talentIdentityKey(ref)] ?? talent.times,
+    storedName: talent.name,
+    added: false,
+  }));
+  const addedTalents: LiveTalent[] = resolvedAddedRefs.map(resolved => {
+    const definition = resolved.definition;
+    return {
+      name: resolved.name,
+      definitionId: resolved.stored.definitionId ?? definition?.id,
+      specialization: resolved.specialization,
+      times: times[talentIdentityKey(resolved.stored)] ?? 1,
+      desc: definition?.description
+        ?? 'Loaded definition unavailable; restore its content pack to view the rules summary.',
+      career: isTalentCareerOption(careerTalentNames, talentDefs, definition, resolved.name),
+      storedName: resolved.stored.name,
+      added: true,
+    };
   });
   const list = [...templateTalents, ...addedTalents];
 
-  return { times, list, buyAnother, refundRank, forgetTalent };
+  return {
+    times,
+    list,
+    addedRefs,
+    resolvedAddedRefs,
+    buyAnother,
+    refundRank,
+    forgetTalent,
+    addTalentRef,
+    removeTalentRef,
+  };
 }

@@ -97,10 +97,20 @@ export interface CareerCapabilities {
 const CASTER_CAREERS = new Set(['car.wizard', 'car.hedge-witch', 'car.witch']);
 const ANOINTED_CAREERS = new Set(['car.priest', 'car.warrior-priest', 'car.nun']);
 
+type CareerCapabilitySource = string | {
+  id: string;
+  magicAccess?: 'none' | 'starting' | 'later';
+};
+
 /** Whether a career grants the Magic / Faith screens at creation. */
-export function inferCareerCapabilities(careerId: string): CareerCapabilities {
+export function inferCareerCapabilities(career: CareerCapabilitySource): CareerCapabilities {
+  const careerId = typeof career === 'string' ? career : career.id;
+  const isCaster = typeof career === 'string' || career.magicAccess === undefined
+    ? CASTER_CAREERS.has(careerId)
+    : career.magicAccess === 'starting';
+
   return {
-    isCaster: CASTER_CAREERS.has(careerId),
+    isCaster,
     isAnointed: ANOINTED_CAREERS.has(careerId),
   };
 }

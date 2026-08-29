@@ -2,7 +2,7 @@
   "$schema": "grimcomp.content.v2",
   "id": "core-characters",
   "name": "Core Rulebook — Sample Characters",
-  "version": "2026.04.01",
+  "version": "2026.08.21",
   "characters": [
     {
       "id": "c1",
@@ -10,6 +10,7 @@
       "species": "Human",
       "raceId": "race.human",
       "class": "Warrior",
+      "careerId": "car.roadwarden",
       "career": "Roadwarden",
       "careerLevel": 2,
       "careerLevelName": "Road Sergeant",
@@ -63,11 +64,11 @@
         { "name": "Haggle", "char": "fel", "adv": 0, "career": false, "advanced": false }
       ],
       "talents": [
-        { "name": "Sure Shot", "times": 1, "desc": "No penalty when shooting from a moving mount", "career": true },
-        { "name": "Sharp", "times": 1, "desc": "Double range on visual perception tests", "career": true },
-        { "name": "Hardy", "times": 2, "desc": "+T Bonus to every Wound point", "career": true },
-        { "name": "Lightning Reflexes", "times": 1, "desc": "Reroll one Initiative test per combat", "career": false },
-        { "name": "Menacing", "times": 1, "desc": "+10 to Intimidate tests", "career": false }
+        { "name": "Sure Shot", "definitionId": "tal.sure-shot", "times": 1, "desc": "No penalty when shooting from a moving mount", "career": true },
+        { "name": "Sharp", "definitionId": "tal.sharp", "times": 1, "desc": "Double range on visual perception tests", "career": true },
+        { "name": "Hardy", "definitionId": "tal.hardy", "times": 2, "desc": "+T Bonus to every Wound point", "career": true },
+        { "name": "Lightning Reflexes", "definitionId": "tal.lightning-reflexes", "times": 1, "desc": "Reroll one Initiative test per combat", "career": false },
+        { "name": "Menacing", "definitionId": "tal.menacing", "times": 1, "desc": "+10 to Intimidate tests", "career": false }
       ],
       "weapons": [
         { "name": "Hand Weapon (Sword)", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+4", "qual": ["Defensive"] },
@@ -120,8 +121,8 @@
       "name": "Adelheid Vogt",
       "species": "Human",
       "raceId": "race.human",
-      "raceId": "race.human",
       "class": "Academic",
+      "careerId": "car.wizard",
       "career": "Wizard",
       "careerLevel": 3,
       "careerLevelName": "Pyromancer",
@@ -173,10 +174,10 @@
         { "name": "Endurance", "char": "t", "adv": 5, "career": false, "advanced": false }
       ],
       "talents": [
-        { "name": "Petty Magic", "times": 1, "desc": "Knows the four Petty Magic spells", "career": true },
-        { "name": "Arcane Magic (Fire)", "times": 1, "desc": "Cast spells from the Lore of Fire", "career": true },
-        { "name": "Aethyric Attunement", "times": 1, "desc": "+1 SL on channelling tests", "career": true },
-        { "name": "Read/Write", "times": 1, "desc": "Can read and write Reikspiel", "career": true }
+        { "name": "Petty Magic", "definitionId": "tal.petty-magic", "times": 1, "desc": "Knows the four Petty Magic spells", "career": true },
+        { "name": "Arcane Magic (Fire)", "definitionId": "tal.arcane-magic", "specialization": "Fire", "times": 1, "desc": "Cast spells from the Lore of Fire", "career": true },
+        { "name": "Aethyric Attunement", "definitionId": "tal.aethyric-attunement", "times": 1, "desc": "+1 SL on channelling tests", "career": true },
+        { "name": "Read/Write", "definitionId": "tal.read-write", "times": 1, "desc": "Can read and write Reikspiel", "career": true }
       ],
       "weapons": [
         { "name": "Quarterstaff", "group": "Two-handed", "enc": 2, "reach": "Long", "dmg": "SB+3", "qual": ["Defensive", "Pummel"] },
@@ -222,8 +223,8 @@
       "name": "Brogar Grimmson",
       "species": "Dwarf",
       "raceId": "race.dwarf",
-      "raceId": "race.dwarf",
       "class": "Warrior",
+      "careerId": "car.runesmith",
       "career": "Runesmith",
       "careerLevel": 2,
       "careerLevelName": "Journeyman Runesmith",
@@ -276,12 +277,12 @@
         { "name": "Research", "char": "int", "adv": 5, "career": false, "advanced": true }
       ],
       "talents": [
-        { "name": "Hardy", "times": 2, "desc": "+T Bonus to every Wound point", "career": true },
-        { "name": "Second Sight", "times": 1, "desc": "Perceives the Winds of Magic and the song of active runes", "career": true },
-        { "name": "Read/Write", "times": 1, "desc": "Reads and writes Khazalid and Reikspiel", "career": true },
-        { "name": "Strong-minded", "times": 1, "desc": "Reroll a failed Cool test vs mental influence", "career": true },
-        { "name": "Night Vision", "times": 1, "desc": "Sees in the dark of the deep holds", "career": false },
-        { "name": "Sturdy", "times": 1, "desc": "Ignores movement penalties from heavy gear", "career": false }
+        { "name": "Hardy", "definitionId": "tal.hardy", "times": 2, "desc": "+T Bonus to every Wound point", "career": true },
+        { "name": "Second Sight", "definitionId": "tal.second-sight", "times": 1, "desc": "Perceives the Winds of Magic and the song of active runes", "career": true },
+        { "name": "Read/Write", "definitionId": "tal.read-write", "times": 1, "desc": "Reads and writes Khazalid and Reikspiel", "career": true },
+        { "name": "Strong-minded", "definitionId": "tal.strong-minded", "times": 1, "desc": "Reroll a failed Cool test vs mental influence", "career": true },
+        { "name": "Night Vision", "definitionId": "tal.night-vision", "times": 1, "desc": "Sees in the dark of the deep holds", "career": false },
+        { "name": "Sturdy", "definitionId": "tal.sturdy", "times": 1, "desc": "Ignores movement penalties from heavy gear", "career": false }
       ],
       "weapons": [
         { "name": "Rune-etched Hand Weapon", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+5", "qual": ["Durable", "Magical"] },
@@ -329,6 +330,7 @@
       "species": "Human",
       "raceId": "race.human",
       "class": "Academic",
+      "careerId": "car.priest",
       "career": "Priest",
       "careerLevel": 1,
       "careerLevelName": "Anointed",
@@ -380,10 +382,10 @@
         { "name": "Athletics", "char": "ag", "adv": 0, "career": false, "advanced": false }
       ],
       "talents": [
-        { "name": "Bless (Shallya)", "times": 1, "desc": "Knows the Bless prayer", "career": true },
-        { "name": "Invoke (Shallya)", "times": 1, "desc": "Can invoke Shallya's prayers without sin", "career": true },
-        { "name": "Read/Write", "times": 1, "desc": "Can read and write Reikspiel + Classical", "career": true },
-        { "name": "Cat-tongued", "times": 1, "desc": "Soothing words; +SL on Charm tests to calm the distressed", "career": false }
+        { "name": "Bless (Shallya)", "definitionId": "tal.bless", "specialization": "Shallya", "times": 1, "desc": "Knows the Bless prayer", "career": true },
+        { "name": "Invoke (Shallya)", "definitionId": "tal.invoke", "specialization": "Shallya", "times": 1, "desc": "Can invoke Shallya's prayers without sin", "career": true },
+        { "name": "Read/Write", "definitionId": "tal.read-write", "times": 1, "desc": "Can read and write Reikspiel + Classical", "career": true },
+        { "name": "Cat-tongued", "definitionId": "tal.cat-tongued", "times": 1, "desc": "Soothing words; +SL on Charm tests to calm the distressed", "career": false }
       ],
       "weapons": [
         { "name": "Quarterstaff", "group": "Two-handed", "enc": 2, "reach": "Long", "dmg": "SB+3", "qual": ["Defensive", "Pummel"] }

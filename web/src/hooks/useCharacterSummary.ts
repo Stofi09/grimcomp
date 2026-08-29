@@ -14,9 +14,15 @@ import { useStoredState } from './useStoredState';
 import { useRaces, useSystemRules, useTalentDefs, useWoundsRules } from '@/content/useContent';
 import { evalFormulaSafe } from '@/utils/formula';
 import { deriveStats } from '@/utils/derived';
+import {
+  canonicalizeAddedTalentRefs,
+  migrateTalentTimes,
+  resolveStoredTalentRef,
+  storedTalentRefFor,
+  talentIdentityKey,
+} from '@/utils/talents';
 
 type AdvanceMap = Record<CharacteristicKey, number>;
-type TalentTimesMap = Record<string, number>;
 
 export function useCharacterSummary(template: Character) {
   const id = template.id;
@@ -38,11 +44,11 @@ export function useCharacterSummary(template: Character) {
     characterKey(id, 'chars.adv'),
     Object.fromEntries(template.characteristics.map(c => [c.key, c.adv])),
   );
-  const [talentTimes] = useStoredState<TalentTimesMap>(
+  const [storedTalentTimes] = useStoredState<unknown>(
     characterKey(id, 'talents.times'),
     Object.fromEntries(template.talents.map(t => [t.name, t.times])),
   );
-  const [addedTalentNames] = useStoredState<string[]>(characterKey(id, 'talents.added'), []);
+  const [storedAddedTalents] = useStoredState<unknown>(characterKey(id, 'talents.added'), []);
 
   const races = useRaces();
   const talentDefs = useTalentDefs();
@@ -50,6 +56,29 @@ export function useCharacterSummary(template: Character) {
   const { formulas } = useSystemRules();
 
   return useMemo(() => {
+    const templateTalentEntries = template.talents.map(talent => {
+      const ref = storedTalentRefFor(talentDefs, talent);
+      return { talent, ref, resolved: resolveStoredTalentRef(talentDefs, ref) };
+    });
+    const templateTalentRefs = templateTalentEntries.map(entry => entry.ref);
+    const addedTalentRefs = canonicalizeAddedTalentRefs(
+      talentDefs,
+      storedAddedTalents,
+      templateTalentRefs,
+    );
+    const resolvedAddedTalents = addedTalentRefs.map(ref => resolveStoredTalentRef(talentDefs, ref));
+    const talentTimes = migrateTalentTimes(storedTalentTimes, [
+      ...templateTalentEntries.map(({ talent, ref, resolved }) => ({
+        ref,
+        aliases: [talent.name, resolved.name],
+        initial: talent.times,
+      })),
+      ...resolvedAddedTalents.map(resolved => ({
+        ref: resolved.stored,
+        aliases: [resolved.stored.name, resolved.name],
+        initial: 1,
+      })),
+    ]).times;
     const character = applyIdentityOverlay(template, identity);
     const characteristics = template.characteristics.map(c => {
       const adv = advances[c.key] ?? c.adv;
@@ -61,22 +90,27 @@ export function useCharacterSummary(template: Character) {
         bonus: evalFormulaSafe(formulas.bonus, { value: current }),
       };
     });
-    const templateTalents = template.talents.map(t => ({
-      ...t,
-      times: talentTimes[t.name] ?? t.times,
-    }));
-    const templateTalentNames = new Set(templateTalents.map(talent => talent.name));
-    const defsByName = new Map(talentDefs.map(def => [def.name, def]));
-    const addedTalents: Array<Talent & { times: number }> = addedTalentNames.flatMap(name => {
-      if (templateTalentNames.has(name)) return [];
-      const def = defsByName.get(name);
-      if (!def) return [];
-      return [{
-        name: def.name,
-        times: talentTimes[def.name] ?? 1,
-        desc: def.description,
+    const templateTalents = templateTalentEntries.map(({ talent, ref, resolved }) => {
+      return {
+        ...talent,
+        name: resolved.name,
+        definitionId: ref.definitionId,
+        specialization: resolved.specialization,
+        times: talentTimes[talentIdentityKey(ref)] ?? talent.times,
+      };
+    });
+    const addedTalents: Array<Talent & { times: number }> = resolvedAddedTalents.map(resolved => {
+      const ref = resolved.stored;
+      const def = resolved.definition;
+      return {
+        name: resolved.name,
+        definitionId: ref.definitionId ?? def?.id,
+        specialization: resolved.specialization,
+        times: talentTimes[talentIdentityKey(ref)] ?? 1,
+        desc: def?.description
+          ?? 'Loaded definition unavailable; restore its content pack to view the rules summary.',
         career: false,
-      }];
+      };
     });
     const talents = [...templateTalents, ...addedTalents];
     const derived = deriveStats(
@@ -106,8 +140,8 @@ export function useCharacterSummary(template: Character) {
     template,
     identity,
     advances,
-    talentTimes,
-    addedTalentNames,
+    storedTalentTimes,
+    storedAddedTalents,
     talentDefs,
     races,
     woundsRules,

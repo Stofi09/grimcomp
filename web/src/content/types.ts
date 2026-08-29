@@ -137,6 +137,14 @@ export interface Spell {
   description: string;
   /** Damage formula when the spell hits something. Optional. */
   damage?: string;
+  /** Printed source title for provenance and rules lookup. */
+  sourceBook?: string;
+  /** Printed page number; 0 is accepted for unpaginated/front-matter references. */
+  sourcePage?: number;
+  /** Short clarification, erratum, or special handling shown with the spell. */
+  rulesNote?: string;
+  /** Confidence/scope of the bundled rules text; distinct from a per-spell note. */
+  rulesStatus?: 'bibliographic' | 'approximate';
 }
 
 export interface Prayer {
@@ -391,6 +399,20 @@ export interface Career {
   advanceScheme?: CareerAdvanceScheme;
   /** True when missing rulebook details were filled with bundled fallbacks. */
   approximate?: boolean;
+  /** Printed source title for provenance and rules lookup. */
+  sourceBook?: string;
+  /** Printed page number; 0 is accepted for unpaginated/front-matter references. */
+  sourcePage?: number;
+  /** Short clarification or special handling shown with the Career. */
+  rulesNote?: string;
+  /** Confidence/scope of the bundled rules detail; distinct from a Career-specific note. */
+  rulesStatus?: 'bibliographic' | 'approximate';
+  /** False when the Career is reference-only and cannot start a new character. */
+  creationAvailable?: boolean;
+  /** False when random creation must not select the Career directly. */
+  randomEligible?: boolean;
+  /** Whether this Career grants magical ability immediately, later, or never. */
+  magicAccess?: 'none' | 'starting' | 'later';
 }
 
 export interface SkillDef {
@@ -400,6 +422,18 @@ export interface SkillDef {
   advanced: boolean;
   grouped: boolean;
   description: string;
+  /** Printed source title for provenance and rules lookup. */
+  sourceBook?: string;
+  /** Printed page number; 0 is accepted for unpaginated/front-matter references. */
+  sourcePage?: number;
+  /** Short clarification, access restriction, or special handling shown with the skill. */
+  rulesNote?: string;
+  /** Eligibility restriction shown alongside the skill's rules metadata. */
+  restriction?: string;
+  /** Stable SkillDef ids that cannot be owned alongside this definition. */
+  exclusiveWith?: string[];
+  /** Confidence/scope of the bundled rules text; distinct from a per-skill note. */
+  rulesStatus?: 'bibliographic' | 'approximate';
 }
 
 export interface TalentDef {
@@ -411,6 +445,20 @@ export interface TalentDef {
   /** The characteristic whose Bonus caps ranks (e.g. Hardy → Toughness Bonus).
       Used when `max` is absent. Omit both for a talent with no listed cap. */
   maxChar?: CharacteristicKey;
+  /** Printed Tests line, when the talent has one (for example "See text"). */
+  tests?: string;
+  /** Canonical choices required when acquiring a parameterised talent. */
+  specializations?: string[];
+  /** Printed source title for provenance and rules lookup. */
+  sourceBook?: string;
+  /** Printed page number; 0 is accepted for unpaginated/front-matter references. */
+  sourcePage?: number;
+  /** Short access restriction or handling note shown with the talent. */
+  rulesNote?: string;
+  /** Eligibility restriction shown before acquisition; it is not engine-enforced. */
+  restriction?: string;
+  /** Confidence/scope of the bundled rules text; distinct from a per-talent note. */
+  rulesStatus?: 'bibliographic' | 'approximate';
 }
 
 /** A searchable rules/reference entry that does not need a dedicated mechanic. */

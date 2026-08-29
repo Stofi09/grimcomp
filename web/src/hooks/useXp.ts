@@ -13,6 +13,8 @@ export interface XpEntry {
   reason: string;
   amount: number;
   kind: XpKind;
+  /** Optional stable entity identity; reason remains a human-readable label. */
+  entityKey?: string;
 }
 
 export interface XpState {
@@ -49,7 +51,12 @@ export function useXp() {
   const [state, setState] = useStoredState<XpState>(characterKey(id, 'xp'), seedFor(tpl, seedLog));
   const [xpRule] = useXpRule();
 
-  const spend = useCallback((amount: number, reason: string, kind: XpKind = 'skill'): XpResult => {
+  const spend = useCallback((
+    amount: number,
+    reason: string,
+    kind: XpKind = 'skill',
+    entityKey?: string,
+  ): XpResult => {
     if (amount <= 0) return { ok: false, message: 'Cost must be positive.' };
     let result: XpResult = { ok: false, message: '' };
     setState(prev => {
@@ -60,7 +67,13 @@ export function useXp() {
         result = { ok: false, message: `Need ${amount} XP, you only have ${prev.current}.` };
         return prev;
       }
-      const entry: XpEntry = { date: today(), reason, amount: -amount, kind };
+      const entry: XpEntry = {
+        date: today(),
+        reason,
+        amount: -amount,
+        kind,
+        ...(entityKey ? { entityKey } : {}),
+      };
       const remaining = prev.current - amount;
       result = {
         ok: true,
@@ -83,11 +96,24 @@ export function useXp() {
     return { ok: true, message: `Gained ${amount} XP — ${reason}.` };
   }, [setState]);
 
-  const refund = useCallback((amount: number, reason: string, kind: XpKind = 'skill'): XpResult => {
+  const refund = useCallback((
+    amount: number,
+    reason: string,
+    kind: XpKind = 'skill',
+    entityKey?: string,
+    legacyReasons: readonly string[] = [],
+  ): XpResult => {
     if (amount <= 0) return { ok: false, message: 'Amount must be positive.' };
     let result: XpResult = { ok: false, message: '' };
     setState(prev => {
-      const idx = prev.log.findIndex(e => e.kind === kind && e.amount === -amount && e.reason === reason);
+      const idx = prev.log.findIndex(e => (
+        e.kind === kind
+        && e.amount === -amount
+        && (entityKey
+          ? e.entityKey === entityKey
+            || (!e.entityKey && (e.reason === reason || legacyReasons.includes(e.reason)))
+          : e.reason === reason || legacyReasons.includes(e.reason))
+      ));
       // Only credit XP back when there is a real matching purchase to reverse.
       // Without this guard, stepping an advance below its template-granted level
       // (which was never bought, so has no log entry) would mint free XP.

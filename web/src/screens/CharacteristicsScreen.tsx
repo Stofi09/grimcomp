@@ -9,6 +9,7 @@ import { useXpRules, useSystemRules, useCareers } from '@/content/useContent';
 import type { XpCostBand } from '@/content/types';
 import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
 import { isCareerCharacteristic, characteristicAdvanceCost } from '@/utils/advancement';
+import { careerDefForCharacter } from '@/utils/careers';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Stat } from '@/components/Stat';
@@ -36,10 +37,10 @@ export const CharacteristicsScreen: React.FC = () => {
   const bands = xpRules.characteristicAdvances;
   const buyStep = xpRules.buyStep;
 
-  // The character's current career (matched by name) supplies the advance
-  // scheme: a characteristic outside it is a non-career advance and costs the
+  // The character's current Career (stable id first, legacy name second)
+  // supplies the advance scheme: a characteristic outside it is a non-career advance and costs the
   // xpRules.nonCareerCharacteristicMultiplier. No scheme → all in-career.
-  const registryCareer = careers.find(cr => cr.name === char.career);
+  const registryCareer = careerDefForCharacter(careers, char);
   const nonCareerMult = xpRules.nonCareerCharacteristicMultiplier;
   const inCareer = (key: CharacteristicKey) => isCareerCharacteristic(registryCareer, key);
   const hasScheme = (registryCareer?.advanceScheme?.characteristics?.length ?? 0) > 0;

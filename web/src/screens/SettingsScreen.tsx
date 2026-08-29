@@ -297,9 +297,9 @@ export const SettingsScreen: React.FC = () => {
         />
 
         <Row
-          title="Rulebook"
-          hint="WFRP 4e core book references used for spells, prayers, and miscast tables."
-          value={coreVersion}
+          title="Rules library"
+          hint={`Loaded core and supplement references used for spells, prayers, and rules tables. Core data version ${coreVersion}.`}
+          value={`${content.packs.length} content layer${content.packs.length === 1 ? '' : 's'}`}
         />
 
         <Row
@@ -341,7 +341,7 @@ export const SettingsScreen: React.FC = () => {
           <div className="set-row-main">
             <span className="set-title">Content packs</span>
             <span className="set-body">
-              Import JSON packs of homebrew spells, prayers, races, etc. Packs override core content by id.
+              Import JSON packs of homebrew spells, prayers, races, etc. Packs override bundled content by id.
             </span>
           </div>
           <div className="set-actions">

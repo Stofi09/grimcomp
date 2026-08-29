@@ -41,6 +41,7 @@ public/content/
 ├── core-talents.json      ← talent definitions
 ├── core-items.json        ← weapons, armour, trappings
 ├── core-magic.json        ← spells + miscast tables
+├── winds-of-magic.json    ← sourced Winds of Magic career, spell, skill + talent index
 ├── core-faith.json        ← prayers + deities + wrath table
 ├── core-creation.json     ← New Character wizard config (archetypes, stat-roll formula)
 └── core-characters.json   ← the four starter characters + their XP-log history
@@ -92,7 +93,7 @@ In `core-magic.json` (or your own pack), edit the `spells` array:
 
 ```json
 {
-  "id": "m.fireball",
+  "id": "sp.fire.fireball",
   "name": "Fireball",
   "lore": "Fire",
   "cn": 8,
@@ -100,11 +101,36 @@ In `core-magic.json` (or your own pack), edit the `spells` array:
   "target": "AoE WPB",
   "duration": "Instant",
   "description": "A roaring ball of flame.",
-  "damage": "+5"
+  "damage": "+5",
+  "sourceBook": "Example source",
+  "sourcePage": 42,
+  "rulesNote": "Optional handling note."
 }
 ```
 
-To **remove** a spell, delete its object. To **add** one, append a new object with a unique `id` (convention: `m.<slug>`). A character "knows" a spell when its `id` is in their `knownSpells` array (see `core-characters.json`), so add the id there to put it on a caster's sheet. Prayers work identically in `core-faith.json` (`prayers`, ids `p.<slug>`, with a `deity`).
+To **remove** a spell, delete its object. To **add** one, append a new object with a unique `id` (convention: `sp.<lore>.<slug>`). A character's authored defaults live in the `knownSpells` array in `core-characters.json`; players can add or remove loaded spells without editing JSON from **Magic → Manage spellbook**. Prayers work similarly in `core-faith.json` (`prayers`, ids `p.<slug>`, with a `deity`).
+
+`winds-of-magic.json` intentionally avoids reproducing the supplement's protected rules text. All 200 spell entries include researched name, lore, CN, and source-page metadata. The 67 spells that overlap the older companion pack retain its short mechanics summary and are visibly labelled **Approximate**; the other 133 are visibly labelled **Index only** and use `"See source"` where mechanics could not be verified from an authoritative public source. Consult the current owned book or official module to resolve them—Cubicle 7 has revised the PDF since its original release.
+
+### Add a career
+
+Careers use stable ids such as `car.hierophant`; new character sheets persist that id alongside the display-name snapshot, while older name-only sheets remain compatible. Optional provenance fields include `sourceBook`, `sourcePage`, `rulesStatus`, and `rulesNote`. Set `creationAvailable` to `false` for a reference-only path, `randomEligible` to `false` for a path that must not be selected by a direct random roll, and `magicAccess` to `none`, `starting`, or `later`.
+
+The Winds of Magic pack adds all **12 standard Careers** as additive records, bringing the loaded library to 77 without replacing the Core Wizard. Their current rank names, Status, eligible species, characteristic unlock order, and page references are indexed. They remain excluded from new-character creation until the print-synced Career Skills, Talents, Trappings, and rank requirements can be sourced from an owned current book or licensed module. Combat Familiar and Spell Familiar advancement are separate searchable references because those statusless, Familiar-only paths do not fit the ordinary character Career model; Power Familiar reuses Spell Familiar progression and is not a third Career.
+
+### Add a skill
+
+Skill definitions use stable ids such as `sk.augury` and specify their characteristic, whether they are Advanced, and whether they require a specialisation. Players can add a loaded definition from **Skills → New skill**; choosing a library result fills its characteristic and type while career/non-career pricing remains an explicit choice. The same sheet still accepts GM-approved custom or grouped names such as `Trade (Alchemist)`.
+
+The Winds of Magic pack adds the supplement's two standalone skills: **Augury** and **Psychometry**, both Advanced Intelligence skills. They are labelled **Index only** because their source procedures and outcome tables are not automated. The picker shows their species/Career restrictions, and prevents a character from owning both mutually exclusive Skills. Alchemy is not added as a third skill: the supplement handles it as an application of the existing grouped **Trade** skill, with a searchable reference entry explaining the source's `Trade (Alchemist)` / `Trade (Alchemy)` naming drift. Consult the current source for complete procedures.
+
+### Add a talent
+
+Talent definitions use stable ids such as `tal.magical-assistant`. Optional metadata covers a printed Max, Tests line, source, eligibility restriction, and parameter choices. Players acquire a loaded definition from **Talents → New talent**; the app tracks XP, ranks, and the listed Max, while Talent effects remain manual.
+
+The Winds of Magic pack adds exactly two new Talent definitions from page 186: **Magical Assistant** and **Suffuse with (Wind)**. Magical Assistant is visibly restricted to Power Familiars. Suffuse is stored once as a parameterized definition; acquisition requires one of Aqshy, Azyr, Chamon, Ghur, Ghyran, Hysh, Shyish, or Ulgu, and the character save retains both the stable definition id and concrete Wind. The pack also carries the page 161 revision of **Concoct** under its existing `tal.concoct` identity; because packs merge by id, the library still exposes one Concoct while Winds of Magic is enabled. These entries are **Index only** and point to the current source instead of reproducing protected rules text.
+
+The Core Talent roster contains 166 unique definitions. **Detect Artefact**, **Magical Sense**, **Magic Resistance**, and **Witch!** were restored during the Winds of Magic dependency audit; their entries include source pages and verified Max/Tests metadata, with the official errata's Toughness Bonus maximum applied to Magic Resistance.
 
 Prayers may also carry an optional **`"type"`**: `"blessing"` (a minor invocation — invoked with **no test and no Wrath**) or `"miracle"` (a **Pray Test** that risks the Wrath of the Gods). Omit it and the Faith screen infers the type from the deity — a deity-agnostic prayer (`deity` equal to `creation.anyDeity`, `"Any"` by default) is treated as a Blessing, a deity-specific one as a Miracle.
 

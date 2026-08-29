@@ -74,6 +74,14 @@ describe('inferCareerCapabilities', () => {
   it('treats a mundane career as neither', () => {
     expect(inferCareerCapabilities('car.soldier')).toEqual({ isCaster: false, isAnointed: false });
   });
+
+  it('honours explicit magic-access metadata while retaining legacy id fallbacks', () => {
+    expect(inferCareerCapabilities({ id: 'car.new-caster', magicAccess: 'starting' }).isCaster).toBe(true);
+    expect(inferCareerCapabilities({ id: 'car.new-caster', magicAccess: 'later' }).isCaster).toBe(false);
+    expect(inferCareerCapabilities({ id: 'car.new-caster', magicAccess: 'none' }).isCaster).toBe(false);
+    expect(inferCareerCapabilities({ id: 'car.wizard', magicAccess: 'later' }).isCaster).toBe(false);
+    expect(inferCareerCapabilities({ id: 'car.wizard' }).isCaster).toBe(true);
+  });
 });
 
 describe('pickDistinct', () => {

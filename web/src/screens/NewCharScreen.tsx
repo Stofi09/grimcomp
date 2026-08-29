@@ -31,6 +31,7 @@ import {
 } from '@/utils/creation';
 import { charVars, evalFormula } from '@/utils/formula';
 import { rollDice } from '@/utils/roll';
+import { resolveStoredTalentRef, talentDefForName } from '@/utils/talents';
 import { colors } from '@/theme';
 import './NewCharScreen.css';
 
@@ -112,7 +113,7 @@ const buildCharacter = (
   const rank1 = career.ranks[0];
   const caps = hasArchetypeTemplate && kitTpl
     ? { isCaster: !!kitTpl.isCaster, isAnointed: !!kitTpl.isAnointed }
-    : inferCareerCapabilities(career.id);
+    : inferCareerCapabilities(career);
   const accent = hasArchetypeTemplate && kitTpl ? kitTpl.accent : (CLASS_ACCENT[career.class] ?? '#8b2d2d');
 
   // The rulebook grants five free advances split between the three rank-one
@@ -179,21 +180,34 @@ const buildCharacter = (
   // deliberately not copied into a new rank-one character.
   const talents: Talent[] = [];
   const careerTalent = (career.advanceScheme?.talents ?? [])
-    .map(name => talentDefs.find(def => def.name === name))
-    .find(Boolean);
+    .map(name => ({ name, definition: talentDefForName(talentDefs, name) }))
+    // A parameterised Talent needs an explicit player choice. Creation does
+    // not collect that choice yet, so skip generalized headings instead of
+    // persisting an invalid unspecialised Talent; it remains available from
+    // the Talent manager after creation.
+    .find(candidate => candidate.definition && !candidate.definition.specializations?.length);
   if (careerTalent) {
+    const resolved = resolveStoredTalentRef(talentDefs, { name: careerTalent.name });
     talents.push({
-      name: careerTalent.name,
+      name: resolved.name,
+      definitionId: careerTalent.definition?.id,
+      specialization: resolved.specialization,
       times: 1,
-      desc: careerTalent.description,
+      desc: careerTalent.definition?.description ?? '',
       career: true,
     });
   }
   const haveTalent = new Set(talents.map(t => t.name));
   for (const id of race?.talents ?? []) {
     const def = talentDefs.find(d => d.id === id);
-    if (def && !haveTalent.has(def.name)) {
-      talents.push({ name: def.name, times: 1, desc: def.description, career: false });
+    if (def && !def.specializations?.length && !haveTalent.has(def.name)) {
+      talents.push({
+        definitionId: def.id,
+        name: def.name,
+        times: 1,
+        desc: def.description,
+        career: false,
+      });
       haveTalent.add(def.name);
     }
   }
@@ -259,6 +273,7 @@ const buildCharacter = (
     species: draft.species,
     raceId: race?.id,
     class: career.class,
+    careerId: career.id,
     career: career.name,
     careerLevel: 1,
     careerLevelName: rank1?.name ?? '',
@@ -343,8 +358,15 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
 
   // Careers this species may take.
   const eligibleCareers = useMemo(
-    () => careers.filter(cr => !race || cr.species.length === 0 || cr.species.includes(race.id)),
+    () => careers.filter(cr => (
+      cr.creationAvailable !== false
+      && (!race || cr.species.length === 0 || cr.species.includes(race.id))
+    )),
     [careers, race],
+  );
+  const randomCareers = useMemo(
+    () => eligibleCareers.filter(cr => cr.randomEligible !== false),
+    [eligibleCareers],
   );
   const careersByClass = useMemo(() => {
     const map = new Map<string, Career[]>();
@@ -407,13 +429,13 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
   };
 
   const rollOneCareer = () => {
-    if (eligibleCareers.length === 0 || careerRollLocked) return;
-    const cr = eligibleCareers[Math.floor(Math.random() * eligibleCareers.length)];
+    if (randomCareers.length === 0 || careerRollLocked) return;
+    const cr = randomCareers[Math.floor(Math.random() * randomCareers.length)];
     set({ careerId: cr.id, careerChoices: [], careerRollLocked: true });
   };
   const rollThreeCareers = () => {
-    if (eligibleCareers.length === 0 || careerRollLocked) return;
-    const picks = pickDistinct(eligibleCareers, 3, [Math.random(), Math.random(), Math.random()]);
+    if (randomCareers.length === 0 || careerRollLocked) return;
+    const picks = pickDistinct(randomCareers, 3, [Math.random(), Math.random(), Math.random()]);
     set({ careerChoices: picks.map(c => c.id), careerId: '', careerRollLocked: true });
   };
 
@@ -685,7 +707,7 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
                 variant="primary"
                 iconLeft={<Icon name="dice" size={13} color={colors.ivory} />}
                 onPress={rollOneCareer}
-                disabled={careerRollLocked}
+                disabled={careerRollLocked || randomCareers.length === 0}
               >
                 {chosenCareer ? 'First career roll accepted' : 'Roll one career'}
               </Button>
@@ -710,7 +732,7 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
                 variant="primary"
                 iconLeft={<Icon name="dice" size={13} color={colors.ivory} />}
                 onPress={rollThreeCareers}
-                disabled={careerRollLocked}
+                disabled={careerRollLocked || randomCareers.length === 0}
               >
                 {draft.careerChoices.length ? 'Three careers rolled' : 'Roll three careers'}
               </Button>

@@ -59,6 +59,18 @@
   line-height: 18px;
 }
 
+.mag-rules-disclosure {
+  display: block;
+  margin-top: 8px;
+  padding: 7px 8px;
+  border-left: 2px solid var(--brass);
+  background: var(--brassTint);
+  color: var(--ink2);
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  line-height: 15px;
+}
+
 /* layoutStyles.row + { marginTop: 12, gap: 8 } */
 .mag-actions {
   display: flex;
@@ -94,4 +106,135 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.mag-spell-note,
+.mag-spell-source,
+.mag-spell-status {
+  margin-top: 3px;
+  font-size: 9.5px;
+  line-height: 13px;
+}
+
+.mag-spell-note {
+  color: var(--empireDeep);
+  font-family: var(--font-body);
+}
+
+.mag-spell-status {
+  color: var(--brassTintInk);
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+
+.mag-spell-source {
+  color: var(--ink3);
+  font-family: var(--font-mono);
+}
+
+.mag-spellbook-lores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 12px 0;
+}
+
+.mag-spellbook-lore {
+  padding: 5px 9px;
+  border: 1px solid var(--borderSoft);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink2);
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.mag-spellbook-lore:hover {
+  border-color: var(--border);
+}
+
+.mag-spellbook-lore--active {
+  border-color: var(--empireDeep);
+  background: var(--empire);
+  color: var(--bone);
+}
+
+.mag-spellbook-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mag-spellbook-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--borderSoft);
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+.mag-spellbook-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mag-spellbook-name,
+.mag-spellbook-meta {
+  display: block;
+}
+
+.mag-spellbook-name {
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mag-spellbook-meta {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--ink3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mag-spellbook-toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  min-width: 76px;
+  justify-content: center;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface2);
+  color: var(--ink2);
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mag-spellbook-toggle:hover {
+  border-color: var(--brass);
+}
+
+.mag-spellbook-toggle--selected {
+  border-color: var(--empireTintBorder);
+  background: var(--empireTint);
+  color: var(--empireDeep);
+}
+
+.mag-spellbook-empty {
+  padding: 18px 4px;
+  color: var(--ink3);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-style: italic;
 }

@@ -29,6 +29,7 @@ const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 
 const isString = (v: unknown): v is string => typeof v === 'string';
+const isNonBlankString = (v: unknown): v is string => isString(v) && v.trim().length > 0;
 const isNumber = (v: unknown): v is number => typeof v === 'number';
 
 /** A finite number within [min, max]. Bounds dice counts/sides so a tampered or
@@ -91,6 +92,8 @@ export function xpCostRowsToBands(rows: XpCostRow[]): XpCostBand[] {
 interface EntrySpec {
   /** Required string fields on each entry. */
   strings?: string[];
+  /** Required strings that must contain something besides whitespace. */
+  nonBlankStrings?: string[];
   /** Required numeric fields on each entry. */
   numbers?: string[];
   /** Entries must carry a unique string id (default true). */
@@ -155,6 +158,10 @@ export function validatePack(raw: unknown): ValidationResult {
       for (const f of spec.strings ?? []) {
         if (!isString(entry[f])) push(`${where} is missing string field "${f}".`);
       }
+      for (const f of spec.nonBlankStrings ?? []) {
+        if (!isString(entry[f])) push(`${where} is missing string field "${f}".`);
+        else if (!isNonBlankString(entry[f])) push(`${where} field "${f}" must not be blank.`);
+      }
       for (const f of spec.numbers ?? []) {
         if (!isNumber(entry[f])) push(`${where} is missing numeric field "${f}".`);
       }
@@ -177,8 +184,35 @@ export function validatePack(raw: unknown): ValidationResult {
   };
 
   checkSection('spells', {
-    strings: ['name', 'lore', 'range', 'target', 'duration', 'description'],
+    nonBlankStrings: ['name', 'lore', 'range', 'target', 'duration', 'description'],
     numbers: ['cn'],
+    extra: (entry, where, p) => {
+      if (typeof entry.cn === 'number'
+        && (!Number.isFinite(entry.cn) || !Number.isInteger(entry.cn) || entry.cn < 0)) {
+        p(`${where} "cn" must be a finite integer greater than or equal to 0.`);
+      }
+      if (entry.damage !== undefined && !isString(entry.damage)) {
+        p(`${where} "damage" must be a string when provided.`);
+      }
+      if (entry.sourceBook !== undefined && !isString(entry.sourceBook)) {
+        p(`${where} "sourceBook" must be a string when provided.`);
+      }
+      if (entry.sourcePage !== undefined
+        && (typeof entry.sourcePage !== 'number'
+          || !Number.isFinite(entry.sourcePage)
+          || !Number.isInteger(entry.sourcePage)
+          || entry.sourcePage < 0)) {
+        p(`${where} "sourcePage" must be a finite integer greater than or equal to 0 when provided.`);
+      }
+      if (entry.rulesNote !== undefined && !isString(entry.rulesNote)) {
+        p(`${where} "rulesNote" must be a string when provided.`);
+      }
+      if (entry.rulesStatus !== undefined
+        && entry.rulesStatus !== 'bibliographic'
+        && entry.rulesStatus !== 'approximate') {
+        p(`${where} "rulesStatus" must be "bibliographic" or "approximate" when provided.`);
+      }
+    },
   });
 
   checkSection('prayers', {
@@ -236,6 +270,36 @@ export function validatePack(raw: unknown): ValidationResult {
       if (entry.approximate !== undefined && typeof entry.approximate !== 'boolean') {
         p(`${where} "approximate" must be a boolean.`);
       }
+      if (entry.sourceBook !== undefined && !isString(entry.sourceBook)) {
+        p(`${where} "sourceBook" must be a string when provided.`);
+      }
+      if (entry.sourcePage !== undefined
+        && (typeof entry.sourcePage !== 'number'
+          || !Number.isFinite(entry.sourcePage)
+          || !Number.isInteger(entry.sourcePage)
+          || entry.sourcePage < 0)) {
+        p(`${where} "sourcePage" must be a finite integer greater than or equal to 0 when provided.`);
+      }
+      if (entry.rulesNote !== undefined && !isString(entry.rulesNote)) {
+        p(`${where} "rulesNote" must be a string when provided.`);
+      }
+      if (entry.rulesStatus !== undefined
+        && entry.rulesStatus !== 'bibliographic'
+        && entry.rulesStatus !== 'approximate') {
+        p(`${where} "rulesStatus" must be "bibliographic" or "approximate" when provided.`);
+      }
+      if (entry.creationAvailable !== undefined && typeof entry.creationAvailable !== 'boolean') {
+        p(`${where} "creationAvailable" must be a boolean when provided.`);
+      }
+      if (entry.randomEligible !== undefined && typeof entry.randomEligible !== 'boolean') {
+        p(`${where} "randomEligible" must be a boolean when provided.`);
+      }
+      if (entry.magicAccess !== undefined
+        && entry.magicAccess !== 'none'
+        && entry.magicAccess !== 'starting'
+        && entry.magicAccess !== 'later') {
+        p(`${where} "magicAccess" must be "none", "starting", or "later" when provided.`);
+      }
       if (!Array.isArray(entry.ranks)) {
         p(`${where} "ranks" must be an array.`);
         return;
@@ -263,18 +327,88 @@ export function validatePack(raw: unknown): ValidationResult {
   });
 
   checkSection('skills', {
-    strings: ['name', 'char', 'description'],
+    nonBlankStrings: ['name', 'char', 'description'],
     extra: (entry, where, p) => {
       if (typeof entry.advanced !== 'boolean') p(`${where} "advanced" must be a boolean.`);
       if (typeof entry.grouped !== 'boolean') p(`${where} "grouped" must be a boolean.`);
+      if (entry.sourceBook !== undefined && !isString(entry.sourceBook)) {
+        p(`${where} "sourceBook" must be a string when provided.`);
+      }
+      if (entry.sourcePage !== undefined
+        && (typeof entry.sourcePage !== 'number'
+          || !Number.isFinite(entry.sourcePage)
+          || !Number.isInteger(entry.sourcePage)
+          || entry.sourcePage < 0)) {
+        p(`${where} "sourcePage" must be a finite integer greater than or equal to 0 when provided.`);
+      }
+      if (entry.rulesNote !== undefined && !isString(entry.rulesNote)) {
+        p(`${where} "rulesNote" must be a string when provided.`);
+      }
+      if (entry.restriction !== undefined && !isNonBlankString(entry.restriction)) {
+        p(`${where} "restriction" must be a nonblank string when provided.`);
+      }
+      if (entry.exclusiveWith !== undefined) {
+        if (!Array.isArray(entry.exclusiveWith)
+          || entry.exclusiveWith.some(value => !isNonBlankString(value))) {
+          p(`${where} "exclusiveWith" must be an array of nonblank skill ids when provided.`);
+        } else if (new Set(entry.exclusiveWith.map(value => value.trim())).size
+          !== entry.exclusiveWith.length) {
+          p(`${where} "exclusiveWith" must not contain duplicate skill ids.`);
+        }
+      }
+      if (entry.rulesStatus !== undefined
+        && entry.rulesStatus !== 'bibliographic'
+        && entry.rulesStatus !== 'approximate') {
+        p(`${where} "rulesStatus" must be "bibliographic" or "approximate" when provided.`);
+      }
     },
   });
 
   checkSection('talents', {
-    strings: ['name', 'description'],
+    nonBlankStrings: ['name', 'description'],
     extra: (entry, where, p) => {
-      if (entry.max !== undefined && !isNumber(entry.max)) p(`${where} "max" must be a number.`);
+      if (entry.max !== undefined
+        && (typeof entry.max !== 'number'
+          || !Number.isFinite(entry.max)
+          || !Number.isInteger(entry.max)
+          || entry.max < 1)) {
+        p(`${where} "max" must be a finite integer greater than or equal to 1.`);
+      }
       if (entry.maxChar !== undefined && !isString(entry.maxChar)) p(`${where} "maxChar" must be a characteristic key.`);
+      if (entry.tests !== undefined && !isNonBlankString(entry.tests)) {
+        p(`${where} "tests" must be a nonblank string when provided.`);
+      }
+      if (entry.specializations !== undefined) {
+        if (!Array.isArray(entry.specializations)
+          || entry.specializations.length === 0
+          || entry.specializations.some(value => !isNonBlankString(value))) {
+          p(`${where} "specializations" must be a nonempty array of nonblank strings when provided.`);
+        } else if (new Set(entry.specializations.map(value => value.trim().toLocaleLowerCase())).size
+          !== entry.specializations.length) {
+          p(`${where} "specializations" must not contain duplicate values.`);
+        }
+      }
+      if (entry.restriction !== undefined && !isNonBlankString(entry.restriction)) {
+        p(`${where} "restriction" must be a nonblank string when provided.`);
+      }
+      if (entry.sourceBook !== undefined && !isString(entry.sourceBook)) {
+        p(`${where} "sourceBook" must be a string when provided.`);
+      }
+      if (entry.sourcePage !== undefined
+        && (typeof entry.sourcePage !== 'number'
+          || !Number.isFinite(entry.sourcePage)
+          || !Number.isInteger(entry.sourcePage)
+          || entry.sourcePage < 0)) {
+        p(`${where} "sourcePage" must be a finite integer greater than or equal to 0 when provided.`);
+      }
+      if (entry.rulesNote !== undefined && !isString(entry.rulesNote)) {
+        p(`${where} "rulesNote" must be a string when provided.`);
+      }
+      if (entry.rulesStatus !== undefined
+        && entry.rulesStatus !== 'bibliographic'
+        && entry.rulesStatus !== 'approximate') {
+        p(`${where} "rulesStatus" must be "bibliographic" or "approximate" when provided.`);
+      }
     },
   });
 
@@ -366,6 +500,9 @@ export function validatePack(raw: unknown): ValidationResult {
   checkSection('characters', {
     strings: ['name', 'species', 'class', 'career'],
     extra: (entry, where, p) => {
+      if (entry.careerId !== undefined && !isNonBlankString(entry.careerId)) {
+        p(`${where} "careerId" must be a nonblank string when provided.`);
+      }
       if (!Array.isArray(entry.characteristics)) p(`${where} "characteristics" must be an array.`);
       if (!Array.isArray(entry.skills)) p(`${where} "skills" must be an array.`);
       if (!Array.isArray(entry.talents)) p(`${where} "talents" must be an array.`);

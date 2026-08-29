@@ -84,7 +84,7 @@ describe('progression add and discovery actions', () => {
 
     expect(getCurrentAlert()?.title).toBe('Bought talent');
     expect(JSON.parse(localStorage.getItem('gc.c1.talents.added') ?? '[]')).toEqual([
-      expect.stringContaining('Acute Sense'),
+      { definitionId: 'tal.acute-sense', name: 'Acute Sense' },
     ]);
   });
 

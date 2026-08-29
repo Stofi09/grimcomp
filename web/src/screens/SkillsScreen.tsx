@@ -9,6 +9,13 @@ import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useConditions } from '@/hooks/useConditions';
 import { useCareers, useXpRules, useSystemRules, useSkillDefs } from '@/content/useContent';
 import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
+import {
+  skillDefForName,
+  skillRulesStatusLabel,
+  skillRulesStatusMeta,
+  skillSourceLabel,
+} from '@/utils/skills';
+import { careerDefForCharacter } from '@/utils/careers';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
@@ -21,8 +28,64 @@ import { EditSheet } from '@/components/EditSheet';
 import { PickerField, TextField } from '@/components/Fields';
 import { Alert } from '@/ui/alertStore';
 import { colors } from '@/theme';
-import type { XpRules } from '@/content/types';
+import type { SkillDef, XpRules } from '@/content/types';
 import './SkillsScreen.css';
+
+interface SkillDraft {
+  mode: 'custom' | 'loaded';
+  selectedDefId: string;
+  name: string;
+  char: string;
+  type: 'basic' | 'advanced';
+  pricing: 'career' | 'other';
+}
+
+// Character overlays are user-importable JSON. Ignore malformed records rather
+// than letting one bad value break every skill calculation and table render.
+const normalizeExtraSkills = (value: unknown): Skill[] => {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const normalized: Skill[] = [];
+  for (const candidate of value) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue;
+    const record = candidate as Record<string, unknown>;
+    const name = typeof record.name === 'string' ? record.name.trim() : '';
+    const char = typeof record.char === 'string' ? record.char.trim() : '';
+    const adv = record.adv;
+    if (!name || !char || !Number.isInteger(adv) || (adv as number) < 0) continue;
+    if (typeof record.career !== 'boolean') continue;
+    if (record.advanced !== undefined && typeof record.advanced !== 'boolean') continue;
+    if (record.grouped !== undefined && typeof record.grouped !== 'string') continue;
+    if (record.definitionId !== undefined
+      && (typeof record.definitionId !== 'string' || !record.definitionId.trim())) continue;
+    const key = name.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push({
+      name,
+      char,
+      adv: adv as number,
+      career: record.career,
+      advanced: record.advanced as boolean | undefined,
+      grouped: record.grouped as string | undefined,
+      definitionId: typeof record.definitionId === 'string' ? record.definitionId.trim() : undefined,
+    });
+  }
+  return normalized;
+};
+
+const skillRulesLookup = (skill: SkillDef | undefined): string => {
+  if (!skill) return '';
+  const status = skillRulesStatusLabel(skill);
+  const source = skillSourceLabel(skill);
+  const lines = [
+    status ? `Rules status: ${status}` : '',
+    skill.restriction?.trim() ? `Restriction: ${skill.restriction.trim()}` : '',
+    skill.rulesNote?.trim() ? `Rules note: ${skill.rulesNote.trim()}` : '',
+    source ? `Source: ${source}` : '',
+  ].filter(Boolean);
+  return lines.length > 0 ? `\n\n${lines.join('\n')}` : '';
+};
 
 // Per-advance (+1) Skill XP cost (WFRP 4e core p.48). Skills are CHEAPER than
 // characteristics and follow their own curve, keyed to advances already bought.
@@ -57,8 +120,12 @@ export const SkillsScreen: React.FC = () => {
   const skillDefs = useSkillDefs();
   const charLabel = Object.fromEntries(c.characteristics.map(x => [x.key, x.short])) as Record<string, string>;
   const charBase = Object.fromEntries(chars.map(x => [x.key, x.current])) as Record<string, number>;
-  const [extraSkills, setExtraSkills] = useStoredState<Skill[]>(characterKey(id, 'skills.extra'), []);
-  const registryCareer = careers.find(candidate => candidate.name === c.career);
+  const [storedExtraSkills, setStoredExtraSkills] = useStoredState<unknown>(characterKey(id, 'skills.extra'), []);
+  const extraSkills = useMemo(() => normalizeExtraSkills(storedExtraSkills), [storedExtraSkills]);
+  const updateExtraSkills = useCallback((update: (current: Skill[]) => Skill[]) => {
+    setStoredExtraSkills((current: unknown) => update(normalizeExtraSkills(current)));
+  }, [setStoredExtraSkills]);
+  const registryCareer = careerDefForCharacter(careers, c);
   const careerSkillNames = registryCareer?.advanceScheme?.skills;
   // Merge the current registry scheme into old character records as a
   // non-destructive live migration. This means characters created before the
@@ -79,6 +146,7 @@ export const SkillsScreen: React.FC = () => {
         adv: 0,
         career: true,
         advanced: def?.advanced,
+        definitionId: def?.id,
       });
       have.add(name);
     }
@@ -89,12 +157,8 @@ export const SkillsScreen: React.FC = () => {
   }, [c.characteristics, c.skills, careerSkillNames, extraSkills, skillDefs]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [draft, setDraft] = useState<{
-    name: string;
-    char: string;
-    type: 'basic' | 'advanced';
-    pricing: 'career' | 'other';
-  } | null>(null);
+  const [draft, setDraft] = useState<SkillDraft | null>(null);
+  const [pickerQuery, setPickerQuery] = useState('');
 
   const [advances, setAdvances] = useStoredState<Record<string, number>>(
     characterKey(id, 'skills.adv'),
@@ -144,7 +208,11 @@ export const SkillsScreen: React.FC = () => {
   // doesn't already have as rollable references — grouped skills need a chosen
   // specialisation, so they're left out.
   const system = useSystemRules();
-  const ownedNames = new Set(skills.map(s => s.name));
+  const ownedNames = useMemo(() => new Set(skills.map(s => s.name)), [skills]);
+  const ownedDefinitionIds = useMemo(
+    () => new Set(skills.flatMap(skill => skill.definitionId ? [skill.definitionId] : [])),
+    [skills],
+  );
   const untrainedBasics = skillDefs.filter(
     d => !d.advanced
       && !d.grouped
@@ -154,8 +222,61 @@ export const SkillsScreen: React.FC = () => {
         || (charLabel[d.char] ?? d.char).toLocaleLowerCase().includes(normalizedQuery)),
   );
 
+  const definitionForSkill = useCallback(
+    (skill: Skill): SkillDef | undefined => (
+      skill.definitionId ? skillDefs.find(definition => definition.id === skill.definitionId) : undefined
+    ) ?? skillDefForName(skillDefs, skill.name),
+    [skillDefs],
+  );
+
+  const selectedDefinition = draft?.mode === 'loaded'
+    ? skillDefs.find(skill => skill.id === draft.selectedDefId)
+    : undefined;
+  const selectedExclusionConflict = useMemo(() => {
+    if (!selectedDefinition) return undefined;
+    return skills.find(ownedSkill => {
+      if (!ownedSkill.definitionId) return false;
+      const selectedExcludesOwned = selectedDefinition.exclusiveWith
+        ?.some(id => id.trim() === ownedSkill.definitionId);
+      const ownedDefinition = skillDefs.find(definition => definition.id === ownedSkill.definitionId);
+      const ownedExcludesSelected = ownedDefinition?.exclusiveWith
+        ?.some(id => id.trim() === selectedDefinition.id);
+      return selectedExcludesOwned || ownedExcludesSelected;
+    });
+  }, [selectedDefinition, skillDefs, skills]);
+
+  // Only build and sort the registry picker while its loaded-content mode is
+  // visible. The ordinary character screen and custom form stay lightweight.
+  const pickerResults = useMemo(() => {
+    if (draft?.mode !== 'loaded') return [];
+    const normalized = pickerQuery.trim().toLocaleLowerCase();
+    return skillDefs
+      // A bare grouped definition is not a legal character skill. Until the
+      // registry models concrete specialisations, those stay in Custom mode.
+      .filter(skill => !skill.grouped)
+      .filter(skill => !ownedNames.has(skill.name) && !ownedDefinitionIds.has(skill.id))
+      .filter(skill => {
+        if (!normalized) return true;
+        return [
+          skill.name,
+          skill.description,
+          skill.sourceBook,
+          skill.restriction,
+          skill.rulesNote,
+          skillRulesStatusLabel(skill),
+          charLabel[skill.char] ?? skill.char,
+          skill.advanced ? 'advanced' : 'basic',
+        ].some(value => value?.toLocaleLowerCase().includes(normalized));
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 40);
+  }, [charLabel, draft?.mode, ownedDefinitionIds, ownedNames, pickerQuery, skillDefs]);
+
   const openNewSkill = () => {
+    setPickerQuery('');
     setDraft({
+      mode: 'custom',
+      selectedDefId: '',
       name: '',
       char: chars[0]?.key ?? '',
       type: 'basic',
@@ -165,20 +286,36 @@ export const SkillsScreen: React.FC = () => {
 
   const saveNewSkill = () => {
     if (!draft) return;
-    const name = draft.name.trim();
+    const definition = draft.mode === 'loaded'
+      ? skillDefs.find(skill => skill.id === draft.selectedDefId)
+      : undefined;
+    if (draft.mode === 'loaded' && !definition) {
+      Alert.alert('Skill unavailable', 'That loaded definition is no longer active. Select a skill again.');
+      return;
+    }
+    if (draft.mode === 'loaded' && selectedExclusionConflict) {
+      Alert.alert(
+        'Skill excluded',
+        `${definition?.name ?? draft.name} cannot be added while ${selectedExclusionConflict.name} is owned.`,
+      );
+      return;
+    }
+    const name = definition?.name ?? draft.name.trim();
     if (!name) return;
-    if (skills.some(s => s.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+    if (skills.some(s => s.name.toLocaleLowerCase() === name.toLocaleLowerCase()
+      || (definition && s.definitionId === definition.id))) {
       Alert.alert('Skill already exists', `${name} is already on this character sheet.`);
       return;
     }
-    setExtraSkills(prev => [
+    updateExtraSkills(prev => [
       ...prev,
       {
         name,
-        char: draft.char,
+        char: definition?.char ?? draft.char,
         adv: 0,
         career: draft.pricing === 'career',
-        advanced: draft.type === 'advanced',
+        advanced: definition?.advanced ?? draft.type === 'advanced',
+        definitionId: definition?.id,
       },
     ]);
     setDraft(null);
@@ -198,19 +335,22 @@ export const SkillsScreen: React.FC = () => {
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: () => setExtraSkills(prev => prev.filter(s => s.name !== skill.name)),
+          onPress: () => updateExtraSkills(prev => prev.filter(s => s.name !== skill.name)),
         },
       ],
     );
   };
 
-  const rollUntrained = (name: string, char: string) => {
-    const tot = charBase[char] ?? 0;
-    const r = resolveTest({ target: tot, modifier: condMod.total, label: name }, system.test);
+  const rollUntrained = (skill: SkillDef) => {
+    const tot = charBase[skill.char] ?? 0;
+    const r = resolveTest({ target: tot, modifier: condMod.total, label: skill.name }, system.test);
     const breakdown = condMod.parts.length
       ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
       : '';
-    Alert.alert(`${name} — ${outcomeLabel(r.outcome)}`, formatTestResult(r) + breakdown);
+    Alert.alert(
+      `${skill.name} — ${outcomeLabel(r.outcome)}`,
+      formatTestResult(r) + breakdown + skillRulesLookup(skill),
+    );
   };
 
   return (
@@ -269,6 +409,7 @@ export const SkillsScreen: React.FC = () => {
         career
         extraNames={new Set(extraSkills.map(s => s.name))}
         onRemove={removeExtraSkill}
+        definitionForSkill={definitionForSkill}
       />
 
       <Section title="Other" aside="2× cost · non-career" />
@@ -282,6 +423,7 @@ export const SkillsScreen: React.FC = () => {
         rules={rules}
         extraNames={new Set(extraSkills.map(s => s.name))}
         onRemove={removeExtraSkill}
+        definitionForSkill={definitionForSkill}
       />
 
       {untrainedBasics.length > 0 ? (
@@ -309,7 +451,7 @@ export const SkillsScreen: React.FC = () => {
                       variant="ghost"
                       ariaLabel={`Test ${d.name}`}
                       iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
-                      onPress={() => rollUntrained(d.name, d.char)}
+                      onPress={() => rollUntrained(d)}
                     >{''}</Button>
                   </Cell>
                 </TableRow>
@@ -331,31 +473,127 @@ export const SkillsScreen: React.FC = () => {
         subtitle="Add a skill or specialisation to this character. Advances are bought after saving."
         onClose={() => setDraft(null)}
         onSave={saveNewSkill}
-        saveDisabled={!draft?.name.trim() || !draft?.char}
+        saveDisabled={!draft?.name.trim()
+          || !draft?.char
+          || (draft.mode === 'loaded' && (!draft.selectedDefId || !!selectedExclusionConflict))}
       >
         {draft ? (
           <>
-            <TextField
-              label="Name"
-              value={draft.name}
-              onChangeText={name => setDraft(current => current && ({ ...current, name }))}
-              placeholder="e.g. Lore (Reikland)"
-            />
             <PickerField
-              label="Characteristic"
-              value={draft.char}
-              onChange={char => setDraft(current => current && ({ ...current, char }))}
-              options={chars.map(char => ({ value: char.key, label: char.short }))}
-            />
-            <PickerField
-              label="Type"
-              value={draft.type}
-              onChange={type => setDraft(current => current && ({ ...current, type }))}
+              label="Entry"
+              value={draft.mode}
+              onChange={mode => setDraft(current => current && ({
+                ...current,
+                mode,
+                selectedDefId: mode === 'custom' ? '' : current.selectedDefId,
+              }))}
               options={[
-                { value: 'basic', label: 'Basic' },
-                { value: 'advanced', label: 'Advanced' },
+                { value: 'custom', label: 'Custom skill' },
+                { value: 'loaded', label: 'Loaded definition' },
               ]}
+              hint="Loaded definitions fill the rules fields for you. Use Custom skill for grouped specialisations such as Trade (Alchemist)."
             />
+            {draft.mode === 'loaded' ? (
+              <>
+                <TextField
+                  label="Search loaded skills"
+                  value={pickerQuery}
+                  onChangeText={setPickerQuery}
+                  placeholder="name, description, source, restriction, or characteristic"
+                  autoCapitalize="none"
+                />
+                <div className="skl-picker-list" role="listbox" aria-label="Loaded skills">
+                  {pickerResults.map(skill => {
+                    const selected = draft.selectedDefId === skill.id;
+                    const source = skillSourceLabel(skill);
+                    const status = skillRulesStatusLabel(skill);
+                    return (
+                      <button
+                        key={skill.id}
+                        type="button"
+                        className={`btn-reset skl-picker-option${selected ? ' skl-picker-option--selected' : ''}`}
+                        role="option"
+                        aria-selected={selected}
+                        onClick={() => setDraft(current => current && ({
+                          ...current,
+                          selectedDefId: skill.id,
+                          name: skill.name,
+                          char: skill.char,
+                          type: skill.advanced ? 'advanced' : 'basic',
+                        }))}
+                      >
+                        <span className="skl-picker-heading">
+                          <span className="skl-picker-name">{skill.name}</span>
+                          <span className="skl-picker-kind">
+                            {charLabel[skill.char] ?? skill.char} · {skill.advanced ? 'Advanced' : 'Basic'}
+                            {skill.grouped ? ' · Grouped' : ''}
+                          </span>
+                        </span>
+                        <span className="skl-picker-description">
+                          {skill.description || 'No description available.'}
+                        </span>
+                        {source ? <span className="skl-picker-source">Source: {source}</span> : null}
+                        {status ? <span className="skl-picker-status">{status}</span> : null}
+                        {skill.restriction?.trim() ? (
+                          <span className="skl-picker-restriction">
+                            Restriction: {skill.restriction.trim()}
+                          </span>
+                        ) : null}
+                        {skill.rulesNote?.trim() ? (
+                          <span className="skl-picker-note">Rules note: {skill.rulesNote.trim()}</span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                  {pickerResults.length === 0 ? (
+                    <span className="skl-picker-empty">No available loaded skills match this search.</span>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
+            {draft.mode === 'custom' ? (
+              <>
+                <TextField
+                  label="Name"
+                  value={draft.name}
+                  onChangeText={name => setDraft(current => current && ({ ...current, name }))}
+                  placeholder="e.g. Lore (Reikland)"
+                />
+                <PickerField
+                  label="Characteristic"
+                  value={draft.char}
+                  onChange={char => setDraft(current => current && ({ ...current, char }))}
+                  options={chars.map(char => ({ value: char.key, label: char.short }))}
+                />
+                <PickerField
+                  label="Type"
+                  value={draft.type}
+                  onChange={type => setDraft(current => current && ({ ...current, type }))}
+                  options={[
+                    { value: 'basic', label: 'Basic' },
+                    { value: 'advanced', label: 'Advanced' },
+                  ]}
+                />
+              </>
+            ) : draft.selectedDefId ? (
+              <div className="skl-loaded-selection" aria-label="Selected loaded skill">
+                <span className="skl-loaded-selection-label">Selected skill</span>
+                <span className="skl-loaded-selection-name">{draft.name}</span>
+                <span className="skl-loaded-selection-meta">
+                  {charLabel[draft.char] ?? draft.char} · {draft.type === 'advanced' ? 'Advanced' : 'Basic'}
+                </span>
+                {selectedDefinition?.restriction?.trim() ? (
+                  <span className="skl-loaded-selection-detail">
+                    Restriction: {selectedDefinition.restriction.trim()}
+                  </span>
+                ) : null}
+                {selectedExclusionConflict ? (
+                  <span className="skl-loaded-selection-conflict" role="alert">
+                    Cannot add while {selectedExclusionConflict.name} is owned.
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             <PickerField
               label="Pricing"
               value={draft.pricing}
@@ -384,6 +622,7 @@ interface SkillTableProps {
   career?: boolean;
   extraNames: Set<string>;
   onRemove: (skill: Skill) => void;
+  definitionForSkill: (skill: Skill) => SkillDef | undefined;
 }
 
 const SkillTable: React.FC<SkillTableProps> = ({
@@ -397,6 +636,7 @@ const SkillTable: React.FC<SkillTableProps> = ({
   career,
   extraNames,
   onRemove,
+  definitionForSkill,
 }) => {
   const system = useSystemRules();
   return (
@@ -414,12 +654,24 @@ const SkillTable: React.FC<SkillTableProps> = ({
         const adv = advances[s.name] ?? s.adv;
         const tot = totalFor(s, adv);
         const nextCost = (career ? careerBracket : otherBracket)(rules, adv);
+        const definition = definitionForSkill(s);
+        const referenceMeta = [
+          definition ? skillSourceLabel(definition) : '',
+          definition ? skillRulesStatusMeta(definition) : '',
+        ].filter(Boolean).join(' · ');
+        const restriction = definition?.restriction?.trim();
         return (
           <TableRow key={`${s.name}-${i}`} last={i === skills.length - 1}>
             <Cell flex={2.4}>
-              <div className="skl-name-row">
-                <span className="skl-name">{s.name}</span>
-                {s.advanced ? <Pill variant="brass" size={9.5}>advanced</Pill> : null}
+              <div className="skl-name-stack">
+                <div className="skl-name-row">
+                  <span className="skl-name">{s.name}</span>
+                  {s.advanced ? <Pill variant="brass" size={9.5}>advanced</Pill> : null}
+                </div>
+                {referenceMeta ? <span className="skl-row-reference">{referenceMeta}</span> : null}
+                {restriction ? (
+                  <span className="skl-row-restriction">Restriction: {restriction}</span>
+                ) : null}
               </div>
             </Cell>
             <Cell flex={0.5} textStyle={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: colors.ink3 }}>
@@ -452,13 +704,20 @@ const SkillTable: React.FC<SkillTableProps> = ({
                   ariaLabel={`Test ${s.name}`}
                   iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
                   onPress={() => {
+                    if (s.advanced && adv === 0) {
+                      Alert.alert(
+                        'Train advanced skill first',
+                        `${s.name} is an Advanced skill and cannot be tested at +0. Buy at least one advance first.`,
+                      );
+                      return;
+                    }
                     const r = resolveTest({ target: tot, modifier: condMod.total, label: s.name }, system.test);
                     const breakdown = condMod.parts.length
                       ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
                       : '';
                     Alert.alert(
                       `${s.name} — ${outcomeLabel(r.outcome)}`,
-                      formatTestResult(r) + breakdown,
+                      formatTestResult(r) + breakdown + skillRulesLookup(definition),
                     );
                   }}
                 >{''}</Button>

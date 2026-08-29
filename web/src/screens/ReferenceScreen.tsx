@@ -33,18 +33,24 @@ export const ReferenceScreen: React.FC = () => {
   // Count declared deities from the roster, not distinct prayer deities — the
   // latter includes the generic "Any" blessing bucket (creation.anyDeity).
   const deityCount = reg.allDeities.length;
-  // Core-book version tracks the loaded core-rules pack, so a pack bump updates
-  // this line automatically (like the counts below).
-  const coreVersion = reg.packs.find(p => p.id === 'core-rules')?.version;
-
   // Counts come straight from the loaded content registry, so importing a
   // content pack updates this screen automatically. Critical Wounds reads the
   // registry's criticals. Generic reference entries cover rules that do not
   // need their own interactive mechanic, including the companion mutation set.
   const critCount = reg.criticals.length;
   const chaosCount = reg.allReferences.filter(entry => entry.category === 'Chaos & Mutation').length;
+  const careerReferenceCount = reg.allReferences.filter(entry => entry.category === 'Careers').length;
+  const layerLabel = `${reg.packs.length} content layer${reg.packs.length === 1 ? '' : 's'}`;
   const cats: CategoryDef[] = [
-    { icon: 'crown', title: 'Careers', count: reg.allCareers.length, sub: 'all 4 ranks', category: 'Careers' },
+    {
+      icon: 'crown',
+      title: 'Careers',
+      count: reg.allCareers.length + careerReferenceCount,
+      sub: careerReferenceCount
+        ? `${reg.allCareers.length} paths + ${careerReferenceCount} special refs`
+        : 'all 4 ranks',
+      category: 'Careers',
+    },
     { icon: 'scroll', title: 'Skills', count: reg.allSkillDefs.length, sub: 'basic + advanced', category: 'Skills' },
     { icon: 'star', title: 'Talents', count: reg.allTalentDefs.length, category: 'Talents' },
     { icon: 'sparkle', title: 'Spells', count: reg.allSpells.length, sub: `${loreCount} lores`, category: 'Spells' },
@@ -61,7 +67,7 @@ export const ReferenceScreen: React.FC = () => {
     <ScreenContainer>
       <Hero
         title="Reference"
-        subRow={<span className="ref-sub">WFRP 4e core book{coreVersion ? ` · version ${coreVersion}` : ''} · offline</span>}
+        subRow={<span className="ref-sub">WFRP 4e rules library · {layerLabel} · offline</span>}
         actions={
           <Button
             iconLeft={<Icon name="search" size={13} color={colors.ink} />}
