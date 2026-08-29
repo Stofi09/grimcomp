@@ -13,6 +13,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      '@grimcomp/core': fileURLToPath(new URL('../packages/core/src/index.ts', import.meta.url)),
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },

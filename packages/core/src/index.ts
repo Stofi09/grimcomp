@@ -1,4 +1,5 @@
 export * from './diagnostics';
+export * from './storage';
 export * from './types';
 export * from './versionRange';
 export {

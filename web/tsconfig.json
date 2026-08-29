@@ -15,6 +15,7 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
+      "@grimcomp/core": ["../packages/core/src/index.ts"],
       "@/*": ["./src/*"]
     },
     "types": ["vite/client"]

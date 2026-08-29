@@ -58,3 +58,35 @@ range. Semantic-version candidates are capped at 256 characters and ranges at
 4,096 raw characters, with bounded alternatives and comparator atoms. These
 limits are part of the untrusted-input boundary and should change only alongside
 explicit compatibility tests.
+
+## Crash-recoverable storage transactions
+
+The storage kernel is platform-neutral and operates only on already-serialized
+`string | null` values through the asynchronous `RawAsyncKeyValue` adapter.
+Create a coordinator with `createStorageCoordinator`, call `recover()` once at
+startup, and submit one or more unique-key mutations with `transact()`. Calls are
+serialized FIFO within a coordinator. Platforms should inject an exclusive-lock
+wrapper when separate processes or browser tabs share the same store.
+
+Every transaction captures its before-images while holding that lock, writes and
+reads back the versioned `gc.storage.transaction` journal, writes and reads back
+each after-image, then removes and verifies removal of the journal. Callers may
+publish only after the explicit `committed` outcome, or expose an optimistic
+value while clearly marking it pending/dirty and reconciling it on every failure;
+they must never claim durability early. An optional `expected` raw value provides
+compare-and-set protection: omission is unconditional, `null` requires an absent
+key, and a string requires an exact raw match under the lock.
+
+Coordinators begin blocked and dirty until startup recovery verifies a clean
+store. A valid interrupted journal is completed forward only when every current
+value still equals its recorded before- or after-image. Divergence, unreadable
+keys, corrupt journals, unverifiable writes, and failed rollback leave storage
+visibly blocked and preserve the marker for diagnosis or a later retry. The
+coordinator exposes `pending`, `dirty`, `blocked`, and phase state through
+`getStatus()` and `subscribe()`; results and failures are structured and never
+claim durability without read-back verification.
+
+Journal decoding accepts only JSON text, rejects unknown fields, duplicate or
+reserved operation keys, invalid ids, unsupported versions, non-raw values, and
+markers above the defensive size limit. The persisted marker is never trusted as
+a typed object.
