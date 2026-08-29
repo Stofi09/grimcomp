@@ -21,6 +21,7 @@ import {
 import { Shell } from '@/components/Shell';
 import { ContentProvider } from '@/content/ContentProvider';
 import { useStoredScreen } from '@/hooks/useStoredScreen';
+import { useNativeStorageGate } from '@/storage/useNativeStorage';
 import { colors } from '@/theme';
 
 import { OverviewScreen } from '@/screens/OverviewScreen';
@@ -53,6 +54,36 @@ export default function App() {
     JetBrainsMono_500Medium,
   });
 
+  const storage = useNativeStorageGate();
+
+  if (storage.blocked) {
+    return (
+      <View style={styles.loading}>
+        <Text style={styles.errorTitle}>Storage recovery required</Text>
+        <Text style={styles.errorText}>
+          {storage.lastError?.message ?? 'Saved data could not be verified safely. Gameplay storage was not opened; restart after resolving the recovery issue.'}
+        </Text>
+      </View>
+    );
+  }
+
+  if (!fontsLoaded || !storage.ready) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator color={colors.brass} />
+        <Text style={styles.loadingText}>
+          {storage.phase === 'booting' ? 'Checking saved data…' : 'Grim Companion'}
+        </Text>
+      </View>
+    );
+  }
+
+  return <ReadyApp />;
+}
+
+/** Mounted only after crash recovery and migrations have completed. */
+const ReadyApp: React.FC = () => {
+
   const [screenReady, screen, setScreen] = useStoredScreen('overview');
 
   const renderScreen = useCallback(() => {
@@ -78,7 +109,7 @@ export default function App() {
     }
   }, [screen]);
 
-  if (!fontsLoaded || !screenReady) {
+  if (!screenReady) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator color={colors.brass} />
@@ -97,7 +128,7 @@ export default function App() {
       </ContentProvider>
     </SafeAreaProvider>
   );
-}
+};
 
 const styles = StyleSheet.create({
   loading: {
@@ -110,5 +141,18 @@ const styles = StyleSheet.create({
   loadingText: {
     color: colors.ink2,
     letterSpacing: 1.2,
+  },
+  errorTitle: {
+    color: colors.empire,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  errorText: {
+    color: colors.ink2,
+    fontSize: 14,
+    lineHeight: 21,
+    maxWidth: 520,
+    paddingHorizontal: 24,
+    textAlign: 'center',
   },
 });

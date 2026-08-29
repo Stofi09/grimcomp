@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, Share, Pressable, TextInput } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import { ScreenContainer } from './ScreenContainer';
 import { useContentPacks } from '@/content/useContentPacks';
@@ -13,6 +12,13 @@ import { EditSheet } from '@/components/EditSheet';
 import { useXpRule } from '@/hooks/useSettings';
 import { useRoster } from '@/hooks/useRoster';
 import { useCharacter } from '@/hooks/useCharacter';
+import {
+  applyNativeSettingsImport,
+  buildNativeSettingsExport,
+  resetNativeStorageData,
+  validateNativeSettingsImport,
+} from '@/storage/settingsData';
+import { useNativeStorageStatus } from '@/storage/useNativeStorage';
 import { colors, fontFamilies } from '@/theme';
 
 interface RowProps {
@@ -45,36 +51,18 @@ export const SettingsScreen: React.FC = () => {
   const { id, template } = useCharacter();
   const { all } = useRoster();
   const { packs: userPacks, add: addPack, remove: removePack, setEnabled } = useContentPacks();
+  const storageStatus = useNativeStorageStatus();
   const [exportSheet, setExportSheet] = useState<{ scope: 'character' | 'roster'; json: string } | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
 
-  // Build a portable JSON snapshot. Caller chooses: just the active character
-  // template + their live overlays (gc.<id>.*), or the whole roster + all
-  // overlays. We collect everything keyed under `gc.` to make import a
-  // straightforward `setItem` loop later.
-  const buildExport = async (scope: 'character' | 'roster'): Promise<string> => {
-    const allKeys = await AsyncStorage.getAllKeys();
-    const wanted = scope === 'character'
-      ? allKeys.filter(k => k.startsWith(`gc.${id}.`) || k === 'gc.activeCharId')
-      : allKeys.filter(k => k.startsWith('gc.'));
-    const entries = await AsyncStorage.multiGet(wanted);
-    const dump: Record<string, unknown> = {
-      $schema: 'grimcomp.v1',
-      exportedAt: new Date().toISOString(),
-      scope,
-      character: scope === 'character' ? template.name : undefined,
-    };
-    for (const [k, v] of entries) {
-      if (v == null) continue;
-      try { dump[k] = JSON.parse(v); }
-      catch { dump[k] = v; }
+  const openExport = async (scope: 'character' | 'roster') => {
+    try {
+      const json = await buildNativeSettingsExport(scope, id, template.name);
+      setExportSheet({ scope, json });
+    } catch (error) {
+      Alert.alert('Export failed', error instanceof Error ? error.message : String(error));
     }
-    return JSON.stringify(dump, null, 2);
-  };
-
-  const openExport = (scope: 'character' | 'roster') => {
-    buildExport(scope).then(json => setExportSheet({ scope, json }));
   };
 
   const share = async () => {
@@ -99,33 +87,41 @@ export const SettingsScreen: React.FC = () => {
           text: 'Wipe',
           style: 'destructive',
           onPress: async () => {
-            const keys = await AsyncStorage.getAllKeys();
-            const gcKeys = keys.filter(k => k.startsWith('gc.'));
-            await AsyncStorage.multiRemove(gcKeys);
-            Alert.alert(
-              'Wiped',
-              `${gcKeys.length} keys removed. Reload the app to see the fresh state.`,
-            );
+            try {
+              const { result, written } = await resetNativeStorageData();
+              if (!result.ok) {
+                Alert.alert('Reset not confirmed', `${result.error.message}\n\nStorage remains guarded. Restart before retrying if the save status needs attention.`);
+                return;
+              }
+              Alert.alert('Wiped', `${written} data keys removed and live screens reset to their defaults.`);
+            } catch (error) {
+              Alert.alert('Reset not confirmed', error instanceof Error ? error.message : String(error));
+            }
           },
         },
       ],
     );
   };
 
-  const handleImport = (text: string, label: string) => {
+  const handleImport = async (text: string, label: string): Promise<boolean> => {
     let raw: unknown;
     try { raw = JSON.parse(text); }
     catch (e) {
       Alert.alert('Invalid JSON', `${label} is not valid JSON.\n${e instanceof Error ? e.message : ''}`);
-      return;
+      return false;
     }
     const { pack, errors } = validatePack(raw);
     if (errors.length > 0 || !pack) {
       Alert.alert('Invalid content pack', errors.join('\n').slice(0, 800) || 'Unknown validation error.');
-      return;
+      return false;
     }
-    addPack(pack);
+    const result = await addPack(pack);
+    if (!result.ok) {
+      Alert.alert('Import not confirmed', `${result.error.message}\n\nCheck the local save status before retrying.`);
+      return false;
+    }
     Alert.alert('Pack imported', `"${pack.name}" (${pack.id}) is now active.`);
+    return true;
   };
 
   const importPack = async () => {
@@ -135,19 +131,65 @@ export const SettingsScreen: React.FC = () => {
       const asset = res.assets[0];
       const fileRes = await fetch(asset.uri);
       const text = await fileRes.text();
-      handleImport(text, asset.name);
+      await handleImport(text, asset.name);
     } catch (e) {
       Alert.alert('Import failed', e instanceof Error ? e.message : String(e));
     }
   };
 
-  const submitPaste = () => {
-    handleImport(pasteText, 'pasted JSON');
-    setPasteOpen(false);
-    setPasteText('');
+  const submitPaste = async () => {
+    if (await handleImport(pasteText, 'pasted JSON')) {
+      setPasteOpen(false);
+      setPasteText('');
+    }
+  };
+
+  const importData = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
+      if (res.canceled) return;
+      const asset = res.assets[0];
+      const fileRes = await fetch(asset.uri);
+      const raw: unknown = JSON.parse(await fileRes.text());
+      const validated = validateNativeSettingsImport(raw);
+      if (!validated.ok) {
+        Alert.alert('Not a Grim Companion export', validated.message);
+        return;
+      }
+      const who = typeof validated.dump.character === 'string'
+        ? validated.dump.character
+        : validated.dump.scope === 'roster' ? 'the full roster' : 'this export';
+      Alert.alert(
+        'Import data?',
+        `This atomically replaces ${validated.keyCount} matching data keys for ${who}. Existing custom characters are merged.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Import',
+            style: 'destructive',
+            onPress: async () => {
+              const { result, written } = await applyNativeSettingsImport(validated.dump);
+              if (!result.ok) {
+                Alert.alert('Import not confirmed', `${result.error.message}\n\nStorage remains guarded. Restart before retrying if the save status needs attention.`);
+                return;
+              }
+              Alert.alert('Import complete', `${written} keys were durably applied.`);
+            },
+          },
+        ],
+      );
+    } catch (error) {
+      Alert.alert('Import failed', error instanceof Error ? error.message : String(error));
+    }
   };
 
   const rosterCount = Object.keys(all).length;
+  const storageValue = storageStatus.pending > 0
+    ? `Saving (${storageStatus.pending})`
+    : storageStatus.dirty ? 'Needs attention' : 'Saved';
+  const storageHint = storageStatus.lastError
+    ? `Last persistence issue: ${storageStatus.lastError.message}`
+    : 'Changes are queued in order and verified in local storage before they are marked saved.';
 
   return (
     <ScreenContainer>
@@ -221,6 +263,12 @@ export const SettingsScreen: React.FC = () => {
         />
 
         <Row
+          title="Local save status"
+          hint={storageHint}
+          value={storageValue}
+        />
+
+        <Row
           title="Export"
           hint="Copy a JSON snapshot of the active character or the entire roster + overlays."
           value="JSON"
@@ -233,8 +281,17 @@ export const SettingsScreen: React.FC = () => {
         />
 
         <Row
+          title="Import data"
+          hint="Load a grimcomp.v1 character or roster export as one recoverable transaction."
+          value="JSON"
+          right={
+            <Button variant="ghost" onPress={importData}>Import file</Button>
+          }
+        />
+
+        <Row
           title="Reset local data"
-          hint="Removes every gc.* key from AsyncStorage. Use this to start over."
+          hint="Atomically removes all user data while preserving the validated storage format marker."
           value="Destructive"
           last
           right={

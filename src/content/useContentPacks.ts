@@ -18,7 +18,7 @@ export function useContentPacks() {
   const [packs, setPacks] = useStoredState<StoredPack[]>(KEY, []);
 
   const add = useCallback((pack: ContentPack) => {
-    setPacks(prev => {
+    return setPacks(prev => {
       const next: StoredPack = { pack, enabled: true };
       const idx = prev.findIndex(p => p.pack.id === pack.id);
       if (idx >= 0) {
@@ -31,11 +31,11 @@ export function useContentPacks() {
   }, [setPacks]);
 
   const remove = useCallback((id: string) => {
-    setPacks(prev => prev.filter(p => p.pack.id !== id));
+    return setPacks(prev => prev.filter(p => p.pack.id !== id));
   }, [setPacks]);
 
   const setEnabled = useCallback((id: string, enabled: boolean) => {
-    setPacks(prev => prev.map(p => p.pack.id === id ? { ...p, enabled } : p));
+    return setPacks(prev => prev.map(p => p.pack.id === id ? { ...p, enabled } : p));
   }, [setPacks]);
 
   return { packs, add, remove, setEnabled };
