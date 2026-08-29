@@ -11,6 +11,66 @@ const readPack = (file: string): unknown => {
   return (entry[1] as { default: unknown }).default;
 };
 
+const validTalent = (overrides: Record<string, unknown> = {}) => ({
+  name: 'Read/Write',
+  definitionId: 'tal.read-write',
+  specialization: 'Reikspiel',
+  times: 1,
+  desc: 'Can read and write.',
+  career: true,
+  ...overrides,
+});
+
+const validCharacter = (overrides: Record<string, unknown> = {}) => ({
+  id: 'char.test',
+  name: 'Test Character',
+  species: 'Human',
+  raceId: 'race.human',
+  class: 'Academic',
+  careerId: 'car.wizard',
+  career: 'Wizard',
+  careerLevel: 1,
+  careerLevelName: 'Wizard\'s Apprentice',
+  careerRanks: [{ level: 1, name: 'Wizard\'s Apprentice', status: 'Brass 3' }],
+  status: 'Brass 3',
+  age: 24,
+  height: '175 cm',
+  hair: 'Brown',
+  eyes: 'Grey',
+  motivation: 'Learn the arcane arts.',
+  fate: 2,
+  fortune: 2,
+  resilience: 1,
+  resolve: 1,
+  xpCurrent: 100,
+  xpSpent: 0,
+  wounds: { current: 10, max: 10 },
+  corruption: 0,
+  sin: 0,
+  movement: 4,
+  wealth: { gc: 1, ss: 2, d: 3 },
+  characteristics: [{ key: 'int', name: 'Intelligence', short: 'Int', init: 30, adv: 5 }],
+  skills: [{
+    definitionId: 'sk.lore-magick', name: 'Lore (Magick)', char: 'int', adv: 5,
+    career: true, advanced: true, grouped: 'Magick',
+  }],
+  talents: [validTalent()],
+  weapons: [{ name: 'Dagger', group: 'Basic', enc: 0, reach: 'Short', dmg: 'SB+2', qual: [] }],
+  armour: [{ name: 'Robes', locs: ['Body'], enc: 0, ap: 0, qual: [] }],
+  ap: { head: 0, arm_l: 0, arm_r: 0, body: 0, leg_l: 0, leg_r: 0, shield: 0 },
+  conditions: [{ type: 'Bleeding', stacks: 0 }],
+  criticals: [{ loc: 'Arm', roll: 1, name: 'Bruise', effect: 'It hurts.', days: 0 }],
+  trappings: [{ name: 'Spellbook', enc: 1 }],
+  party: { name: 'Test Party', short: 'A test party.', members: [{ name: 'Ally', role: 'Scout' }] },
+  psychology: ['Animosity (Enemies)'],
+  mutations: [{ name: 'Odd Eyes' }],
+  ambitionsShort: 'Learn a spell.',
+  ambitionsLong: 'Become a master wizard.',
+  initials: 'TC',
+  accent: '#123456',
+  ...overrides,
+});
+
 describe('validatePack — unit', () => {
   it('accepts a minimal v2 pack', () => {
     const { pack, errors, warnings } = validatePack({
@@ -52,20 +112,17 @@ describe('validatePack — unit', () => {
     expect(errors.some(e => /duplicate/i.test(e))).toBe(true);
   });
 
+  it('rejects blank ids for id-keyed pack entries', () => {
+    const { errors } = validatePack({
+      $schema: 'grimcomp.content.v2', id: 't', name: 'T', version: '1',
+      talents: [{ id: '   ', name: 'Blank Id', description: 'Invalid identity.' }],
+    });
+
+    expect(errors).toContain('talents[0] field "id" must not be blank.');
+  });
+
   it('accepts a stable Career id on a character and rejects a blank one', () => {
-    const character = {
-      id: 'char.test',
-      name: 'Test Character',
-      species: 'Human',
-      class: 'Academic',
-      career: 'Wizard',
-      careerId: 'car.wizard',
-      characteristics: [],
-      skills: [],
-      talents: [],
-      careerRanks: [],
-      wounds: { current: 1, max: 1 },
-    };
+    const character = validCharacter();
     const envelope = {
       $schema: 'grimcomp.content.v2', id: 't', name: 'T', version: '1',
       characters: [character],
@@ -76,6 +133,138 @@ describe('validatePack — unit', () => {
       ...envelope,
       characters: [{ ...character, careerId: '   ' }],
     }).errors).toContain('characters[0] "careerId" must be a nonblank string when provided.');
+  });
+
+  it('accepts a structurally complete character template', () => {
+    const { pack, errors } = validatePack({
+      $schema: 'grimcomp.content.v2', id: 't', name: 'T', version: '1',
+      characters: [validCharacter({
+        isCaster: true,
+        spellLore: 'Fire',
+        knownSpells: ['sp.fire.cauterise'],
+        criticals: [{ loc: '', roll: 1, name: 'Bruise', effect: 'It hurts.', days: 0 }],
+      })],
+    });
+
+    expect(errors).toEqual([]);
+    expect(pack?.characters).toHaveLength(1);
+  });
+
+  it('rejects missing, null, string, zero, fractional, and infinite character talent times', () => {
+    const { times: _times, ...withoutTimes } = validTalent();
+    const invalidTalents = [
+      withoutTimes,
+      validTalent({ times: null }),
+      validTalent({ times: '1' }),
+      validTalent({ times: 0 }),
+      validTalent({ times: 1.5 }),
+      validTalent({ times: Number.POSITIVE_INFINITY }),
+    ];
+    const { errors } = validatePack({
+      $schema: 'grimcomp.content.v2', id: 't', name: 'T', version: '1',
+      characters: [validCharacter({ talents: invalidTalents })],
+    });
+
+    const timesErrors = errors.filter(error =>
+      error.includes('"times" must be a finite integer greater than or equal to 1.'));
+    expect(timesErrors).toHaveLength(invalidTalents.length);
+    invalidTalents.forEach((_, index) => {
+      expect(timesErrors.some(error => error.startsWith(`characters[0].talents[${index}]`))).toBe(true);
+    });
+  });
+
+  it('strictly validates the other character talent fields', () => {
+    const { errors } = validatePack({
+      $schema: 'grimcomp.content.v2', id: 't', name: 'T', version: '1',
+      characters: [validCharacter({
+        talents: [
+          validTalent({ name: ' ' }),
+          validTalent({ desc: '' }),
+          validTalent({ career: 'yes' }),
+          validTalent({ definitionId: ' ' }),
+          validTalent({ specialization: null }),
+        ],
+      })],
+    });
+
+    expect(errors).toContain('characters[0].talents[0] "name" must be a nonblank string.');
+    expect(errors).toContain('characters[0].talents[1] "desc" must be a nonblank string.');
+    expect(errors).toContain('characters[0].talents[2] "career" must be a boolean.');
+    expect(errors).toContain('characters[0].talents[3] "definitionId" must be a nonblank string when provided.');
+    expect(errors).toContain('characters[0].talents[4] "specialization" must be a nonblank string when provided.');
+  });
+
+  it('rejects duplicate stable and legacy character talent identities', () => {
+    const { errors } = validatePack({
+      $schema: 'grimcomp.content.v2', id: 't', name: 'T', version: '1',
+      characters: [validCharacter({
+        talents: [
+          validTalent(),
+          validTalent({
+            name: 'Historical Read/Write label',
+            definitionId: ' TAL.READ-WRITE ',
+            specialization: ' REIKSPIEL ',
+          }),
+          validTalent({ name: ' Hardy ', definitionId: undefined, specialization: undefined }),
+          validTalent({ name: 'hardy', definitionId: undefined, specialization: undefined }),
+        ],
+      })],
+    });
+
+    expect(errors).toContain(
+      'characters[0].talents[1] duplicates talent identity "definition:tal.read-write|specialization:reikspiel".',
+    );
+    expect(errors).toContain(
+      'characters[0].talents[3] duplicates talent identity "name:hardy".',
+    );
+  });
+
+  it('rejects character skills that reference missing characteristic keys', () => {
+    const { errors } = validatePack({
+      $schema: 'grimcomp.content.v2', id: 't', name: 'T', version: '1',
+      characters: [validCharacter({
+        skills: [
+          { name: 'Valid Lore', char: 'int', adv: 1, career: true },
+          { name: 'Broken Lore', char: 'wp', adv: 1, career: false },
+        ],
+      })],
+    });
+
+    expect(errors).toEqual([
+      'characters[0].skills[1] "char" references unknown characteristic "wp".',
+    ]);
+  });
+
+  it('rejects malformed load-bearing character collections and nested objects', () => {
+    const { errors } = validatePack({
+      $schema: 'grimcomp.content.v2', id: 't', name: 'T', version: '1',
+      characters: [validCharacter({
+        characteristics: [null],
+        skills: [{ name: 'Lore', char: 'int', adv: 1, career: 'yes' }],
+        careerRanks: [{ level: 1, name: 'Rank', status: 'Brass 1' }, { level: 1, name: 'Duplicate', status: 'Brass 2' }],
+        wounds: { current: Number.POSITIVE_INFINITY, max: 10 },
+        wealth: { gc: 'many' },
+        weapons: [{ name: 'Dagger', group: 'Basic', enc: 0, dmg: 'SB+2', qual: 'None' }],
+        armour: [{ name: 'Mail', locs: [null], enc: 1, ap: 1, qual: [] }],
+        ap: { head: Number.POSITIVE_INFINITY, arm_l: 0, arm_r: 0, body: 0, leg_l: 0, leg_r: 0, shield: 0 },
+        conditions: [{ type: 'Bleeding', stacks: -1 }],
+        criticals: [null],
+        trappings: [{ name: ' ', enc: 0 }],
+        party: { name: 'Party', short: '', members: [null] },
+        psychology: [null],
+        mutations: [null],
+      })],
+    });
+
+    expect(errors).toContain('characters[0].characteristics[0] must be an object.');
+    expect(errors).toContain('characters[0].skills[0] "career" must be a boolean.');
+    expect(errors.some(error => error.includes('duplicates career level 1'))).toBe(true);
+    expect(errors).toContain('characters[0].wounds "current" must be a finite number.');
+    expect(errors).toContain('characters[0].wealth["gc"] must be a finite number.');
+    expect(errors).toContain('characters[0].weapons[0] "qual" must be an array.');
+    expect(errors).toContain('characters[0].armour[0].locs[0] must be a nonblank string.');
+    expect(errors).toContain('characters[0].conditions[0] "stacks" must be a finite integer greater than or equal to 0.');
+    expect(errors).toContain('characters[0].party.members[0] must be an object.');
   });
 
   it('accepts Career provenance, availability, and magic-access metadata', () => {

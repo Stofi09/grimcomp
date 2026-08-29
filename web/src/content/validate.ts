@@ -18,6 +18,7 @@ import {
   type XpCostRow,
 } from './types';
 import { compileFormula } from '@/utils/formula';
+import { validateCharacterTemplate } from './validateCharacter';
 
 export interface ValidationResult {
   pack?: ContentPack;
@@ -149,6 +150,8 @@ export function validatePack(raw: unknown): ValidationResult {
       if (spec.requireId !== false) {
         if (!isString(entry.id)) {
           push(`${where} is missing a string "id".`);
+        } else if (!isNonBlankString(entry.id)) {
+          push(`${where} field "id" must not be blank.`);
         } else if (ids.has(entry.id)) {
           push(`Duplicate id "${entry.id}" within "${section}".`);
         } else {
@@ -495,19 +498,11 @@ export function validatePack(raw: unknown): ValidationResult {
     },
   });
 
-  // Characters carry the full template shape; validate the load-bearing
-  // fields rather than the whole structure.
+  // Character templates are consumed directly by roster/state hooks, so a
+  // malformed nested value must be rejected at the pack boundary.
   checkSection('characters', {
-    strings: ['name', 'species', 'class', 'career'],
     extra: (entry, where, p) => {
-      if (entry.careerId !== undefined && !isNonBlankString(entry.careerId)) {
-        p(`${where} "careerId" must be a nonblank string when provided.`);
-      }
-      if (!Array.isArray(entry.characteristics)) p(`${where} "characteristics" must be an array.`);
-      if (!Array.isArray(entry.skills)) p(`${where} "skills" must be an array.`);
-      if (!Array.isArray(entry.talents)) p(`${where} "talents" must be an array.`);
-      if (!Array.isArray(entry.careerRanks)) p(`${where} "careerRanks" must be an array.`);
-      if (!isObject(entry.wounds)) p(`${where} "wounds" must be an object.`);
+      for (const error of validateCharacterTemplate(entry, where)) p(error);
     },
   });
 
