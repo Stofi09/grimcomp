@@ -14,6 +14,8 @@
     "android": "expo start --android",
     "web": "expo start --web",
     "tsc": "tsc --noEmit",
+    "tsc:core": "tsc --noEmit --project packages/core/tsconfig.json",
+    "check:core-boundary": "node packages/core/scripts/check-boundary.mjs",
     "icons": "node scripts/generate-icons.js",
     "audit:ios": "node scripts/audit-ios-config.js",
     "build:ios": "eas build --platform ios --profile production",
@@ -22,6 +24,7 @@
     "submit:ios:testflight": "eas build --platform ios --profile production --auto-submit"
   },
   "dependencies": {
+    "@grimcomp/core": "workspace:*",
     "@expo-google-fonts/im-fell-english": "^0.2.3",
     "@expo-google-fonts/inter": "^0.2.3",
     "@expo-google-fonts/jetbrains-mono": "^0.2.3",

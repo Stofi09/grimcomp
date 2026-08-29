@@ -8,6 +8,7 @@ on:
   push:
     paths:
       - 'src/**'
+      - 'packages/core/**'
       - 'App.tsx'
       - 'tsconfig.json'
       - 'package.json'
@@ -17,6 +18,7 @@ on:
   pull_request:
     paths:
       - 'src/**'
+      - 'packages/core/**'
       - 'App.tsx'
       - 'tsconfig.json'
       - 'package.json'
@@ -44,4 +46,6 @@ jobs:
       # loads it. Root pnpm-workspace.yaml keeps `allowBuilds: sharp: true`
       # so a local install still builds it.
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm run check:core-boundary
+      - run: pnpm run tsc:core
       - run: pnpm run tsc

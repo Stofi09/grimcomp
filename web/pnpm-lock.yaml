@@ -17,6 +17,9 @@ importers:
       '@fontsource/jetbrains-mono':
         specifier: ^5.2.5
         version: 5.2.8
+      '@grimcomp/core':
+        specifier: file:../packages/core
+        version: file:../packages/core
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -419,6 +422,9 @@ packages:
 
   '@fontsource/jetbrains-mono@5.2.8':
     resolution: {integrity: sha512-6w8/SG4kqvIMu7xd7wt6x3idn1Qux3p9N62s6G3rfldOUYHpWcc2FKrqf+Vo44jRvqWj2oAtTHrZXEP23oSKwQ==}
+
+  '@grimcomp/core@file:../packages/core':
+    resolution: {directory: ../packages/core, type: directory}
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -1764,6 +1770,8 @@ snapshots:
   '@fontsource/inter@5.2.8': {}
 
   '@fontsource/jetbrains-mono@5.2.8': {}
+
+  '@grimcomp/core@file:../packages/core': {}
 
   '@humanfs/core@0.19.2':
     dependencies:

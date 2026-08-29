@@ -9,9 +9,9 @@ name: web-ci
 # `packages: []`), so installing with cwd=web is isolated from the root Expo app.
 on:
   push:
-    paths: ['web/**', '.github/workflows/web-ci.yml']
+    paths: ['web/**', 'packages/core/**', '.github/workflows/web-ci.yml']
   pull_request:
-    paths: ['web/**', '.github/workflows/web-ci.yml']
+    paths: ['web/**', 'packages/core/**', '.github/workflows/web-ci.yml']
 
 jobs:
   build-test:
@@ -34,6 +34,8 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm run check:no-scratch
       - run: pnpm install --frozen-lockfile
+      - run: pnpm run check:core-boundary
+      - run: pnpm run tsc:core
       - run: pnpm run tsc
       - run: pnpm run lint
       # Vitest's per-test timeout cannot interrupt a synchronous event-loop hang.

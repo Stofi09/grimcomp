@@ -1,7 +1,11 @@
 /// <reference types="vitest/config" />
 import { fileURLToPath, URL } from 'node:url';
+import { searchForWorkspaceRoot } from 'vite';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+
+const webRoot = fileURLToPath(new URL('.', import.meta.url));
+const coreRoot = fileURLToPath(new URL('../packages/core', import.meta.url));
 
 // base: './' so the static build can be served from any subdirectory.
 export default defineConfig({
@@ -10,6 +14,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  server: {
+    fs: {
+      allow: [searchForWorkspaceRoot(webRoot), coreRoot],
     },
   },
   // The PR0 safety net: pure-unit tests for the content + rules engine run in a

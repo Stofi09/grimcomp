@@ -9,12 +9,15 @@
     "build": "vite build",
     "preview": "vite preview",
     "tsc": "tsc --noEmit",
+    "tsc:core": "tsc --noEmit --project ../packages/core/tsconfig.json",
     "lint": "eslint .",
+    "check:core-boundary": "node ../packages/core/scripts/check-boundary.mjs",
     "check:no-scratch": "node scripts/check-no-scratch.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@grimcomp/core": "file:../packages/core",
     "@fontsource/im-fell-english": "^5.2.5",
     "@fontsource/inter": "^5.2.5",
     "@fontsource/jetbrains-mono": "^5.2.5",

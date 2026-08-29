@@ -12,6 +12,9 @@
 # web/ is a SEPARATE workspace root (web/pnpm-workspace.yaml sets `packages: []`)
 # so installs there don't get hijacked by this file — pnpm walks up until it
 # finds one.
+packages:
+  - 'packages/*'
+
 nodeLinker: hoisted
 allowBuilds:
   sharp: true
