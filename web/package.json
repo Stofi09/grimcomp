@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "tsc": "tsc --noEmit",
     "lint": "eslint .",
+    "check:no-scratch": "node scripts/check-no-scratch.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

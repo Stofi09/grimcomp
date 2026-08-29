@@ -16,6 +16,7 @@ on:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: web
@@ -31,8 +32,10 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm run check:no-scratch
       - run: pnpm install --frozen-lockfile
       - run: pnpm run tsc
       - run: pnpm run lint
-      - run: pnpm test
+      # Vitest's per-test timeout cannot interrupt a synchronous event-loop hang.
+      - run: timeout 2m pnpm test
       - run: pnpm run build
