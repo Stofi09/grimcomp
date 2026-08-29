@@ -15,6 +15,7 @@ import {
   talentRulesStatusLabel,
   talentRulesStatusMeta,
   talentSourceLabel,
+  talentTimesEqual,
 } from './talents';
 
 const talents: TalentDef[] = [{
@@ -111,8 +112,62 @@ describe('talent definition and persistence helpers', () => {
 
     expect(migrateTalentTimes({ [firstKey]: 2, 'Shared Gift': 3 }, owners).times).toEqual({
       [firstKey]: 2,
-      [secondKey]: 1,
+      [secondKey]: 3,
     });
+
+    // With no later same-name owner, the unused alias remains available for a
+    // temporarily unavailable talent instead of being silently discarded.
+    expect(migrateTalentTimes({ [firstKey]: 2, 'Shared Gift': 3 }, owners.slice(0, 1)))
+      .toEqual({
+        times: { [firstKey]: 2, 'Shared Gift': 3 },
+        migrated: false,
+      });
+  });
+
+  it('consumes only the one legacy alias that supplied each owner', () => {
+    const first = { name: 'Shared Gift', definitionId: 'tal.first' };
+    const second = { name: 'Shared Gift', definitionId: 'tal.second' };
+    const firstKey = talentIdentityKey(first);
+    const secondKey = talentIdentityKey(second);
+    const migrated = migrateTalentTimes({
+      'Shared Gift': 2,
+      ' shared gift ': 4,
+    }, [
+      { ref: first, aliases: ['Shared Gift'], initial: 1 },
+      { ref: second, aliases: ['Shared Gift'], initial: 1 },
+    ]);
+
+    expect(migrated.times).toEqual({
+      [firstKey]: 2,
+      [secondKey]: 4,
+    });
+  });
+
+  it('normalizes malformed owner defaults once without ever emitting nonfinite ranks', () => {
+    const owners = [
+      { ref: { name: 'Missing', definitionId: 'tal.missing' }, initial: undefined },
+      { ref: { name: 'Null', definitionId: 'tal.null' }, initial: null },
+      { ref: { name: 'NaN', definitionId: 'tal.nan' }, initial: Number.NaN },
+      { ref: { name: 'Infinite', definitionId: 'tal.infinite' }, initial: Number.POSITIVE_INFINITY },
+      { ref: { name: 'Fractional', definitionId: 'tal.fractional' }, initial: 1.5 },
+      { ref: { name: 'Zero', definitionId: 'tal.zero' }, initial: 0 },
+    ];
+
+    const migrated = migrateTalentTimes(null, owners);
+    expect(Object.values(migrated.times)).toEqual([1, 1, 1, 1, 1, 1]);
+    expect(JSON.stringify(migrated.times)).not.toMatch(/:null(?:[,}])/);
+    expect(migrated.migrated).toBe(true);
+    expect(migrateTalentTimes(migrated.times, owners)).toEqual({
+      times: migrated.times,
+      migrated: false,
+    });
+  });
+
+  it('compares canonical rank maps structurally rather than by object identity', () => {
+    const canonical = { 'definition:tal.hardy|specialization:': 2 };
+    expect(talentTimesEqual({ ...canonical }, canonical)).toBe(true);
+    expect(talentTimesEqual({ ...canonical, Corrupt: null }, canonical)).toBe(false);
+    expect(talentTimesEqual(null, {})).toBe(false);
   });
 
   it('keeps an unavailable ID or removed specialization authoritative', () => {

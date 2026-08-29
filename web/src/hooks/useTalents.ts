@@ -13,6 +13,7 @@ import {
   resolveStoredTalentRef,
   storedTalentRefFor,
   talentIdentityKey,
+  talentTimesEqual,
   type StoredTalentRef,
   type TalentRefLike,
   type TalentRankOwner,
@@ -80,8 +81,12 @@ export function useTalents() {
   // Persist legacy-name migrations exactly once. The computed canonical state
   // is used immediately, so the first render is already correct.
   useEffect(() => {
-    if (migratedRanks.migrated) setStoredTimes(migratedRanks.times);
-  }, [migratedRanks, setStoredTimes]);
+    if (talentTimesEqual(storedTimes, migratedRanks.times)) return;
+    setStoredTimes((previous: unknown) => {
+      const canonical = migrateTalentTimes(previous, rankOwners).times;
+      return talentTimesEqual(previous, canonical) ? previous : canonical;
+    });
+  }, [migratedRanks.times, rankOwners, setStoredTimes, storedTimes]);
   useEffect(() => {
     const unchanged = Array.isArray(storedAdded)
       && storedAdded.length === addedRefs.length

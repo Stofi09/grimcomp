@@ -25,7 +25,8 @@ export interface TalentRankOwner {
   ref: StoredTalentRef;
   /** Current and historical display labels that may exist as legacy map keys. */
   aliases?: readonly string[];
-  initial: number;
+  /** Runtime content is untrusted even though authored Character data is typed. */
+  initial: unknown;
 }
 
 export interface MigratedTalentRanks {
@@ -103,6 +104,28 @@ export function normalizeTalentTimes(value: unknown): Record<string, number> {
   return Object.fromEntries(entries);
 }
 
+/** Exact JSON-shape comparison used to make cleanup migrations converge. */
+export function talentTimesEqual(
+  value: unknown,
+  expected: Readonly<Record<string, number>>,
+): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const entries = Object.entries(value as Record<string, unknown>);
+  const expectedKeys = Object.keys(expected);
+  return entries.length === expectedKeys.length
+    && entries.every(([key, rank]) => rank === expected[key]);
+}
+
+/** A malformed template rank must never escape into the persisted rank map. */
+function normalizedInitialRank(value: unknown): number {
+  return typeof value === 'number'
+    && Number.isFinite(value)
+    && Number.isInteger(value)
+    && value >= 1
+    ? value
+    : 1;
+}
+
 /**
  * Convert old name-keyed ranks to canonical identity keys. A legacy name is
  * consumed by at most one owner, so two definitions sharing a label cannot
@@ -134,25 +157,23 @@ export function migrateTalentTimes(
     ));
 
     let rank = current[identity];
+    let consumedLegacyKey: string | undefined;
     if (rank === undefined) {
-      const legacyKey = matchingLegacyKeys.find(key => !consumedLegacyKeys.has(key));
-      if (legacyKey !== undefined) rank = current[legacyKey];
+      consumedLegacyKey = matchingLegacyKeys.find(key => !consumedLegacyKeys.has(key));
+      if (consumedLegacyKey !== undefined) rank = current[consumedLegacyKey];
     }
-    // Whether the canonical value or the legacy value won, retire matching
-    // aliases now so a same-name definition cannot consume them again.
-    for (const legacyKey of matchingLegacyKeys) {
-      consumedLegacyKeys.add(legacyKey);
-      delete next[legacyKey];
+    // Only retire the alias that actually supplied this owner's rank. If this
+    // owner already had a canonical value, a same-name alias may belong to a
+    // later owner (or temporarily unavailable content) and must survive.
+    if (consumedLegacyKey !== undefined) {
+      consumedLegacyKeys.add(consumedLegacyKey);
+      delete next[consumedLegacyKey];
     }
 
-    next[identity] = rank ?? Math.max(1, owner.initial);
+    next[identity] = rank ?? normalizedInitialRank(owner.initial);
   }
 
-  const currentEntries = Object.entries(current);
-  const nextEntries = Object.entries(next);
-  const migrated = currentEntries.length !== nextEntries.length
-    || nextEntries.some(([key, rank]) => current[key] !== rank);
-  return { times: next, migrated };
+  return { times: next, migrated: !talentTimesEqual(value, next) };
 }
 
 /** Concrete character-sheet label for a parameterised definition. */
