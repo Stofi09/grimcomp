@@ -1,0 +1,10 @@
+{
+  "$schema": "grimcomp.exchange.v1",
+  "producer": { "id": "grimcomp", "version": "1.0.0" },
+  "producedAt": "2026-08-30T10:01:00Z",
+  "characters": [],
+  "sourceProfiles": [],
+  "campaignProfiles": [],
+  "contentPackMetadata": [],
+  "extensions": { "fixture": "common-character" }
+}

@@ -1,0 +1,17 @@
+[
+  ["legacy_unmapped_value", ["source", "overlays", "notes"]],
+  ["legacy_unmapped_value", ["source", "overlays", "settings.xpRule"]],
+  ["legacy_unresolved_reference", ["source", "character", "species"]],
+  ["legacy_unresolved_reference", ["source", "character", "career"]],
+  ["legacy_unmapped_value", ["source", "character", "careerRanks"]],
+  ["legacy_unmapped_value", ["source", "character", "movement"]],
+  ["legacy_inferred_value", ["progression", "experience", "earned"]],
+  ["legacy_ambiguous_reference", ["source", "overlays", "skills.adv", "Lore"]],
+  ["legacy_unresolved_reference", ["source", "character", "skills", 0, "definitionId"]],
+  ["legacy_unresolved_reference", ["source", "character", "skills", 1, "name"]],
+  ["legacy_unresolved_reference", ["source", "character", "skills", 2, "name"]],
+  ["legacy_unmapped_value", ["source", "overlays", "talents.times", "Missing Talent"]],
+  ["legacy_ambiguous_reference", ["source", "character", "talents", 0, "name"]],
+  ["legacy_unresolved_reference", ["source", "character", "knownSpells", 0]],
+  ["legacy_inferred_value", ["origin", "timestampsInferred"]]
+]

@@ -11,6 +11,10 @@ export const MAX_STORAGE_KEY_LENGTH = 512;
 export const MAX_TRANSACTION_ID_LENGTH = 128;
 export const MAX_TRANSACTION_OPERATIONS = 1_000;
 export const MAX_JOURNAL_RAW_LENGTH = 4 * 1024 * 1024;
+const LONGEST_CHARACTER_STORAGE_SUFFIX = '.magic.spellbook';
+export const MAX_STORAGE_KEY_SEGMENT_LENGTH = (
+  MAX_STORAGE_KEY_LENGTH - 'gc.'.length - LONGEST_CHARACTER_STORAGE_SUFFIX.length
+);
 
 export type JournalDecodeResult =
   | { readonly ok: true; readonly journal: StorageTransactionJournalV1 }
@@ -39,14 +43,44 @@ function hasExactKeys(value: Record<string, unknown>, expected: readonly string[
   );
 }
 
+const UNSAFE_RECORD_SEGMENTS = new Set([
+  '__defineGetter__',
+  '__defineSetter__',
+  '__lookupGetter__',
+  '__lookupSetter__',
+  '__proto__',
+  'constructor',
+  'hasOwnProperty',
+  'isPrototypeOf',
+  'propertyIsEnumerable',
+  'prototype',
+  'toLocaleString',
+  'toString',
+  'valueOf',
+]);
+
 export function isValidStorageKey(key: unknown): key is string {
   return (
     typeof key === 'string' &&
+    key.startsWith('gc.') &&
     key.length > 0 &&
     key.length <= MAX_STORAGE_KEY_LENGTH &&
     key.trim() === key &&
     key !== STORAGE_TRANSACTION_JOURNAL_KEY &&
     !/[\u0000-\u001f\u007f]/u.test(key)
+  );
+}
+
+/** A single dot-delimited namespace component used inside persisted keys. */
+export function isValidStorageKeySegment(value: unknown): value is string {
+  return (
+    typeof value === 'string'
+    && value.length > 0
+    && value.length <= MAX_STORAGE_KEY_SEGMENT_LENGTH
+    && value.trim() === value
+    && !value.includes('.')
+    && !UNSAFE_RECORD_SEGMENTS.has(value)
+    && isValidStorageKey(`gc.${value}${LONGEST_CHARACTER_STORAGE_SUFFIX}`)
   );
 }
 
@@ -60,7 +94,10 @@ export function isValidTransactionId(value: unknown): value is string {
 }
 
 /** Snapshots own enumerable data properties once, so getters/proxies cannot win a validate/use race. */
-export function snapshotStorageMutations(mutations: unknown): StorageMutationSnapshotResult {
+export function snapshotStorageMutations(
+  mutations: unknown,
+  options: { readonly allowEmpty?: boolean } = {},
+): StorageMutationSnapshotResult {
   try {
     if (!Array.isArray(mutations)) {
       return { ok: false, message: 'A transaction must be an array of operations.' };
@@ -68,7 +105,7 @@ export function snapshotStorageMutations(mutations: unknown): StorageMutationSna
     const arrayKeys = Reflect.ownKeys(mutations);
     const lengthDescriptor = Object.getOwnPropertyDescriptor(mutations, 'length');
     const length = lengthDescriptor && 'value' in lengthDescriptor ? lengthDescriptor.value : -1;
-    if (!Number.isSafeInteger(length) || length < 1) {
+    if (!Number.isSafeInteger(length) || length < 0 || (!options.allowEmpty && length < 1)) {
       return { ok: false, message: 'A transaction must contain at least one operation.' };
     }
     if (length > MAX_TRANSACTION_OPERATIONS) {

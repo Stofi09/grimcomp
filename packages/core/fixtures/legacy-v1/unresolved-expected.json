@@ -1,0 +1,51 @@
+{
+  "skillAdvances": [0, 0, 1],
+  "talentRanks": [1],
+  "spells": [],
+  "unresolvedRefs": [
+    {
+      "code": "legacy.unresolved",
+      "path": "identity.speciesRef",
+      "reason": "No caller-supplied exact species resolution matches \"Unknown Folk\".",
+      "legacyKey": "Unknown Folk"
+    },
+    {
+      "code": "legacy.unresolved",
+      "path": "identity.careerRef",
+      "reason": "No caller-supplied exact career resolution matches \"Wayfarer\".",
+      "legacyKey": "Wayfarer"
+    },
+    {
+      "code": "legacy.unresolved",
+      "path": "stats.skills.legacy.skill.0000.definitionRef",
+      "reason": "No caller-supplied exact skill resolution matches \"legacy.skill.sneak\".",
+      "legacyKey": "legacy.skill.sneak",
+      "ref": { "id": "legacy.skill.sneak" }
+    },
+    {
+      "code": "legacy.unresolved",
+      "path": "stats.skills.legacy.skill.0001.definitionRef",
+      "reason": "No caller-supplied exact skill resolution matches \"Lore\".",
+      "legacyKey": "Lore"
+    },
+    {
+      "code": "legacy.unresolved",
+      "path": "stats.skills.legacy.skill.0002.definitionRef",
+      "reason": "No caller-supplied exact skill resolution matches \"Lore\".",
+      "legacyKey": "Lore"
+    },
+    {
+      "code": "legacy.ambiguous",
+      "path": "abilities.talents.0.definitionRef",
+      "reason": "Multiple caller-supplied exact talent resolutions match \"Odd Gift\".",
+      "legacyKey": "Odd Gift"
+    },
+    {
+      "code": "legacy.unresolved",
+      "path": "abilities.spells.0.definitionRef",
+      "reason": "No caller-supplied exact spell resolution matches \"legacy.spell.mist\".",
+      "legacyKey": "legacy.spell.mist",
+      "ref": { "id": "legacy.spell.mist" }
+    }
+  ]
+}

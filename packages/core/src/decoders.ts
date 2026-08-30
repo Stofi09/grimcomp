@@ -1530,6 +1530,9 @@ function parseProducer(
   const id = readString(object, 'id', context, path, { id: true });
   const version = readString(object, 'version', context, path);
   const extensions = optionalExtensions(object, context, path);
+  if (version !== undefined) {
+    validateVersionText(version, context, child(path, 'version'), 'producer.version');
+  }
   if (!everyDefined([id, version])) return undefined;
   return { id: id!, version: version!, ...(extensions ? { extensions } : {}) };
 }

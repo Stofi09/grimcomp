@@ -1,0 +1,10 @@
+{
+  "character": {
+    "id": "broken",
+    "name": "Broken Character",
+    "species": "Human"
+  },
+  "overlays": {
+    "xp": { "current": "many", "spent": 0, "log": [] }
+  }
+}

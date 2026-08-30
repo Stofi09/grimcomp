@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_DIAGNOSTIC_MESSAGE_LENGTH,
+  MAX_DIAGNOSTIC_PATH_SEGMENT_LENGTH,
+  MAX_DIAGNOSTIC_PATH_SEGMENTS,
+  MAX_FORMATTED_DIAGNOSTIC_PATH_LENGTH,
   decodeCampaignProfileV1,
   decodeCharacterDocumentV2,
   decodeContentPackMetadataV1,
@@ -7,6 +11,7 @@ import {
   decodeRulesetRef,
   decodeSourceProfileV1,
   formatDiagnosticPath,
+  makeDiagnostic,
   quoteDiagnosticValue,
   type DecodeResult,
 } from '@grimcomp/core';
@@ -364,6 +369,31 @@ describe('diagnostics and ruleset identity', () => {
     );
     expect(unknown?.message).not.toContain('\n');
     expect(unknown?.message).not.toContain(untrusted);
+    expect((unknown?.path.at(-1) as string | undefined)?.length)
+      .toBeLessThanOrEqual(MAX_DIAGNOSTIC_PATH_SEGMENT_LENGTH);
+    expect(formatDiagnosticPath(unknown?.path ?? [])).not.toContain('\n');
+  });
+
+  it('bounds diagnostic messages, stored paths, and formatted paths', () => {
+    const untrusted = `line\nbreak-${'x'.repeat(10_000)}`;
+    const diagnostic = makeDiagnostic('unknown_key', [untrusted], untrusted);
+
+    expect(diagnostic.message.length).toBeLessThanOrEqual(MAX_DIAGNOSTIC_MESSAGE_LENGTH);
+    expect(diagnostic.message).not.toContain('\n');
+    expect((diagnostic.path[0] as string).length)
+      .toBeLessThanOrEqual(MAX_DIAGNOSTIC_PATH_SEGMENT_LENGTH);
+    expect(formatDiagnosticPath(diagnostic.path)).not.toContain('\n');
+
+    const hostilePath = Array.from(
+      { length: MAX_DIAGNOSTIC_PATH_SEGMENTS + 100 },
+      (_, index) => `${index}-${'"\n'.repeat(1_000)}`,
+    );
+    const bounded = makeDiagnostic('unknown_key', hostilePath, 'Unknown path.');
+    expect(bounded.path).toHaveLength(MAX_DIAGNOSTIC_PATH_SEGMENTS);
+    expect(bounded.path.at(-2)).toBe('...');
+    expect(bounded.path.at(-1)).toContain(String(hostilePath.length - 1));
+    expect(formatDiagnosticPath(hostilePath).length)
+      .toBeLessThanOrEqual(MAX_FORMATTED_DIAGNOSTIC_PATH_LENGTH);
   });
 
   it('accepts generic, nonblank edition identifiers', () => {
@@ -1008,6 +1038,18 @@ describe('ExchangeEnvelopeV1 structural and semantic boundaries', () => {
   it('decodes a consistent envelope using contentPackMetadata', () => {
     const value = success(decodeExchangeEnvelopeV1(envelope()));
     expect(value.contentPackMetadata[0].$schema).toBe('grimcomp.content-metadata.v1');
+  });
+
+  it('requires producer.version to be a Semantic Versioning 2.0.0 version', () => {
+    const candidate = envelope();
+    candidate.producer.version = 'release-2026.08';
+    const result = decodeExchangeEnvelopeV1(candidate);
+
+    expect(failureCodes(result)).toContain('invalid_version');
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'invalid_version',
+      path: ['producer', 'version'],
+    }));
   });
 
   it('rejects duplicate IDs in each exchange collection', () => {

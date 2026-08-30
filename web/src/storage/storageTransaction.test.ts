@@ -1,16 +1,34 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAX_JOURNAL_RAW_LENGTH,
+  MAX_STORAGE_KEY_LENGTH,
+  MAX_STORAGE_KEY_SEGMENT_LENGTH,
   STORAGE_TRANSACTION_JOURNAL_KEY,
   STORAGE_TRANSACTION_JOURNAL_KIND,
   STORAGE_TRANSACTION_JOURNAL_VERSION,
   createStorageCoordinator,
   decodeStorageJournal,
+  isValidStorageKey,
+  isValidStorageKeySegment,
   serializeStorageJournal,
   type RawAsyncKeyValue,
   type StorageExclusiveLock,
   type StorageTransactionJournalV1,
 } from '@grimcomp/core';
+
+describe('storage key namespace boundaries', () => {
+  it('reserves room for the longest per-character key suffix', () => {
+    const boundary = 'x'.repeat(MAX_STORAGE_KEY_SEGMENT_LENGTH);
+    const longestKey = `gc.${boundary}.magic.spellbook`;
+    const overBoundary = `${boundary}x`;
+
+    expect(longestKey).toHaveLength(MAX_STORAGE_KEY_LENGTH);
+    expect(isValidStorageKeySegment(boundary)).toBe(true);
+    expect(isValidStorageKey(longestKey)).toBe(true);
+    expect(isValidStorageKeySegment(overBoundary)).toBe(false);
+    expect(isValidStorageKey(`gc.${overBoundary}.magic.spellbook`)).toBe(false);
+  });
+});
 
 interface StoreEvent {
   readonly type: 'set' | 'remove';
@@ -134,6 +152,21 @@ describe('crash-recoverable storage transactions', () => {
       initialized: true,
       phase: 'idle',
     });
+  });
+
+  it('checks no-op CAS preconditions under the lock without writing a journal', async () => {
+    const store = new FaultStore();
+    store.data.set('gc.same', 'value');
+    const storage = coordinator(store);
+    await expect(storage.recover()).resolves.toMatchObject({ ok: true });
+    store.events.length = 0;
+
+    await expect(storage.transact([
+      { key: 'gc.same', value: 'value', expected: 'value' },
+      { key: 'gc.absent', value: null, expected: null },
+    ])).resolves.toEqual({ ok: true, outcome: 'committed', transactionId: 'test-tx' });
+    expect(store.events).toEqual([]);
+    expect(store.data.has(STORAGE_TRANSACTION_JOURNAL_KEY)).toBe(false);
   });
 
   it.each([1, 2, 3, 4])(
@@ -389,6 +422,101 @@ describe('crash-recoverable storage transactions', () => {
     expect(storage.getStatus()).toMatchObject({ pending: 0, dirty: false, blocked: false, phase: 'idle' });
   });
 
+  it('runs computed providers only after readiness and returns metadata for an empty locked snapshot', async () => {
+    const store = new FaultStore();
+    const storage = coordinator(store, ['computed-unused']);
+    let providerCalls = 0;
+
+    const tooEarly = await storage.transactComputed?.(() => {
+      providerCalls += 1;
+      return { mutations: [], metadata: { discovered: 0 } };
+    });
+    expect(tooEarly).toMatchObject({ ok: false, error: { code: 'not_initialized' }, metadata: null });
+    expect(providerCalls).toBe(0);
+
+    await storage.recover();
+    const result = await storage.transactComputed?.(() => {
+      providerCalls += 1;
+      return { mutations: [], metadata: { discovered: 0 } };
+    });
+    expect(result).toEqual({
+      ok: true,
+      outcome: 'unchanged',
+      transactionId: null,
+      metadata: { discovered: 0 },
+    });
+    expect(providerCalls).toBe(1);
+    expect(store.events).toEqual([]);
+    expect(storage.getStatus()).toMatchObject({ pending: 0, dirty: false, blocked: false, phase: 'idle' });
+  });
+
+  it('normalizes a computed-provider failure without dirtying or stranding the queue', async () => {
+    const store = new FaultStore();
+    const storage = coordinator(store, ['after-provider-failure']);
+    await storage.recover();
+
+    const failed = await storage.transactComputed?.(() => {
+      throw new Proxy({}, {
+        getPrototypeOf: () => { throw new Error('prototype trap'); },
+        get: () => { throw new Error('string trap'); },
+      });
+    });
+    expect(failed).toMatchObject({
+      ok: false,
+      outcome: 'rejected',
+      error: { code: 'invalid_operations', stage: 'validate' },
+      metadata: null,
+    });
+    expect(storage.getStatus()).toMatchObject({ pending: 0, dirty: false, blocked: false });
+
+    expect(await storage.transact([{ key: 'gc.retry', value: 'ok' }])).toMatchObject({ ok: true });
+    expect(store.data.get('gc.retry')).toBe('ok');
+  });
+
+  it('discovers keys after a preceding coordinator commits under the shared cross-tab lock', async () => {
+    const store = new FaultStore();
+    let lockTail = Promise.resolve();
+    const withExclusiveLock: StorageExclusiveLock = async <T>(work: () => Promise<T>) => {
+      const previous = lockTail;
+      let release = () => undefined;
+      lockTail = new Promise<void>((resolve) => { release = resolve; });
+      await previous;
+      try {
+        return await work();
+      } finally {
+        release();
+      }
+    };
+    const writer = createStorageCoordinator(store, { withExclusiveLock, createTransactionId: () => 'computed-writer' });
+    const clearer = createStorageCoordinator(store, { withExclusiveLock, createTransactionId: () => 'computed-clearer' });
+    await Promise.all([writer.recover(), clearer.recover()]);
+    store.gateAt = 2;
+
+    const write = writer.transact([{ key: 'gc.queued', value: 'new', expected: null }]);
+    await store.waitForGate();
+    let providerRan = false;
+    const clear = clearer.transactComputed?.(async () => {
+      providerRan = true;
+      const raw = await store.getItem('gc.queued');
+      return {
+        mutations: raw === null ? [] : [{ key: 'gc.queued', value: null, expected: raw }],
+        metadata: { raw },
+      };
+    });
+    await Promise.resolve();
+    expect(providerRan).toBe(false);
+
+    store.releaseGate();
+    await expect(write).resolves.toMatchObject({ ok: true });
+    await expect(clear).resolves.toMatchObject({
+      ok: true,
+      outcome: 'committed',
+      metadata: { raw: 'new' },
+    });
+    expect(providerRan).toBe(true);
+    expect(store.data.has('gc.queued')).toBe(false);
+  });
+
   it('checks compare-and-set expectations only after acquiring a shared exclusive lock', async () => {
     const store = new FaultStore();
     store.data.set('gc.value', 'zero');
@@ -448,12 +576,17 @@ describe('crash-recoverable storage transactions', () => {
       { key: 'gc.a', value: 'two' },
     ]);
     const reserved = await storage.transact([{ key: STORAGE_TRANSACTION_JOURNAL_KEY, value: 'bad' }]);
+    const foreignNamespace = await storage.transact([{
+      key: 'grimcomp.storage.recoveryResetWitness',
+      value: 'forged',
+    }]);
     const unknownField = await storage.transact([
       { key: 'gc.a', value: 'one', extra: true } as { key: string; value: string },
     ]);
 
     expect(duplicate).toMatchObject({ ok: false, error: { code: 'invalid_operations' } });
     expect(reserved).toMatchObject({ ok: false, error: { code: 'invalid_operations' } });
+    expect(foreignNamespace).toMatchObject({ ok: false, error: { code: 'invalid_operations' } });
     expect(unknownField).toMatchObject({ ok: false, error: { code: 'invalid_operations' } });
     expect(store.events).toEqual([]);
   });
@@ -546,6 +679,16 @@ describe('crash-recoverable storage transactions', () => {
       version: STORAGE_TRANSACTION_JOURNAL_VERSION,
       transactionId: 'reserved',
       operations: [{ key: STORAGE_TRANSACTION_JOURNAL_KEY, before: null, after: 'bad' }],
+    }),
+    JSON.stringify({
+      kind: STORAGE_TRANSACTION_JOURNAL_KIND,
+      version: STORAGE_TRANSACTION_JOURNAL_VERSION,
+      transactionId: 'foreign-namespace',
+      operations: [{
+        key: 'grimcomp.storage.recoveryResetWitness',
+        before: null,
+        after: 'forged',
+      }],
     }),
   ])('blocks and preserves a corrupt persisted marker: %s', async (raw) => {
     const store = new FaultStore();

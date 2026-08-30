@@ -1,0 +1,132 @@
+{
+  "character": {
+    "id": "legacy-anna",
+    "name": "Anna Stein",
+    "species": "Human",
+    "raceId": "race.human",
+    "class": "Ranger",
+    "careerId": "old-roadwarden",
+    "career": "Roadwarden",
+    "careerLevel": 1,
+    "careerLevelName": "Roadwarden",
+    "careerRanks": [
+      { "level": 1, "name": "Roadwarden", "status": "Silver 2" },
+      { "level": 2, "name": "Road Sergeant", "status": "Silver 3" }
+    ],
+    "status": "Silver 2",
+    "age": 27,
+    "height": "172 cm",
+    "hair": "Brown",
+    "eyes": "Grey",
+    "motivation": "Keep the roads safe",
+    "fate": 2,
+    "fortune": 1,
+    "resilience": 1,
+    "resolve": 1,
+    "xpCurrent": 50,
+    "xpSpent": 300,
+    "wounds": { "current": 10, "max": 12 },
+    "corruption": 0,
+    "sin": 0,
+    "movement": 4,
+    "wealth": { "d": 7, "gc": 1, "ss": 3 },
+    "characteristics": [
+      { "key": "ws", "name": "Weapon Skill", "short": "WS", "init": 35, "adv": 5 },
+      { "key": "fel", "name": "Fellowship", "short": "Fel", "init": 30, "adv": 0 }
+    ],
+    "skills": [
+      { "definitionId": "skill.ride", "name": "Ride", "char": "ws", "adv": 5, "career": true }
+    ],
+    "talents": [
+      {
+        "definitionId": "talent.hardy",
+        "name": "Hardy",
+        "times": 1,
+        "desc": "Tougher than most.",
+        "career": true
+      }
+    ],
+    "weapons": [
+      { "name": "Old Sword", "group": "Basic", "enc": 1, "dmg": "+4", "qual": [] }
+    ],
+    "armour": [
+      { "name": "Leather Jack", "locs": ["Body", "Arms"], "enc": 1, "ap": 1, "qual": ["Flexible"] }
+    ],
+    "ap": { "head": 0, "arm_l": 1, "arm_r": 1, "body": 1, "leg_l": 0, "leg_r": 0, "shield": 0 },
+    "conditions": [
+      { "type": "Fatigued", "stacks": 1 }
+    ],
+    "criticals": [],
+    "trappings": [
+      { "name": "Rope", "enc": 1 }
+    ],
+    "party": {
+      "name": "Road Company",
+      "short": "RC",
+      "members": [{ "name": "Otto", "role": "Scout" }]
+    },
+    "psychology": ["Fear (Wolves)"],
+    "mutations": [{ "name": "Night Eyes" }],
+    "ambitionsShort": "Reach Altdorf",
+    "ambitionsLong": "Command a patrol",
+    "initials": "AS",
+    "accent": "#884422",
+    "isCaster": true,
+    "isAnointed": true,
+    "knownSpells": ["spell.fireball", "spell.old"],
+    "knownPrayers": ["prayer.blessing"],
+    "deity": "Sigmar",
+    "spellLore": "Fire"
+  },
+  "overlays": {
+    "advantage": 1,
+    "ap": { "head": 1, "arm_l": 2, "arm_r": 2, "body": 2, "leg_l": 1, "leg_r": 1, "shield": 0 },
+    "career.level": 2,
+    "chars.adv": { "ws": 8 },
+    "conditions": { "Bleeding": 2 },
+    "criticals": [
+      { "loc": "Arm", "roll": 42, "name": "Broken Arm", "effect": "Cannot use the arm.", "days": 14 }
+    ],
+    "identity": {
+      "age": 28,
+      "ambitionsShort": "Reach Middenheim",
+      "motivation": "Protect every traveller",
+      "name": "Anna Vogel"
+    },
+    "magic.pool": 3,
+    "magic.spellbook": { "added": ["spell.light"], "removed": ["spell.old"] },
+    "skills.adv": { "Lost Skill": 4, "Ride": 12, "Charm": 5 },
+    "skills.extra": [
+      { "name": "Charm", "char": "fel", "adv": 0, "career": false, "advanced": false }
+    ],
+    "sin": 2,
+    "talents.added": ["Suave"],
+    "talents.times": {
+      "Suave": 2,
+      "definition:talent.hardy|specialization:": 3
+    },
+    "trappings": [{ "name": "Map Case", "enc": 0 }],
+    "vitals": { "doom": 1, "fate": 2, "fortune": 2, "resilience": 1, "resolve": 0, "corruption": 1 },
+    "wealth": { "d": 4, "gc": 2, "ss": 0 },
+    "weapons": [
+      { "name": "Roadwarden Sword", "group": "Basic", "enc": 1, "dmg": "+4", "qual": ["Practical"] }
+    ],
+    "wounds": 8,
+    "xp": {
+      "current": 75,
+      "spent": 425,
+      "log": [
+        {
+          "date": "2525.33.99",
+          "reason": "Road Sergeant rank",
+          "amount": -100,
+          "kind": "career",
+          "entityKey": "career:old-roadwarden:2"
+        }
+      ]
+    }
+  },
+  "xpLogSeed": [
+    { "date": "2025.01.01", "reason": "Unused seed", "amount": 50, "kind": "gain" }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "character": {
+    "id": "legacy-unresolved",
+    "name": "Nameless Resolver",
+    "species": "Unknown Folk",
+    "class": "Wanderer",
+    "career": "Wayfarer",
+    "careerLevel": 1,
+    "careerLevelName": "Wayfarer",
+    "careerRanks": [{ "level": 1, "name": "Wayfarer", "status": "Brass 1" }],
+    "status": "Brass 1",
+    "age": 20,
+    "height": "",
+    "hair": "",
+    "eyes": "",
+    "motivation": "",
+    "fate": 0,
+    "fortune": 0,
+    "resilience": 0,
+    "resolve": 0,
+    "xpCurrent": 0,
+    "xpSpent": 0,
+    "wounds": { "current": 5, "max": 5 },
+    "corruption": 0,
+    "sin": 0,
+    "movement": 4,
+    "wealth": {},
+    "characteristics": [{ "key": "ag", "name": "Agility", "short": "Ag", "init": 30, "adv": 0 }],
+    "skills": [
+      { "definitionId": "legacy.skill.sneak", "name": "Sneak", "char": "ag", "adv": 0, "career": true },
+      { "name": "Lore", "char": "ag", "adv": 0, "career": false },
+      { "name": "Lore", "char": "ag", "adv": 1, "career": false }
+    ],
+    "talents": [
+      { "name": "Odd Gift", "times": 1, "desc": "Unknown.", "career": false }
+    ],
+    "weapons": [],
+    "armour": [],
+    "ap": { "head": 0, "arm_l": 0, "arm_r": 0, "body": 0, "leg_l": 0, "leg_r": 0, "shield": 0 },
+    "conditions": [],
+    "criticals": [],
+    "trappings": [],
+    "party": { "name": "", "short": "", "members": [] },
+    "psychology": [],
+    "mutations": [],
+    "ambitionsShort": "",
+    "ambitionsLong": "",
+    "initials": "NR",
+    "accent": "#000000",
+    "knownSpells": ["legacy.spell.mist"]
+  },
+  "overlays": {
+    "notes": [{ "body": "Global note must not be copied to this character." }],
+    "settings.xpRule": "flexible",
+    "skills.adv": { "Lore": 9 },
+    "talents.times": { "Missing Talent": 2 }
+  }
+}

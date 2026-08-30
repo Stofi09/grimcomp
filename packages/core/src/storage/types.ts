@@ -20,6 +20,16 @@ export interface StorageMutation {
   readonly expected?: string | null;
 }
 
+/** Operations and caller-owned metadata built while the coordinator owns its lock. */
+export interface StorageComputedTransaction<Metadata> {
+  readonly mutations: readonly StorageMutation[];
+  readonly metadata: Metadata;
+}
+
+export type StorageComputedTransactionProvider<Metadata> = () =>
+  | StorageComputedTransaction<Metadata>
+  | Promise<StorageComputedTransaction<Metadata>>;
+
 export interface StorageJournalOperationV1 {
   readonly key: string;
   readonly before: string | null;
@@ -100,6 +110,33 @@ export type StorageTransactionResult =
       readonly rollbackError?: StorageKernelError;
     };
 
+/**
+ * Result of a transaction whose operations are discovered under the exclusive
+ * lock. Metadata is available after discovery even if the durable commit fails;
+ * it is null when readiness, locking, or the provider itself fails first.
+ */
+export type StorageComputedTransactionResult<Metadata> =
+  | {
+      readonly ok: true;
+      readonly outcome: 'committed';
+      readonly transactionId: string;
+      readonly metadata: Metadata;
+    }
+  | {
+      readonly ok: true;
+      readonly outcome: 'unchanged';
+      readonly transactionId: null;
+      readonly metadata: Metadata;
+    }
+  | {
+      readonly ok: false;
+      readonly outcome: 'rejected' | 'rolled-back' | 'blocked' | 'indeterminate';
+      readonly transactionId: string | null;
+      readonly error: StorageKernelError;
+      readonly rollbackError?: StorageKernelError;
+      readonly metadata: Metadata | null;
+    };
+
 export type StorageRecoveryResult =
   | {
       readonly ok: true;
@@ -139,6 +176,14 @@ export type StorageStatusListener = (status: StorageCoordinatorStatus) => void;
 export interface StorageTransactionCoordinator {
   /** FIFO-queued crash-recoverable mutation. `recover()` must succeed first. */
   transact(mutations: readonly StorageMutation[]): Promise<StorageTransactionResult>;
+  /**
+   * Build a mutation set after FIFO ordering and exclusive-lock acquisition.
+   * Optional for compatibility with lightweight test/custom coordinator shims;
+   * coordinators returned by createStorageCoordinator always implement it.
+   */
+  transactComputed?<Metadata>(
+    provider: StorageComputedTransactionProvider<Metadata>,
+  ): Promise<StorageComputedTransactionResult<Metadata>>;
   /** FIFO-queued startup inspection/recovery of the reserved journal. */
   recover(): Promise<StorageRecoveryResult>;
   getStatus(): StorageCoordinatorStatus;

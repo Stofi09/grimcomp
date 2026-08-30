@@ -1,0 +1,341 @@
+{
+  "$schema": "grimcomp.character.v2",
+  "id": "legacy-anna",
+  "revision": 7,
+  "createdAt": "2026-08-30T08:00:00Z",
+  "updatedAt": "2026-08-30T09:00:00Z",
+  "rulesetRef": {
+    "id": "wfrp4e",
+    "edition": "4e",
+    "rulesVersion": "1.0.0",
+    "engineApiVersion": "1.0.0"
+  },
+  "profileBinding": {
+    "kind": "detached",
+    "resolutionHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "identity": {
+    "name": "Anna Vogel",
+    "speciesRef": { "id": "race.human", "name": "Human" },
+    "careerRef": { "id": "career.roadwarden", "name": "Roadwarden" },
+    "speciesName": "Human",
+    "className": "Ranger",
+    "age": 28,
+    "height": "172 cm",
+    "hair": "Brown",
+    "eyes": "Grey"
+  },
+  "progression": {
+    "experience": {
+      "earned": 500,
+      "spent": 425,
+      "entries": [
+        {
+          "reason": "Road Sergeant rank",
+          "delta": -100,
+          "kind": "career",
+          "dateLabel": "2525.33.99",
+          "entityKey": "career:old-roadwarden:2"
+        }
+      ],
+      "extensions": { "legacyCurrent": 75 }
+    },
+    "careerHistory": [
+      {
+        "careerName": "Roadwarden",
+        "level": 2,
+        "levelName": "Road Sergeant",
+        "status": "Silver 3",
+        "careerRef": { "id": "career.roadwarden", "name": "Roadwarden" },
+        "className": "Ranger"
+      }
+    ],
+    "advances": []
+  },
+  "stats": {
+    "characteristics": {
+      "ws": { "label": "Weapon Skill", "short": "WS", "base": 35, "advances": 8, "source": "legacy-v1" },
+      "fel": { "label": "Fellowship", "short": "Fel", "base": 30, "advances": 0, "source": "legacy-v1" }
+    },
+    "skills": {
+      "legacy.skill.0000": {
+        "name": "Ride",
+        "characteristicKey": "ws",
+        "advances": 12,
+        "career": true,
+        "advanced": false,
+        "definitionRef": { "id": "skill.ride", "name": "Ride" },
+        "source": "legacy-v1"
+      },
+      "legacy.skill.0001": {
+        "name": "Charm",
+        "characteristicKey": "fel",
+        "advances": 5,
+        "career": false,
+        "advanced": false,
+        "definitionRef": { "id": "skill.charm", "name": "Charm" },
+        "source": "legacy-v1"
+      }
+    }
+  },
+  "resources": {
+    "corruption": { "current": 1, "source": "legacy-v1" },
+    "doom": { "current": 1, "source": "legacy-v1" },
+    "fate": { "current": 2, "source": "legacy-v1" },
+    "fortune": { "current": 2, "source": "legacy-v1" },
+    "resilience": { "current": 1, "source": "legacy-v1" },
+    "resolve": { "current": 0, "source": "legacy-v1" },
+    "wounds": { "current": 8, "maxOverride": 12, "source": "legacy-v1" },
+    "sin": { "current": 2, "source": "legacy-v1" },
+    "advantage": { "current": 1, "source": "legacy-v1" },
+    "magic.pool": { "current": 3, "source": "legacy-v1" }
+  },
+  "abilities": {
+    "talents": [
+      {
+        "name": "Hardy",
+        "definitionRef": { "id": "talent.hardy", "name": "Hardy" },
+        "source": "legacy-v1",
+        "rank": 3
+      },
+      {
+        "name": "Suave",
+        "definitionRef": { "id": "talent.suave", "name": "Suave" },
+        "source": "legacy-v1",
+        "rank": 2
+      }
+    ],
+    "spells": [
+      { "name": "Fireball", "definitionRef": { "id": "spell.fireball" }, "source": "legacy-v1" },
+      { "name": "Light", "definitionRef": { "id": "spell.light" }, "source": "legacy-v1" }
+    ],
+    "prayers": [
+      { "name": "Blessing", "definitionRef": { "id": "prayer.blessing" }, "source": "legacy-v1" }
+    ],
+    "traits": []
+  },
+  "inventory": [
+    {
+      "id": "legacy.weapon.0000",
+      "name": "Roadwarden Sword",
+      "quantity": 1,
+      "definitionRef": { "id": "weapon.sword", "name": "Sword" },
+      "state": {
+        "legacyKind": "weapon",
+        "legacy": {
+          "dmg": "+4",
+          "enc": 1,
+          "group": "Basic",
+          "name": "Roadwarden Sword",
+          "qual": ["Practical"]
+        }
+      }
+    },
+    {
+      "id": "legacy.armour.0000",
+      "name": "Leather Jack",
+      "quantity": 1,
+      "definitionRef": { "id": "armour.leather-jack", "name": "Leather Jack" },
+      "state": {
+        "legacyKind": "armour",
+        "legacy": {
+          "ap": 1,
+          "enc": 1,
+          "locs": ["Body", "Arms"],
+          "name": "Leather Jack",
+          "qual": ["Flexible"]
+        }
+      }
+    },
+    {
+      "id": "legacy.trapping.0000",
+      "name": "Map Case",
+      "quantity": 1,
+      "definitionRef": { "id": "trapping.map-case", "name": "Map Case" },
+      "state": {
+        "legacyKind": "trapping",
+        "legacy": { "enc": 0, "name": "Map Case" }
+      }
+    }
+  ],
+  "state": {
+    "conditions": [
+      { "name": "Bleeding", "stacks": 2, "definitionRef": { "id": "condition.bleeding", "name": "Bleeding" } }
+    ],
+    "criticals": [
+      {
+        "name": "Broken Arm",
+        "loc": "Arm",
+        "roll": 42,
+        "effect": "Cannot use the arm.",
+        "days": 14,
+        "definitionRef": { "id": "critical.broken-arm", "name": "Broken Arm" }
+      }
+    ],
+    "mutations": [
+      { "name": "Night Eyes", "definitionRef": { "id": "mutation.night-eyes", "name": "Night Eyes" } }
+    ],
+    "psychology": ["Fear (Wolves)"],
+    "equipmentState": {
+      "ap": { "arm_l": 2, "arm_r": 2, "body": 2, "head": 1, "leg_l": 1, "leg_r": 1, "shield": 0 },
+      "wealth": { "d": 4, "gc": 2, "ss": 0 }
+    }
+  },
+  "narrative": {
+    "ambitionsShort": "Reach Middenheim",
+    "ambitionsLong": "Command a patrol",
+    "motivation": "Protect every traveller"
+  },
+  "notes": [],
+  "userContent": {
+    "party": {
+      "members": [{ "name": "Otto", "role": "Scout" }],
+      "name": "Road Company",
+      "short": "RC"
+    },
+    "initials": "AS",
+    "avatarAccent": "#884422",
+    "isCaster": true,
+    "isAnointed": true,
+    "deity": "Sigmar",
+    "spellLore": "Fire"
+  },
+  "origin": {
+    "kind": "imported",
+    "sourceId": "grimcomp.v1:test-fixture",
+    "importerId": "grimcomp.legacy-v1-adapter",
+    "importedAt": "2026-08-30T10:00:00Z",
+    "platform": "web",
+    "adapterVersion": "1.0.0",
+    "timestampsInferred": true,
+    "sourceHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "unresolvedRefs": [],
+  "legacyExtensions": {
+    "legacyV1": {
+      "character": {
+        "accent": "#884422",
+        "age": 27,
+        "ambitionsLong": "Command a patrol",
+        "ambitionsShort": "Reach Altdorf",
+        "ap": { "arm_l": 1, "arm_r": 1, "body": 1, "head": 0, "leg_l": 0, "leg_r": 0, "shield": 0 },
+        "armour": [
+          { "ap": 1, "enc": 1, "locs": ["Body", "Arms"], "name": "Leather Jack", "qual": ["Flexible"] }
+        ],
+        "career": "Roadwarden",
+        "careerId": "old-roadwarden",
+        "careerLevel": 1,
+        "careerLevelName": "Roadwarden",
+        "careerRanks": [
+          { "level": 1, "name": "Roadwarden", "status": "Silver 2" },
+          { "level": 2, "name": "Road Sergeant", "status": "Silver 3" }
+        ],
+        "characteristics": [
+          { "adv": 5, "init": 35, "key": "ws", "name": "Weapon Skill", "short": "WS" },
+          { "adv": 0, "init": 30, "key": "fel", "name": "Fellowship", "short": "Fel" }
+        ],
+        "class": "Ranger",
+        "conditions": [{ "stacks": 1, "type": "Fatigued" }],
+        "corruption": 0,
+        "criticals": [],
+        "deity": "Sigmar",
+        "eyes": "Grey",
+        "fate": 2,
+        "fortune": 1,
+        "hair": "Brown",
+        "height": "172 cm",
+        "id": "legacy-anna",
+        "initials": "AS",
+        "isAnointed": true,
+        "isCaster": true,
+        "knownPrayers": ["prayer.blessing"],
+        "knownSpells": ["spell.fireball", "spell.old"],
+        "motivation": "Keep the roads safe",
+        "movement": 4,
+        "mutations": [{ "name": "Night Eyes" }],
+        "name": "Anna Stein",
+        "party": {
+          "members": [{ "name": "Otto", "role": "Scout" }],
+          "name": "Road Company",
+          "short": "RC"
+        },
+        "psychology": ["Fear (Wolves)"],
+        "raceId": "race.human",
+        "resilience": 1,
+        "resolve": 1,
+        "sin": 0,
+        "skills": [
+          { "adv": 5, "career": true, "char": "ws", "definitionId": "skill.ride", "name": "Ride" }
+        ],
+        "species": "Human",
+        "spellLore": "Fire",
+        "status": "Silver 2",
+        "talents": [
+          {
+            "career": true,
+            "definitionId": "talent.hardy",
+            "desc": "Tougher than most.",
+            "name": "Hardy",
+            "times": 1
+          }
+        ],
+        "trappings": [{ "enc": 1, "name": "Rope" }],
+        "wealth": { "d": 7, "gc": 1, "ss": 3 },
+        "weapons": [
+          { "dmg": "+4", "enc": 1, "group": "Basic", "name": "Old Sword", "qual": [] }
+        ],
+        "wounds": { "current": 10, "max": 12 },
+        "xpCurrent": 50,
+        "xpSpent": 300
+      },
+      "overlays": {
+        "advantage": 1,
+        "ap": { "arm_l": 2, "arm_r": 2, "body": 2, "head": 1, "leg_l": 1, "leg_r": 1, "shield": 0 },
+        "career.level": 2,
+        "chars.adv": { "ws": 8 },
+        "conditions": { "Bleeding": 2 },
+        "criticals": [
+          { "days": 14, "effect": "Cannot use the arm.", "loc": "Arm", "name": "Broken Arm", "roll": 42 }
+        ],
+        "identity": {
+          "age": 28,
+          "ambitionsShort": "Reach Middenheim",
+          "motivation": "Protect every traveller",
+          "name": "Anna Vogel"
+        },
+        "magic.pool": 3,
+        "magic.spellbook": { "added": ["spell.light"], "removed": ["spell.old"] },
+        "sin": 2,
+        "skills.adv": { "Charm": 5, "Lost Skill": 4, "Ride": 12 },
+        "skills.extra": [
+          { "adv": 0, "advanced": false, "career": false, "char": "fel", "name": "Charm" }
+        ],
+        "talents.added": ["Suave"],
+        "talents.times": { "Suave": 2, "definition:talent.hardy|specialization:": 3 },
+        "trappings": [{ "enc": 0, "name": "Map Case" }],
+        "vitals": { "corruption": 1, "doom": 1, "fate": 2, "fortune": 2, "resilience": 1, "resolve": 0 },
+        "wealth": { "d": 4, "gc": 2, "ss": 0 },
+        "weapons": [
+          { "dmg": "+4", "enc": 1, "group": "Basic", "name": "Roadwarden Sword", "qual": ["Practical"] }
+        ],
+        "wounds": 8,
+        "xp": {
+          "current": 75,
+          "log": [
+            {
+              "amount": -100,
+              "date": "2525.33.99",
+              "entityKey": "career:old-roadwarden:2",
+              "kind": "career",
+              "reason": "Road Sergeant rank"
+            }
+          ],
+          "spent": 425
+        }
+      },
+      "xpLogSeed": [
+        { "amount": 50, "date": "2025.01.01", "kind": "gain", "reason": "Unused seed" }
+      ]
+    }
+  }
+}

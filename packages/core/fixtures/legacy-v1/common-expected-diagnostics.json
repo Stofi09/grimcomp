@@ -1,0 +1,50 @@
+[
+  {
+    "severity": "warning",
+    "code": "legacy_unmapped_value",
+    "path": ["source", "character", "careerRanks"],
+    "message": "Legacy careerRanks describe a path, not dated history; only the exact current rank was projected."
+  },
+  {
+    "severity": "warning",
+    "code": "legacy_unmapped_value",
+    "path": ["source", "character", "movement"],
+    "message": "Legacy movement has no V2 core field and is preserved only in legacyExtensions."
+  },
+  {
+    "severity": "warning",
+    "code": "legacy_inferred_value",
+    "path": ["progression", "experience", "earned"],
+    "message": "Experience earned was inferred as current plus spent."
+  },
+  {
+    "severity": "warning",
+    "code": "legacy_unmapped_value",
+    "path": ["source", "overlays", "skills.adv", "Lost Skill"],
+    "message": "Skill advance has no exact legacy skill owner and is preserved only in legacyExtensions."
+  },
+  {
+    "severity": "warning",
+    "code": "legacy_inferred_value",
+    "path": ["source", "overlays", "weapons", 0],
+    "message": "Inventory id \"legacy.weapon.0000\" and quantity 1 were deterministically inferred."
+  },
+  {
+    "severity": "warning",
+    "code": "legacy_inferred_value",
+    "path": ["source", "character", "armour", 0],
+    "message": "Inventory id \"legacy.armour.0000\" and quantity 1 were deterministically inferred."
+  },
+  {
+    "severity": "warning",
+    "code": "legacy_inferred_value",
+    "path": ["source", "overlays", "trappings", 0],
+    "message": "Inventory id \"legacy.trapping.0000\" and quantity 1 were deterministically inferred."
+  },
+  {
+    "severity": "warning",
+    "code": "legacy_inferred_value",
+    "path": ["origin", "timestampsInferred"],
+    "message": "Legacy data had no trustworthy lifecycle timestamps; caller-supplied timestamps were used."
+  }
+]

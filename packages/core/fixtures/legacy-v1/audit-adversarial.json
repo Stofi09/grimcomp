@@ -1,0 +1,27 @@
+{
+  "aliasHijackResolution": {
+    "kind": "species",
+    "legacyName": "Different Alias",
+    "ref": { "id": "race.human", "name": "Human" }
+  },
+  "caseSensitiveTalent": {
+    "definitionId": "Talent.Hardy",
+    "correctRankKey": "definition:Talent.Hardy|specialization:",
+    "wrongRankKey": "definition:talent.hardy|specialization:",
+    "correctRank": 4,
+    "wrongRank": 9
+  },
+  "longDiagnostic": {
+    "prefix": "attacker-controlled-id-",
+    "tail": "UNBOUNDED_TAIL_MUST_NOT_APPEAR",
+    "repeat": 4000
+  },
+  "unknownRosterField": {
+    "key": "attackerMetadata",
+    "value": "must be rejected"
+  },
+  "contradictoryCareer": {
+    "careerLevelName": "Contradictory Rank Name",
+    "status": "Contradictory Status"
+  }
+}

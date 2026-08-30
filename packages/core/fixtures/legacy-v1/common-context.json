@@ -1,0 +1,37 @@
+{
+  "revision": 7,
+  "createdAt": "2026-08-30T08:00:00Z",
+  "updatedAt": "2026-08-30T09:00:00Z",
+  "importedAt": "2026-08-30T10:00:00Z",
+  "rulesetRef": {
+    "id": "wfrp4e",
+    "edition": "4e",
+    "rulesVersion": "1.0.0",
+    "engineApiVersion": "1.0.0"
+  },
+  "profileBinding": {
+    "kind": "detached",
+    "resolutionHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "platform": "web",
+  "sourceId": "grimcomp.v1:test-fixture",
+  "sourceHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "originKind": "imported",
+  "resolutions": [
+    { "kind": "species", "ref": { "id": "race.human", "name": "Human" } },
+    { "kind": "career", "legacyId": "old-roadwarden", "ref": { "id": "career.roadwarden", "name": "Roadwarden" } },
+    { "kind": "skill", "ref": { "id": "skill.ride", "name": "Ride" } },
+    { "kind": "skill", "legacyName": "Charm", "ref": { "id": "skill.charm", "name": "Charm" } },
+    { "kind": "talent", "ref": { "id": "talent.hardy", "name": "Hardy" } },
+    { "kind": "talent", "legacyName": "Suave", "ref": { "id": "talent.suave", "name": "Suave" } },
+    { "kind": "spell", "ref": { "id": "spell.fireball" }, "displayName": "Fireball" },
+    { "kind": "spell", "ref": { "id": "spell.light" }, "displayName": "Light" },
+    { "kind": "prayer", "ref": { "id": "prayer.blessing" }, "displayName": "Blessing" },
+    { "kind": "weapon", "legacyName": "Roadwarden Sword", "ref": { "id": "weapon.sword", "name": "Sword" } },
+    { "kind": "armour", "legacyName": "Leather Jack", "ref": { "id": "armour.leather-jack", "name": "Leather Jack" } },
+    { "kind": "trapping", "legacyName": "Map Case", "ref": { "id": "trapping.map-case", "name": "Map Case" } },
+    { "kind": "condition", "legacyName": "Bleeding", "ref": { "id": "condition.bleeding", "name": "Bleeding" } },
+    { "kind": "critical", "legacyName": "Broken Arm", "ref": { "id": "critical.broken-arm", "name": "Broken Arm" } },
+    { "kind": "mutation", "legacyName": "Night Eyes", "ref": { "id": "mutation.night-eyes", "name": "Night Eyes" } }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "createdAt": "2026-08-30T08:00:00Z",
+  "updatedAt": "2026-08-30T08:00:00Z",
+  "importedAt": "2026-08-30T08:00:00Z",
+  "rulesetRef": {
+    "id": "wfrp4e",
+    "edition": "4e",
+    "rulesVersion": "1.0.0",
+    "engineApiVersion": "1.0.0"
+  },
+  "profileBinding": {
+    "kind": "detached",
+    "resolutionHash": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "platform": "native",
+  "sourceId": "grimcomp.v1:unresolved-fixture",
+  "resolutions": [
+    { "kind": "talent", "legacyName": "Odd Gift", "ref": { "id": "talent.odd-a" } },
+    { "kind": "talent", "legacyName": "Odd Gift", "ref": { "id": "talent.odd-b" } }
+  ]
+}

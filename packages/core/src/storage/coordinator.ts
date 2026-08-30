@@ -11,6 +11,8 @@ import {
   STORAGE_TRANSACTION_JOURNAL_KIND,
   STORAGE_TRANSACTION_JOURNAL_VERSION,
   type RawAsyncKeyValue,
+  type StorageComputedTransactionProvider,
+  type StorageComputedTransactionResult,
   type StorageCoordinatorOptions,
   type StorageCoordinatorStatus,
   type StorageErrorStage,
@@ -25,6 +27,7 @@ import {
 } from './types';
 
 type Fallible<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: StorageKernelError };
+type TransactionFailure = Extract<StorageTransactionResult, { readonly ok: false }>;
 type MarkerState = 'absent' | 'present' | 'different' | 'unknown';
 type ClearResult =
   | { readonly ok: true }
@@ -64,8 +67,11 @@ function storageError(
   };
 }
 
-function snapshotMutations(mutations: readonly StorageMutation[]): Fallible<readonly ValidatedStorageMutation[]> {
-  const snapshot = snapshotStorageMutations(mutations);
+function snapshotMutations(
+  mutations: readonly StorageMutation[],
+  allowEmpty = false,
+): Fallible<readonly ValidatedStorageMutation[]> {
+  const snapshot = snapshotStorageMutations(mutations, { allowEmpty });
   return snapshot.ok
     ? { ok: true, value: snapshot.mutations }
     : {
@@ -154,6 +160,67 @@ class Coordinator implements StorageTransactionCoordinator {
           lastError: error,
         });
         return { ok: false, outcome: 'indeterminate', transactionId: null, error };
+      }
+    });
+  }
+
+  transactComputed<Metadata>(
+    provider: StorageComputedTransactionProvider<Metadata>,
+  ): Promise<StorageComputedTransactionResult<Metadata>> {
+    return this.enqueue(async () => {
+      let metadata: Metadata | null = null;
+      try {
+        return await this.withExclusiveLock(async () => {
+          const unavailable = await this.inspectTransactionStartLocked();
+          if (unavailable) return { ...unavailable, metadata };
+
+          let mutations: readonly StorageMutation[];
+          try {
+            const computed = await provider();
+            mutations = computed.mutations;
+            metadata = computed.metadata;
+          } catch (cause) {
+            const error = storageError(
+              'invalid_operations',
+              'validate',
+              'The computed transaction provider failed while building operations.',
+              { cause },
+            );
+            this.finishClean(error);
+            return { ok: false, outcome: 'rejected', transactionId: null, error, metadata };
+          }
+
+          const snapshot = snapshotMutations(mutations, true);
+          if (!snapshot.ok) {
+            this.finishClean(snapshot.error);
+            return {
+              ok: false,
+              outcome: 'rejected',
+              transactionId: null,
+              error: snapshot.error,
+              metadata,
+            };
+          }
+          if (snapshot.value.length === 0) {
+            this.finishClean(null);
+            return { ok: true, outcome: 'unchanged', transactionId: null, metadata: metadata as Metadata };
+          }
+
+          const result = await this.commitValidatedLocked(snapshot.value);
+          return { ...result, metadata: metadata as Metadata };
+        });
+      } catch (cause) {
+        const error = storageError('lock_failed', 'lock', 'The exclusive storage lock failed during a transaction.', {
+          cause,
+        });
+        this.updateStatus({
+          dirty: true,
+          blocked: true,
+          phase: 'idle',
+          transactionId: null,
+          lastError: error,
+        });
+        return { ok: false, outcome: 'indeterminate', transactionId: null, error, metadata };
       }
     });
   }
@@ -257,6 +324,13 @@ class Coordinator implements StorageTransactionCoordinator {
   }
 
   private async transactLocked(mutations: readonly ValidatedStorageMutation[]): Promise<StorageTransactionResult> {
+    const unavailable = await this.inspectTransactionStartLocked();
+    if (unavailable) return unavailable;
+    return this.commitValidatedLocked(mutations);
+  }
+
+  /** Verify readiness and the absence of a journal before dynamic discovery. */
+  private async inspectTransactionStartLocked(): Promise<TransactionFailure | null> {
     if (!this.status.initialized) {
       const error = storageError(
         'not_initialized',
@@ -293,6 +367,13 @@ class Coordinator implements StorageTransactionCoordinator {
       return { ok: false, outcome: 'blocked', transactionId, error };
     }
 
+    return null;
+  }
+
+  /** Commit a validated non-empty operation set after journal absence is known. */
+  private async commitValidatedLocked(
+    mutations: readonly ValidatedStorageMutation[],
+  ): Promise<StorageTransactionResult> {
     let transactionId: string;
     try {
       transactionId = this.createTransactionId();
@@ -328,6 +409,14 @@ class Coordinator implements StorageTransactionCoordinator {
         return { ok: false, outcome: 'rejected', transactionId, error };
       }
       operations.push({ key: mutation.key, before: before.value, after: mutation.value });
+    }
+
+    // Preconditions were checked under the exclusive lock, so an all-no-op
+    // transaction has served as a durable CAS barrier without needing a
+    // journal, writes, or cross-document storage-event churn.
+    if (operations.every(operation => operation.before === operation.after)) {
+      this.finishClean(null);
+      return { ok: true, outcome: 'committed', transactionId };
     }
 
     const journal: StorageTransactionJournalV1 = {

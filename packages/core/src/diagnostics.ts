@@ -33,7 +33,11 @@ export type DiagnosticCode =
   | 'rights_policy_violation'
   | 'snapshot_mismatch'
   | 'missing_ruleset_identity'
-  | 'missing_profile_binding';
+  | 'missing_profile_binding'
+  | 'legacy_unresolved_reference'
+  | 'legacy_inferred_value'
+  | 'legacy_unmapped_value'
+  | 'legacy_ambiguous_reference';
 
 export interface Diagnostic {
   severity: DiagnosticSeverity;
@@ -55,13 +59,52 @@ export interface DecodeFailure {
 
 export type DecodeResult<T> = DecodeSuccess<T> | DecodeFailure;
 
+export const MAX_DIAGNOSTIC_MESSAGE_LENGTH = 512;
+export const MAX_DIAGNOSTIC_PATH_SEGMENT_LENGTH = 96;
+export const MAX_DIAGNOSTIC_PATH_SEGMENTS = 96;
+export const MAX_FORMATTED_DIAGNOSTIC_PATH_LENGTH = 4_096;
+export const MAX_DIAGNOSTIC_VALUE_LENGTH = 96;
+
+function truncateDiagnosticText(value: string, maximumLength: number): string {
+  return value.length <= maximumLength
+    ? value
+    : `${value.slice(0, maximumLength - 3)}...`;
+}
+
+function boundDiagnosticMessage(value: string): string {
+  return truncateDiagnosticText(value, MAX_DIAGNOSTIC_MESSAGE_LENGTH)
+    .replace(/[\u0000-\u001f\u007f-\u009f]/gu, '\ufffd');
+}
+
+function boundDiagnosticPath(
+  path: readonly DiagnosticPathSegment[],
+): DiagnosticPathSegment[] {
+  const segments = path.length <= MAX_DIAGNOSTIC_PATH_SEGMENTS
+    ? path
+    : [
+        ...path.slice(0, MAX_DIAGNOSTIC_PATH_SEGMENTS - 2),
+        '...',
+        path[path.length - 1],
+      ];
+  return segments.map(segment => (
+    typeof segment === 'string'
+      ? truncateDiagnosticText(segment, MAX_DIAGNOSTIC_PATH_SEGMENT_LENGTH)
+      : segment
+  ));
+}
+
 export function makeDiagnostic(
   code: DiagnosticCode,
   path: readonly DiagnosticPathSegment[],
   message: string,
   severity: DiagnosticSeverity = 'error',
 ): Diagnostic {
-  return { severity, code, path: [...path], message };
+  return {
+    severity,
+    code,
+    path: boundDiagnosticPath(path),
+    message: boundDiagnosticMessage(message),
+  };
 }
 
 export function decodeSuccess<T>(
@@ -79,24 +122,21 @@ export function hasErrorDiagnostics(diagnostics: readonly Diagnostic[]): boolean
   return diagnostics.some(diagnostic => diagnostic.severity === 'error');
 }
 
-const MAX_DIAGNOSTIC_VALUE_LENGTH = 96;
-
 /** Quote untrusted data for diagnostics without allowing log/control-character
     injection or messages proportional to attacker-controlled input size. */
 export function quoteDiagnosticValue(value: string | number): string {
   const raw = String(value);
-  const bounded = raw.length <= MAX_DIAGNOSTIC_VALUE_LENGTH
-    ? raw
-    : `${raw.slice(0, MAX_DIAGNOSTIC_VALUE_LENGTH - 3)}...`;
+  const bounded = truncateDiagnosticText(raw, MAX_DIAGNOSTIC_VALUE_LENGTH);
   return JSON.stringify(bounded);
 }
 
 export function formatDiagnosticPath(path: readonly DiagnosticPathSegment[]): string {
-  return path.reduce<string>((formatted, segment) => (
+  const formatted = boundDiagnosticPath(path).reduce<string>((result, segment) => (
     typeof segment === 'number'
-      ? `${formatted}[${segment}]`
+      ? `${result}[${segment}]`
       : /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(segment)
-        ? `${formatted}.${segment}`
-        : `${formatted}[${JSON.stringify(segment)}]`
+        ? `${result}.${segment}`
+        : `${result}[${JSON.stringify(segment)}]`
   ), '$');
+  return truncateDiagnosticText(formatted, MAX_FORMATTED_DIAGNOSTIC_PATH_LENGTH);
 }
