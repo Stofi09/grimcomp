@@ -11,6 +11,7 @@ import {
 import { ContentContext } from '@/content/contentContext';
 import { ContentRegistry } from '@/content/registry';
 import { _resetStoredCache } from '@/hooks/useStoredState';
+import { STORAGE_VERSION, STORAGE_VERSION_KEY } from '@/storage/storageSchema';
 import { Shell } from './Shell';
 
 function setViewportWidth(width: number): void {
@@ -64,6 +65,7 @@ describe('mobile navigation drawer', () => {
 describe('desktop rail vitals', () => {
   it('shows the active character\'s persisted Fate and Fortune values', () => {
     setViewportWidth(1024);
+    localStorage.setItem(STORAGE_VERSION_KEY, JSON.stringify(STORAGE_VERSION));
     localStorage.setItem('gc.c1.vitals', JSON.stringify({
       fate: 3,
       fortune: 1,

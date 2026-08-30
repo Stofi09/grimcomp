@@ -12,6 +12,10 @@ import { validatePack } from './validate';
 import { useContentPacks } from './useContentPacks';
 import { useContentEdits } from './useContentEdits';
 import {
+  collectEnabledStoredPacks,
+  preserveRequiredFallbackCharacter,
+} from './storedContentPacks';
+import {
   ContentContext,
   ContentStatusContext,
   type ContentStatus,
@@ -44,20 +48,19 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // validated at import, but localStorage can be tampered with or carry a pack
     // from an incompatible app version; an invalid formula/regex here would
     // otherwise crash a screen at render. Bad stored packs are skipped + logged.
-    const enabled: ContentPack[] = [];
-    for (const sp of userPacks) {
-      if (!sp.enabled) continue;
-      const { pack, errors } = validatePack(sp.pack);
-      if (pack) enabled.push(pack);
-      else console.warn(`[content] stored pack "${sp.pack?.id ?? '?'}" rejected: ${errors.join('; ')}`);
-    }
+    const enabled = collectEnabledStoredPacks(userPacks)
+      .map(preserveRequiredFallbackCharacter);
     // In-app edits merge last, so they override bundled + imported entries (and
     // their `deletions` win). Re-validate defensively in case storage was tampered.
     const layers = [...state.bundled, ...enabled];
-    const { pack: validatedEdits, errors: editErrors } = validatePack(editsPack);
-    if (validatedEdits) layers.push(validatedEdits);
-    else console.warn(`[content] in-app edits rejected: ${editErrors.join('; ')}`);
-    return new ContentRegistry(layers);
+    try {
+      const { pack: validatedEdits, errors: editErrors } = validatePack(editsPack);
+      if (validatedEdits) layers.push(preserveRequiredFallbackCharacter(validatedEdits));
+      else console.warn(`[content] in-app edits rejected: ${editErrors.slice(0, 20).join('; ').slice(0, 2_000)}`);
+    } catch {
+      console.warn('[content] malformed in-app edits were skipped safely.');
+    }
+    return new ContentRegistry(layers, { bundledPacks: state.bundled });
   }, [state.bundled, userPacks, editsPack]);
 
   const status = useMemo<ContentStatus>(

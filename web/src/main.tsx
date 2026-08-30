@@ -11,19 +11,51 @@ import './styles/base.css';
 
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App';
-import { runStorageMigrations } from './storage/migrations';
+import {
+  initializeWebStorage,
+  renderStorageBootFailure,
+  resyncWebStorageBeforeRender,
+} from './storage/storageBoot';
 
-// Run before the first render so the fresh-vs-legacy install is decided (and
-// any pending save migrations applied) before any hook reads or writes a gc.*
-// localStorage key.
-runStorageMigrations();
+async function bootstrap(): Promise<void> {
+  const root = document.getElementById('root');
+  if (!root) throw new Error('Missing #root element');
 
-const root = document.getElementById('root');
-if (!root) throw new Error('Missing #root element');
+  // Recovery is a hard gate: no migration or hook may touch gameplay data
+  // while an interrupted journal is unresolved.
+  let storage: Awaited<ReturnType<typeof initializeWebStorage>>;
+  try {
+    storage = await initializeWebStorage();
+  } catch (error) {
+    renderStorageBootFailure(root, {
+      title: 'Local data could not be opened safely',
+      message: `Storage initialization stopped unexpectedly. ${error instanceof Error ? error.message : String(error)}`,
+    });
+    return;
+  }
+  if (!storage.ok) {
+    renderStorageBootFailure(root, storage);
+    return;
+  }
 
-createRoot(root).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+  // Import the React tree only after recovery, migration, listener installation,
+  // and a final locked resync. No hook can hydrate from a half-applied journal
+  // or from a schema that raced ahead during this dynamic import boundary.
+  const { default: App } = await import('./App');
+  const postImportResync = await resyncWebStorageBeforeRender();
+  if (!postImportResync.ok) {
+    renderStorageBootFailure(root, {
+      stage: 'resync',
+      title: 'Local data changed while the app loaded',
+      message: `${postImportResync.message} Gameplay state was not rendered. Reload to retry synchronization.`,
+    });
+    return;
+  }
+  createRoot(root).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}
+
+void bootstrap();

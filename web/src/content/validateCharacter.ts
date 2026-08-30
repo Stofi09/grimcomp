@@ -4,6 +4,8 @@
 // policy. For example, numeric state must be finite, but this module does not
 // decide whether a campaign permits negative XP or a particular Wounds value.
 
+import { isValidStorageKeySegment } from '@grimcomp/core';
+
 type JsonObject = Record<string, unknown>;
 
 const isObject = (value: unknown): value is JsonObject =>
@@ -343,6 +345,10 @@ function validateParty(character: JsonObject, where: string, errors: string[]): 
  */
 export function validateCharacterTemplate(character: JsonObject, where: string): string[] {
   const errors: string[] = [];
+
+  if (!isValidStorageKeySegment(character.id)) {
+    errors.push(`${where} "id" must be a nonblank storage-safe id without dots.`);
+  }
 
   for (const key of ['name', 'species', 'class', 'career', 'careerLevelName', 'status', 'initials', 'accent']) {
     requireString(character, key, where, errors, true);

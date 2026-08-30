@@ -1,80 +1,448 @@
-// Versioned localStorage migrations.
-//
-// All player data — characters, per-character overlays, imported packs,
-// settings — lives in `gc.*` keys written by useStoredState as JSON. As the
-// data shapes evolve (e.g. a later PR moving the WFRP hero resources into a
-// generic resource-pool object), a breaking change must REWRITE existing saves
-// rather than silently hydrating them as the wrong shape and corrupting them.
-// This is the framework that makes that safe.
-//
-// runStorageMigrations() MUST run once, before React renders (see main.tsx), so
-// the fresh-vs-legacy install is decided before any hook writes a gc.* key.
+import {
+  STORAGE_TRANSACTION_JOURNAL_KEY,
+  type StorageMutation,
+  type StorageTransactionCoordinator,
+  validateStorageMutations,
+} from '@grimcomp/core';
+import { browserStorageBackend, browserStorageCoordinator } from './browserStorage';
+import {
+  STORAGE_RECOVERY_RESET_INTENT_KEY,
+  STORAGE_VERSION,
+  STORAGE_VERSION_KEY,
+} from './storageSchema';
+import type { StorageBackend } from '@/hooks/storageCore';
 
-const VERSION_KEY = 'gc.storageVersion';
+export { STORAGE_VERSION, STORAGE_VERSION_KEY } from './storageSchema';
 
-// Bump this whenever a STORAGE_MIGRATIONS entry is added. v1 is the
-// pre-versioning baseline — every shape shipped to date.
-export const STORAGE_VERSION = 1;
-
-// Keyed by the version being migrated FROM. Each transform reads and rewrites
-// the relevant gc.* keys in place; the runner then stamps the new version.
-// Empty today on purpose: the harness ships one release ahead of the first
-// breaking change, so the machinery is proven before anything depends on it.
-type Migration = () => void;
-const STORAGE_MIGRATIONS: Record<number, Migration> = {
-  // 1: () => { /* rewrite gc.<id>.vitals → gc.<id>.resources */ },
-};
-
-function lsGet(key: string): string | null {
-  try { return window.localStorage.getItem(key); } catch { return null; }
-}
-function lsSet(key: string, value: string): void {
-  try { window.localStorage.setItem(key, value); } catch { /* privacy / quota — skip */ }
+export interface StorageMigrationContext {
+  readonly readRaw: (key: string) => string | null;
 }
 
-/** True if any gc.* key other than the version stamp exists (i.e. real data). */
-function hasExistingData(): boolean {
-  try {
-    for (let i = 0; i < window.localStorage.length; i += 1) {
-      const k = window.localStorage.key(i);
-      if (k && k.startsWith('gc.') && k !== VERSION_KEY) return true;
+export type StorageMigration = (
+  context: StorageMigrationContext,
+) => readonly StorageMutation[];
+
+export interface StorageVersionState {
+  readonly version: number;
+  readonly raw: string | null;
+  readonly unstamped: boolean;
+}
+
+export interface StorageMigrationError {
+  readonly code:
+    | 'read_failed'
+    | 'enumerate_failed'
+    | 'corrupt_version'
+    | 'future_version'
+    | 'missing_migration'
+    | 'migration_failed'
+    | 'invalid_migration'
+    | 'transaction_failed';
+  readonly message: string;
+  readonly fromVersion?: number;
+  readonly cause?: string;
+}
+
+export type StorageVersionResult =
+  | { readonly ok: true; readonly state: StorageVersionState }
+  | { readonly ok: false; readonly error: StorageMigrationError };
+
+export type StorageMigrationResult =
+  | {
+      readonly ok: true;
+      readonly outcome: 'current' | 'stamped' | 'migrated';
+      readonly fromVersion: number;
+      readonly toVersion: number;
     }
-  } catch { /* privacy mode — treat as fresh */ }
-  return false;
+  | {
+      readonly ok: false;
+      readonly outcome: 'blocked';
+      readonly fromVersion: number | null;
+      readonly toVersion: number;
+      readonly error: StorageMigrationError;
+    };
+
+export interface StorageMigrationPlan {
+  readonly targetVersion: number;
+  readonly migrations: Readonly<Record<number, StorageMigration>>;
+  readonly backend: Pick<StorageBackend, 'getItem' | 'keys'>;
+  readonly coordinator: StorageTransactionCoordinator;
 }
 
-/**
- * The stored data version. An absent stamp means either a fresh install (no
- * data → already current) or a legacy pre-versioning install (has data →
- * implicitly v1). Distinguishing the two is why this must run before any hook
- * writes its first key.
- */
-export function readStorageVersion(): number {
-  const raw = lsGet(VERSION_KEY);
-  if (raw == null) return hasExistingData() ? 1 : STORAGE_VERSION;
+const STORAGE_MIGRATIONS: Readonly<Record<number, StorageMigration>> = {};
+
+function boundedCause(error: unknown): string {
   try {
-    const n = Number(JSON.parse(raw));
-    return Number.isFinite(n) ? n : 1;
+    const text = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    return text.slice(0, 500);
   } catch {
-    return 1;
+    return 'Unprintable thrown value';
   }
 }
 
-/** Apply any pending migrations in order, then stamp the current version.
-    Idempotent — safe to call on every boot. */
-export function runStorageMigrations(): void {
-  let from = readStorageVersion();
-  while (from < STORAGE_VERSION) {
-    const migrate = STORAGE_MIGRATIONS[from];
-    if (migrate) {
-      try {
-        migrate();
-      } catch (e) {
-        console.error(`[storage] migration ${from}→${from + 1} failed`, e);
-      }
-    }
-    from += 1;
+function failedVersion(error: StorageMigrationError): StorageVersionResult {
+  return { ok: false, error };
+}
+
+/** Strictly decode the on-disk version; malformed/future data is never guessed. */
+export function readStorageVersion(
+  backend: Pick<StorageBackend, 'getItem' | 'keys'> = browserStorageBackend,
+  targetVersion = STORAGE_VERSION,
+): StorageVersionResult {
+  let raw: string | null;
+  try {
+    raw = backend.getItem(STORAGE_VERSION_KEY);
+  } catch (error) {
+    return failedVersion({
+      code: 'read_failed',
+      message: 'Unable to read the storage schema version.',
+      cause: boundedCause(error),
+    });
   }
-  // Stamp even on a fresh install so the next breaking change has a baseline.
-  lsSet(VERSION_KEY, JSON.stringify(STORAGE_VERSION));
+
+  if (raw === null) {
+    let hasExistingData: boolean;
+    try {
+      hasExistingData = backend.keys().some((key) => (
+        key.startsWith('gc.')
+        && key !== STORAGE_VERSION_KEY
+        && key !== STORAGE_TRANSACTION_JOURNAL_KEY
+        && key !== STORAGE_RECOVERY_RESET_INTENT_KEY
+      ));
+    } catch (error) {
+      return failedVersion({
+        code: 'enumerate_failed',
+        message: 'Unable to inspect existing storage before migration.',
+        cause: boundedCause(error),
+      });
+    }
+    return {
+      ok: true,
+      state: {
+        version: hasExistingData ? 1 : targetVersion,
+        raw: null,
+        unstamped: true,
+      },
+    };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch (error) {
+    return failedVersion({
+      code: 'corrupt_version',
+      message: 'The storage schema version is not valid JSON.',
+      cause: boundedCause(error),
+    });
+  }
+  if (typeof parsed !== 'number' || !Number.isSafeInteger(parsed) || parsed < 1) {
+    return failedVersion({
+      code: 'corrupt_version',
+      message: 'The storage schema version must be a positive safe integer.',
+    });
+  }
+  if (parsed > targetVersion) {
+    return failedVersion({
+      code: 'future_version',
+      message: `Storage version ${parsed} is newer than supported version ${targetVersion}.`,
+      fromVersion: parsed,
+    });
+  }
+  return {
+    ok: true,
+    state: {
+      version: parsed,
+      raw,
+      // Equivalent-but-noncanonical JSON (for example "1.0") is normalized
+      // through the same journaled CAS path before the app can render.
+      unstamped: raw !== JSON.stringify(parsed),
+    },
+  };
+}
+
+function validateMigrationMutations(
+  mutations: unknown,
+  fromVersion: number,
+): StorageMigrationError | null {
+  if (!Array.isArray(mutations)) {
+    return {
+      code: 'invalid_migration',
+      message: `Migration ${fromVersion} did not return an operation array.`,
+      fromVersion,
+    };
+  }
+  try {
+    // Add the runner-owned stamp while validating: this both permits an empty
+    // transform and rejects malformed/duplicate/stamp-writing operations.
+    const validation = validateStorageMutations([
+      ...(mutations as readonly StorageMutation[]),
+      { key: STORAGE_VERSION_KEY, value: JSON.stringify(fromVersion + 1) },
+    ]);
+    if (!validation.ok) {
+      return {
+        code: 'invalid_migration',
+        message: `Migration ${fromVersion} returned invalid operations: ${validation.message}`,
+        fromVersion,
+      };
+    }
+  } catch (error) {
+    return {
+      code: 'invalid_migration',
+      message: `Migration ${fromVersion} returned operations that could not be inspected. ${boundedCause(error)}`,
+      fromVersion,
+    };
+  }
+  return null;
+}
+
+/** Apply a strict, stepwise plan. Each transform and its stamp commit atomically. */
+export async function runStorageMigrationPlan(
+  plan: StorageMigrationPlan,
+): Promise<StorageMigrationResult> {
+  if (!Number.isSafeInteger(plan.targetVersion) || plan.targetVersion < 1) {
+    return {
+      ok: false,
+      outcome: 'blocked',
+      fromVersion: null,
+      toVersion: plan.targetVersion,
+      error: {
+        code: 'invalid_migration',
+        message: 'The target storage version must be a positive safe integer.',
+      },
+    };
+  }
+  const read = readStorageVersion(plan.backend, plan.targetVersion);
+  if (!read.ok) {
+    return {
+      ok: false,
+      outcome: 'blocked',
+      fromVersion: read.error.fromVersion ?? null,
+      toVersion: plan.targetVersion,
+      error: read.error,
+    };
+  }
+
+  const startedAt = read.state.version;
+  let version = startedAt;
+  let versionRaw = read.state.raw;
+  // Validate the complete path before mutating anything. A packaging mistake
+  // cannot leave users stranded halfway through an otherwise avoidable run.
+  for (let required = version; required < plan.targetVersion; required += 1) {
+    if (!plan.migrations[required]) {
+      return {
+        ok: false,
+        outcome: 'blocked',
+        fromVersion: required,
+        toVersion: plan.targetVersion,
+        error: {
+          code: 'missing_migration',
+          message: `Required migration ${required}→${required + 1} is missing.`,
+          fromVersion: required,
+        },
+      };
+    }
+  }
+  while (version < plan.targetVersion) {
+    const migrate = plan.migrations[version];
+    // The complete migration path was checked above.
+    if (!migrate) throw new Error('Unreachable missing migration.');
+
+    const readDependencies = new Map<string, string | null>();
+    let produced: readonly StorageMutation[];
+    try {
+      produced = migrate({
+        readRaw: (key) => {
+          if (readDependencies.has(key)) return readDependencies.get(key) ?? null;
+          const raw = plan.backend.getItem(key);
+          readDependencies.set(key, raw);
+          return raw;
+        },
+      });
+    } catch (error) {
+      return {
+        ok: false,
+        outcome: 'blocked',
+        fromVersion: version,
+        toVersion: plan.targetVersion,
+        error: {
+          code: 'migration_failed',
+          message: `Migration ${version}→${version + 1} failed before commit.`,
+          fromVersion: version,
+          cause: boundedCause(error),
+        },
+      };
+    }
+    const invalid = validateMigrationMutations(produced, version);
+    if (invalid) {
+      return {
+        ok: false,
+        outcome: 'blocked',
+        fromVersion: version,
+        toVersion: plan.targetVersion,
+        error: invalid,
+      };
+    }
+
+    let mutations: StorageMutation[];
+    let dependencyConflict: string | null = null;
+    try {
+      const outputKeys = new Set<string>();
+      mutations = produced.map((mutation) => {
+        const { key } = mutation;
+        outputKeys.add(key);
+        const hasExpected = Object.prototype.hasOwnProperty.call(mutation, 'expected');
+        if (readDependencies.has(key)) {
+          const expected = readDependencies.get(key) ?? null;
+          if (hasExpected && mutation.expected !== expected) dependencyConflict = key;
+          return hasExpected ? mutation : { ...mutation, expected };
+        }
+        return hasExpected ? mutation : { ...mutation, expected: plan.backend.getItem(key) };
+      });
+      for (const [key, raw] of readDependencies) {
+        if (key !== STORAGE_VERSION_KEY && !outputKeys.has(key)) {
+          // A transform may derive one key from another. Keep that input stable
+          // until the coordinator owns the lock without introducing a duplicate
+          // mutation for inputs that are also outputs.
+          mutations.push({ key, value: raw, expected: raw });
+        }
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        outcome: 'blocked',
+        fromVersion: version,
+        toVersion: plan.targetVersion,
+        error: {
+          code: 'read_failed',
+          message: `Migration ${version} could not capture write preconditions.`,
+          fromVersion: version,
+          cause: boundedCause(error),
+        },
+      };
+    }
+    if (dependencyConflict !== null) {
+      return {
+        ok: false,
+        outcome: 'blocked',
+        fromVersion: version,
+        toVersion: plan.targetVersion,
+        error: {
+          code: 'invalid_migration',
+          message: `Migration ${version} returned a precondition for ${JSON.stringify(dependencyConflict)} that does not match the value read through readRaw.`,
+          fromVersion: version,
+        },
+      };
+    }
+    const nextRaw = JSON.stringify(version + 1);
+    mutations.push({ key: STORAGE_VERSION_KEY, value: nextRaw, expected: versionRaw });
+    const expandedValidation = validateStorageMutations(mutations);
+    if (!expandedValidation.ok) {
+      return {
+        ok: false,
+        outcome: 'blocked',
+        fromVersion: version,
+        toVersion: plan.targetVersion,
+        error: {
+          code: 'invalid_migration',
+          message: `Migration ${version} dependencies produced invalid operations: ${expandedValidation.message}`,
+          fromVersion: version,
+        },
+      };
+    }
+
+    let transaction;
+    try {
+      transaction = await plan.coordinator.transact(mutations);
+    } catch (error) {
+      return {
+        ok: false,
+        outcome: 'blocked',
+        fromVersion: version,
+        toVersion: plan.targetVersion,
+        error: {
+          code: 'transaction_failed',
+          message: `Migration ${version}→${version + 1} could not reach the storage coordinator.`,
+          fromVersion: version,
+          cause: boundedCause(error),
+        },
+      };
+    }
+    if (!transaction.ok) {
+      return {
+        ok: false,
+        outcome: 'blocked',
+        fromVersion: version,
+        toVersion: plan.targetVersion,
+        error: {
+          code: 'transaction_failed',
+          message: transaction.error.message,
+          fromVersion: version,
+          cause: transaction.error.cause,
+        },
+      };
+    }
+    version += 1;
+    versionRaw = nextRaw;
+  }
+
+  if (read.state.unstamped && startedAt === plan.targetVersion) {
+    let transaction;
+    try {
+      transaction = await plan.coordinator.transact([{
+        key: STORAGE_VERSION_KEY,
+        value: JSON.stringify(plan.targetVersion),
+        expected: read.state.raw,
+      }]);
+    } catch (error) {
+      return {
+        ok: false,
+        outcome: 'blocked',
+        fromVersion: version,
+        toVersion: plan.targetVersion,
+        error: {
+          code: 'transaction_failed',
+          message: 'The storage version stamp could not reach the storage coordinator.',
+          fromVersion: version,
+          cause: boundedCause(error),
+        },
+      };
+    }
+    if (!transaction.ok) {
+      return {
+        ok: false,
+        outcome: 'blocked',
+        fromVersion: version,
+        toVersion: plan.targetVersion,
+        error: {
+          code: 'transaction_failed',
+          message: transaction.error.message,
+          fromVersion: version,
+          cause: transaction.error.cause,
+        },
+      };
+    }
+    return {
+      ok: true,
+      outcome: startedAt < plan.targetVersion ? 'migrated' : 'stamped',
+      fromVersion: startedAt,
+      toVersion: plan.targetVersion,
+    };
+  }
+
+  return {
+    ok: true,
+    outcome: startedAt < plan.targetVersion ? 'migrated' : 'current',
+    fromVersion: startedAt,
+    toVersion: plan.targetVersion,
+  };
+}
+
+export function runStorageMigrations(): Promise<StorageMigrationResult> {
+  return runStorageMigrationPlan({
+    targetVersion: STORAGE_VERSION,
+    migrations: STORAGE_MIGRATIONS,
+    backend: browserStorageBackend,
+    coordinator: browserStorageCoordinator,
+  });
 }

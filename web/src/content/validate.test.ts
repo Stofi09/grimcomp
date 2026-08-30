@@ -22,7 +22,7 @@ const validTalent = (overrides: Record<string, unknown> = {}) => ({
 });
 
 const validCharacter = (overrides: Record<string, unknown> = {}) => ({
-  id: 'char.test',
+  id: 'char-test',
   name: 'Test Character',
   species: 'Human',
   raceId: 'race.human',
@@ -87,6 +87,41 @@ describe('validatePack — unit', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
+  it('rejects blank pack identity fields', () => {
+    const { pack, errors } = validatePack({
+      $schema: 'grimcomp.content.v2', id: ' ', name: '\t', version: '',
+    });
+    expect(pack).toBeUndefined();
+    expect(errors).toEqual(expect.arrayContaining([
+      expect.stringContaining('nonblank string "id"'),
+      expect.stringContaining('nonblank string "name"'),
+      expect.stringContaining('nonblank string "version"'),
+    ]));
+  });
+
+  it('never invokes hostile schema coercion and bounds its diagnostic', () => {
+    const schema = Object.create(null) as Record<string, unknown>;
+    schema.payload = 'x'.repeat(10_000);
+    expect(() => validatePack({
+      $schema: schema, id: 't', name: 'T', version: '1',
+    })).not.toThrow();
+    const { errors } = validatePack({
+      $schema: schema, id: 't', name: 'T', version: '1',
+    });
+    expect(errors[0]?.length).toBeLessThanOrEqual(500);
+  });
+
+  it('bounds hostile entry traversal and diagnostic amplification', () => {
+    const spells = Array.from({ length: 10_500 }, () => null);
+    const { pack, errors } = validatePack({
+      $schema: 'grimcomp.content.v2', id: 't', name: 'T', version: '1', spells,
+    });
+    expect(pack).toBeUndefined();
+    expect(errors.length).toBeLessThanOrEqual(100);
+    expect(errors.some(error => error.includes('10000-entry validation limit'))).toBe(true);
+    expect(errors.every(error => error.length <= 500)).toBe(true);
+  });
+
   it('rejects a non-object', () => {
     expect(validatePack(42).errors.length).toBeGreaterThan(0);
   });
@@ -133,6 +168,15 @@ describe('validatePack — unit', () => {
       ...envelope,
       characters: [{ ...character, careerId: '   ' }],
     }).errors).toContain('characters[0] "careerId" must be a nonblank string when provided.');
+  });
+
+  it('rejects character ids containing the storage namespace delimiter', () => {
+    const { errors } = validatePack({
+      $schema: 'grimcomp.content.v2', id: 't', name: 'T', version: '1',
+      characters: [validCharacter({ id: 'character.with.dots' })],
+    });
+
+    expect(errors).toContain('characters[0] "id" must be a nonblank storage-safe id without dots.');
   });
 
   it('accepts a structurally complete character template', () => {

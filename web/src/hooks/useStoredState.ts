@@ -1,53 +1,29 @@
-// Generic localStorage-backed useState with cross-instance sync.
-//
-// Multiple components calling `useStoredState(key, …)` with the same key share
-// state in real time — when one writes, every other subscriber re-renders with
-// the new value. That's required so the rail's "spendable XP" vital and the XP
-// screen's counter stay in sync as the user buys advances.
-//
-// Unlike the AsyncStorage-backed RN original, hydration is synchronous: the
-// first access for a key reads localStorage immediately, so `ready` is always
-// true. It stays in the returned tuple for API compatibility.
-//
-// The cache + persistence semantics live in StorageCore (framework-free and
-// unit-tested); this file is the React binding plus the cross-tab listener.
+import { useCallback, useRef, useSyncExternalStore } from 'react';
+import {
+  browserStorageCoordinator,
+  browserStorageCore as store,
+} from '@/storage/browserStorage';
+import type {
+  StorageCoreStatus,
+  StorageMaintenanceTicket,
+  StorageTransactionDraft,
+  StorageTransactionTicket,
+} from './storageCore';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { StorageCore, browserBackend } from './storageCore';
+type Setter<T> = T | ((previous: T) => T);
+export type StoredStateSetter<T> = (next: Setter<T>) => StorageTransactionTicket<T>;
 
-type Setter<T> = T | ((prev: T) => T);
-type SetState<T> = (next: Setter<T>) => void;
-
-// One store shared across every subscriber for the lifetime of the module.
-const store = new StorageCore(browserBackend());
-
-// Cross-tab sync (a web bonus the RN version couldn't have): another tab
-// writing a `gc.*` key fires `storage` here. Registered once at module level.
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e: StorageEvent) => {
-    const key = e.key;
-    if (!key || !key.startsWith('gc.')) return;
-    store.applyExternal(key, e.newValue);
-  });
-}
+const subscribeToStorageStatus = (listener: () => void) => store.subscribeStatus(listener);
+const getStorageStatusSnapshot = () => store.getStatus();
 
 /**
  * Persisted, cross-instance-synced state.
  *
- * Returns `[value, setValue, ready]`. Components reading the same key see the
- * same value and re-render together when any one of them calls setValue.
- * Writes are mirrored to localStorage so the value survives reloads.
+ * Functional updaters execute before the setter returns. The returned ticket
+ * exposes durability; React subscribers publish the new value only after its
+ * journal transaction commits. Existing callers may safely ignore the ticket.
  */
 export function useStoredState<T>(key: string, initial: T) {
-  // `_tick` is a render trigger — when another instance writes, our listener
-  // bumps it, forcing this hook to re-read from the store.
-  const [, setTick] = useState(0);
-
-  // `initialRef` holds the seed for the *current* key. Per-character hooks key
-  // their storage on `characterKey(id, …)`, so switching the active character
-  // changes `key` on a still-mounted instance (the persistent Rail / AppBar).
-  // Re-anchor the seed when that happens — otherwise the newly-selected
-  // character hydrates its storage from the previous character's seed.
   const initialRef = useRef(initial);
   const keyRef = useRef(key);
   if (keyRef.current !== key) {
@@ -55,39 +31,66 @@ export function useStoredState<T>(key: string, initial: T) {
     initialRef.current = initial;
   }
 
-  // Subscribe to cross-instance writes for this key.
-  useEffect(() => store.subscribe(key, () => setTick(n => n + 1)), [key]);
+  const subscribe = useCallback(
+    (listener: () => void) => store.subscribe(key, listener),
+    [key],
+  );
+  const getSnapshot = useCallback(
+    () => store.read(key, initialRef.current),
+    [key],
+  );
+  const value = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const setValue: StoredStateSetter<T> = useCallback(
+    (next) => store.update(key, initialRef.current, next),
+    [key],
+  );
 
-  const value = store.read(key, initialRef.current);
+  // Hydration remains synchronous. Persistence readiness/error information is
+  // separately available through useStoragePersistenceStatus().
+  return [value, setValue, true] as const;
+}
 
-  const setValue: SetState<T> = useCallback((next) => {
-    // Functional updates resolve SYNCHRONOUSLY against the shared cache —
-    // callers (useXp.spend) smuggle results out through closures and depend
-    // on the updater having run before setValue returns.
-    store.update(key, initialRef.current, next);
-  }, [key]);
-
-  // Hydration is synchronous on the web, so `ready` is always true. Kept in
-  // the tuple so callers written against the RN original port unchanged.
-  const ready: boolean = true;
-
-  return [value, setValue, ready] as const;
+export function clearStoredKeys(
+  predicate: (key: string) => boolean,
+): StorageMaintenanceTicket<number> {
+  return store.clearMatching(predicate);
 }
 
 /**
- * Permanently drop every stored key matching `predicate` from BOTH localStorage
- * and the in-memory cache, notifying any live subscribers so they fall back to
- * their seed. Used when a character is deleted, so its `gc.<id>.*` overlay state
- * can't leak into a later character that reuses the id.
+ * Ambient batch for existing hooks: setters invoked synchronously inside work
+ * join one draft and one journal transaction. Nested batches join the outermost
+ * batch and share its completion Promise.
  */
-export function clearStoredKeys(predicate: (key: string) => boolean) {
-  store.clearMatching(predicate);
+export function runStoredTransaction<T>(
+  work: (draft: StorageTransactionDraft) => T,
+): StorageTransactionTicket<T> {
+  return store.transaction(work);
 }
 
-/**
- * Test-only: drop everything from the in-memory cache. Use sparingly; doesn't
- * touch localStorage, so re-mounted hooks will re-hydrate from disk.
- */
-export function _resetStoredCache() {
+export function getStoragePersistenceStatus(): StorageCoreStatus {
+  return store.getStatus();
+}
+
+export function useStoragePersistenceStatus(): StorageCoreStatus {
+  return useSyncExternalStore(
+    subscribeToStorageStatus,
+    getStorageStatusSnapshot,
+    getStorageStatusSnapshot,
+  );
+}
+
+/** Test-only: clear volatile state without touching durable browser storage. */
+export function _resetStoredCache(): void {
   store.reset();
+}
+
+/** Test-only: initialize the singleton coordinator for hook tests that bypass main.tsx. */
+export async function _recoverStoredStateForTests(): Promise<void> {
+  const recovery = await browserStorageCoordinator.recover();
+  if (!recovery.ok) throw new Error(recovery.error.message);
+}
+
+/** Test-only: wait until every queued durable write has settled. */
+export async function waitForStorageIdle(): Promise<StorageCoreStatus> {
+  return store.flush();
 }

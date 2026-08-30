@@ -169,6 +169,8 @@ function overlaySystem(base: SystemRules, overlay: SystemOverlay): SystemRules {
 
 export class ContentRegistry {
   readonly packs: ContentPack[];
+  /** Immutable app-bundled layers, kept separate from replaceable local packs. */
+  readonly bundledPacks: readonly ContentPack[];
 
   private readonly spellMap = new Map<string, Spell>();
   private readonly prayerMap = new Map<string, Prayer>();
@@ -212,8 +214,12 @@ export class ContentRegistry {
   // are cheap — the nav model never changes for a given registry instance.
   private readonly _navModel: NavModel;
 
-  constructor(packs: ContentPack[]) {
+  constructor(
+    packs: ContentPack[],
+    options: { readonly bundledPacks?: readonly ContentPack[] } = {},
+  ) {
     this.packs = packs;
+    this.bundledPacks = options.bundledPacks ? [...options.bundledPacks] : [...packs];
     // Tombstones queued from every pack's `deletions`, applied once all packs
     // have merged so a later pack can remove an earlier (or bundled) entry.
     const delQueue: Record<string, Set<string>> = {};

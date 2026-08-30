@@ -31,7 +31,20 @@ const isObject = (v: unknown): v is Record<string, unknown> =>
 
 const isString = (v: unknown): v is string => typeof v === 'string';
 const isNonBlankString = (v: unknown): v is string => isString(v) && v.trim().length > 0;
-const isNumber = (v: unknown): v is number => typeof v === 'number';
+const isNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+const MAX_CONTENT_ENTRIES = 10_000;
+const MAX_VALIDATION_DIAGNOSTICS = 100;
+const MAX_DIAGNOSTIC_LENGTH = 500;
+
+function describeValue(value: unknown): string {
+  try {
+    const encoded = JSON.stringify(value);
+    return (encoded === undefined ? typeof value : encoded).slice(0, 200);
+  } catch {
+    return '<unprintable>';
+  }
+}
 
 /** A finite number within [min, max]. Bounds dice counts/sides so a tampered or
     malformed pack can't freeze the UI with an enormous roll loop (Number.isFinite
@@ -75,7 +88,7 @@ const SCREEN_ENABLED_WHEN_IDENTS = new Set<string>([
  */
 export function xpCostRowsToBands(rows: XpCostRow[]): XpCostBand[] {
   const bands: XpCostBand[] = [];
-  for (const row of rows) {
+  for (const row of rows.slice(0, MAX_CONTENT_ENTRIES)) {
     const range = String(row.range).trim();
     const open = range.match(/^(\d+)\s*\+$/);
     if (open) {
@@ -114,22 +127,58 @@ interface EntrySpec {
 export function validatePack(raw: unknown): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const push = (msg: string) => errors.push(msg);
+  let errorsTruncated = false;
+  let warningsTruncated = false;
+  const push = (msg: string) => {
+    if (errors.length < MAX_VALIDATION_DIAGNOSTICS) {
+      errors.push(msg.slice(0, MAX_DIAGNOSTIC_LENGTH));
+    } else if (!errorsTruncated) {
+      errorsTruncated = true;
+      errors[MAX_VALIDATION_DIAGNOSTICS - 1] = 'Additional validation errors were omitted.';
+    }
+  };
+  const warn = (msg: string) => {
+    if (warnings.length < MAX_VALIDATION_DIAGNOSTICS) {
+      warnings.push(msg.slice(0, MAX_DIAGNOSTIC_LENGTH));
+    } else if (!warningsTruncated) {
+      warningsTruncated = true;
+      warnings[MAX_VALIDATION_DIAGNOSTICS - 1] = 'Additional validation warnings were omitted.';
+    }
+  };
 
   if (!isObject(raw)) {
     return { errors: ['Content pack must be a JSON object.'], warnings };
   }
 
   if (raw.$schema !== CONTENT_SCHEMA && raw.$schema !== CONTENT_SCHEMA_V1) {
-    push(`Unexpected $schema "${String(raw.$schema)}" — expected "${CONTENT_SCHEMA}" (or legacy "${CONTENT_SCHEMA_V1}").`);
+    push(`Unexpected $schema ${describeValue(raw.$schema)} — expected "${CONTENT_SCHEMA}" (or legacy "${CONTENT_SCHEMA_V1}").`);
   }
-  if (!isString(raw.id)) push('Pack is missing a string "id".');
-  if (!isString(raw.name)) push('Pack is missing a string "name".');
-  if (!isString(raw.version)) push('Pack is missing a string "version".');
+  if (!isNonBlankString(raw.id)) push('Pack is missing a nonblank string "id".');
+  if (!isNonBlankString(raw.name)) push('Pack is missing a nonblank string "name".');
+  if (!isNonBlankString(raw.version)) push('Pack is missing a nonblank string "version".');
 
-  for (const key of Object.keys(raw)) {
+  const limitArray = <T,>(value: readonly T[], where: string): readonly T[] => {
+    if (value.length > MAX_CONTENT_ENTRIES) {
+      push(`"${where}" exceeds the ${MAX_CONTENT_ENTRIES}-entry validation limit.`);
+      return value.slice(0, MAX_CONTENT_ENTRIES);
+    }
+    return value;
+  };
+  const limitEntries = (
+    value: Record<string, unknown>,
+    where: string,
+  ): readonly (readonly [string, unknown])[] => {
+    const entries = Object.entries(value);
+    if (entries.length > MAX_CONTENT_ENTRIES) {
+      push(`"${where}" exceeds the ${MAX_CONTENT_ENTRIES}-entry validation limit.`);
+      return entries.slice(0, MAX_CONTENT_ENTRIES);
+    }
+    return entries;
+  };
+
+  for (const [key] of limitEntries(raw, 'content pack')) {
     if (!KNOWN_KEYS.has(key)) {
-      warnings.push(`Unknown section "${key}" — ignored.`);
+      warn(`Unknown section "${key}" — ignored.`);
     }
   }
 
@@ -141,7 +190,7 @@ export function validatePack(raw: unknown): ValidationResult {
       return;
     }
     const ids = new Set<string>();
-    value.forEach((entry, i) => {
+    limitArray(value, section).forEach((entry, i) => {
       const where = `${section}[${i}]`;
       if (!isObject(entry)) {
         push(`${where} must be an object.`);
@@ -177,7 +226,7 @@ export function validatePack(raw: unknown): ValidationResult {
       push(`"${where}" must be an array.`);
       return;
     }
-    value.forEach((band, i) => {
+    limitArray(value, where).forEach((band, i) => {
       const w = `${where}[${i}]`;
       if (!isObject(band)) { push(`${w} must be an object.`); return; }
       if (!isNumber(band.min)) push(`${w} missing numeric "min".`);
@@ -234,7 +283,7 @@ export function validatePack(raw: unknown): ValidationResult {
         p(`${where} is missing a "rows" array.`);
         return;
       }
-      entry.rows.forEach((row, j) => {
+      limitArray(entry.rows, `${where}.rows`).forEach((row, j) => {
         const rw = `${where}.rows[${j}]`;
         if (!isObject(row)) { p(`${rw} must be an object.`); return; }
         if (!isNumber(row.min)) p(`${rw} missing numeric "min".`);
@@ -262,11 +311,14 @@ export function validatePack(raw: unknown): ValidationResult {
       if (!Array.isArray(entry.species)) p(`${where} "species" must be an array of race ids.`);
       if (entry.advanceScheme !== undefined) {
         const as = entry.advanceScheme;
-        if (!isObject(as) || !Array.isArray(as.characteristics) || as.characteristics.some(k => !isString(k))) {
+        if (!isObject(as) || !Array.isArray(as.characteristics)
+          || limitArray(as.characteristics, `${where}.advanceScheme.characteristics`).some(k => !isString(k))) {
           p(`${where} "advanceScheme.characteristics" must be an array of characteristic keys.`);
-        } else if (isObject(as) && as.skills !== undefined && (!Array.isArray(as.skills) || as.skills.some(s => !isString(s)))) {
+        } else if (isObject(as) && as.skills !== undefined && (!Array.isArray(as.skills)
+          || limitArray(as.skills, `${where}.advanceScheme.skills`).some(s => !isString(s)))) {
           p(`${where} "advanceScheme.skills" must be an array of skill names.`);
-        } else if (isObject(as) && as.talents !== undefined && (!Array.isArray(as.talents) || as.talents.some(t => !isString(t)))) {
+        } else if (isObject(as) && as.talents !== undefined && (!Array.isArray(as.talents)
+          || limitArray(as.talents, `${where}.advanceScheme.talents`).some(t => !isString(t)))) {
           p(`${where} "advanceScheme.talents" must be an array of talent names.`);
         }
       }
@@ -307,7 +359,7 @@ export function validatePack(raw: unknown): ValidationResult {
         p(`${where} "ranks" must be an array.`);
         return;
       }
-      entry.ranks.forEach((rank, j) => {
+      limitArray(entry.ranks, `${where}.ranks`).forEach((rank, j) => {
         const rw = `${where}.ranks[${j}]`;
         if (!isObject(rank)) { p(`${rw} must be an object.`); return; }
         if (!isNumber(rank.level)) p(`${rw} missing numeric "level".`);
@@ -318,7 +370,7 @@ export function validatePack(raw: unknown): ValidationResult {
             p(`${rw} "requirements" must be an array.`);
             return;
           }
-          rank.requirements.forEach((req, k) => {
+          limitArray(rank.requirements, `${rw}.requirements`).forEach((req, k) => {
             const qw = `${rw}.requirements[${k}]`;
             if (!isObject(req)) { p(`${qw} must be an object.`); return; }
             if (!isString(req.skill)) p(`${qw} missing string "skill".`);
@@ -352,7 +404,7 @@ export function validatePack(raw: unknown): ValidationResult {
       }
       if (entry.exclusiveWith !== undefined) {
         if (!Array.isArray(entry.exclusiveWith)
-          || entry.exclusiveWith.some(value => !isNonBlankString(value))) {
+          || limitArray(entry.exclusiveWith, `${where}.exclusiveWith`).some(value => !isNonBlankString(value))) {
           p(`${where} "exclusiveWith" must be an array of nonblank skill ids when provided.`);
         } else if (new Set(entry.exclusiveWith.map(value => value.trim())).size
           !== entry.exclusiveWith.length) {
@@ -384,7 +436,7 @@ export function validatePack(raw: unknown): ValidationResult {
       if (entry.specializations !== undefined) {
         if (!Array.isArray(entry.specializations)
           || entry.specializations.length === 0
-          || entry.specializations.some(value => !isNonBlankString(value))) {
+          || limitArray(entry.specializations, `${where}.specializations`).some(value => !isNonBlankString(value))) {
           p(`${where} "specializations" must be a nonempty array of nonblank strings when provided.`);
         } else if (new Set(entry.specializations.map(value => value.trim().toLocaleLowerCase())).size
           !== entry.specializations.length) {
@@ -479,14 +531,15 @@ export function validatePack(raw: unknown): ValidationResult {
   checkSection('criticalTables', {
     requireId: false,
     extra: (entry, where, p) => {
-      if (!Array.isArray(entry.locations) || entry.locations.some(k => !isString(k) || !HIT_LOCATION_KEYS.includes(k))) {
+      if (!Array.isArray(entry.locations)
+        || limitArray(entry.locations, `${where}.locations`).some(k => !isString(k) || !HIT_LOCATION_KEYS.includes(k))) {
         p(`${where} "locations" must be an array of ${HIT_LOCATION_KEYS.join('|')}.`);
       }
       if (!Array.isArray(entry.rows)) {
         p(`${where} is missing a "rows" array.`);
         return;
       }
-      entry.rows.forEach((row, j) => {
+      limitArray(entry.rows, `${where}.rows`).forEach((row, j) => {
         const rw = `${where}.rows[${j}]`;
         if (!isObject(row)) { p(`${rw} must be an object.`); return; }
         if (!isNumber(row.min)) p(`${rw} missing numeric "min".`);
@@ -512,7 +565,7 @@ export function validatePack(raw: unknown): ValidationResult {
     if (!Array.isArray(raw.conditions)) {
       push('"conditions" must be an array.');
     } else {
-      raw.conditions.forEach((c, i) => {
+      limitArray(raw.conditions, 'conditions').forEach((c, i) => {
         const w = `conditions[${i}]`;
         if (isString(c)) return; // legacy v1 entry
         if (!isObject(c)) { push(`${w} must be a string or an object.`); return; }
@@ -530,7 +583,7 @@ export function validatePack(raw: unknown): ValidationResult {
     if (!Array.isArray(raw.xpCosts)) {
       push('"xpCosts" must be an array.');
     } else {
-      raw.xpCosts.forEach((row, i) => {
+      limitArray(raw.xpCosts, 'xpCosts').forEach((row, i) => {
         const w = `xpCosts[${i}]`;
         if (!isObject(row)) { push(`${w} must be an object.`); return; }
         if (!isString(row.range)) push(`${w} missing string "range".`);
@@ -551,7 +604,8 @@ export function validatePack(raw: unknown): ValidationResult {
         if (xr[f] !== undefined && !isNumber(xr[f])) push(`"xpRules.${f}" must be a number.`);
       }
       if (xr.quickAwards !== undefined) {
-        if (!Array.isArray(xr.quickAwards) || xr.quickAwards.some(n => !isNumber(n))) {
+        if (!Array.isArray(xr.quickAwards)
+          || limitArray(xr.quickAwards, 'xpRules.quickAwards').some(n => !isNumber(n))) {
           push('"xpRules.quickAwards" must be an array of numbers.');
         }
       }
@@ -632,7 +686,7 @@ export function validatePack(raw: unknown): ValidationResult {
             if (!Array.isArray(cur.units)) {
               push('"system.currency.units" must be an array.');
             } else {
-              cur.units.forEach((u, i) => {
+              limitArray(cur.units, 'system.currency.units').forEach((u, i) => {
                 const w = `system.currency.units[${i}]`;
                 if (!isObject(u)) { push(`${w} must be an object.`); return; }
                 if (!isString(u.key)) push(`${w} missing string "key".`);
@@ -673,7 +727,7 @@ export function validatePack(raw: unknown): ValidationResult {
     if (!isObject(raw.figureLabels)) {
       push('"figureLabels" must be an object.');
     } else {
-      for (const [k, v] of Object.entries(raw.figureLabels)) {
+      for (const [k, v] of limitEntries(raw.figureLabels, 'figureLabels')) {
         if (!HIT_LOCATION_KEYS.includes(k)) push(`"figureLabels" has unknown location key "${k}".`);
         if (!isString(v)) push(`"figureLabels.${k}" must be a string.`);
       }
@@ -686,7 +740,8 @@ export function validatePack(raw: unknown): ValidationResult {
       push('"woundsRules" must be an object.');
     } else {
       const wr = raw.woundsRules;
-      if (!Array.isArray(wr.smallSizes) || wr.smallSizes.some(s => !isString(s))) {
+      if (!Array.isArray(wr.smallSizes)
+        || limitArray(wr.smallSizes, 'woundsRules.smallSizes').some(s => !isString(s))) {
         push('"woundsRules.smallSizes" must be an array of strings.');
       }
       if (!isString(wr.bonusTalent)) push('"woundsRules.bonusTalent" must be a string.');
@@ -712,7 +767,7 @@ export function validatePack(raw: unknown): ValidationResult {
       if (!Array.isArray(cr.archetypes)) {
         push('"creation.archetypes" must be an array.');
       } else {
-        cr.archetypes.forEach((a, i) => {
+        limitArray(cr.archetypes, 'creation.archetypes').forEach((a, i) => {
           const w = `creation.archetypes[${i}]`;
           if (!isObject(a)) { push(`${w} must be an object.`); return; }
           for (const f of ['key', 'label', 'blurb', 'icon', 'templateId', 'careerId', 'accent']) {
@@ -736,12 +791,12 @@ export function validatePack(raw: unknown): ValidationResult {
     if (!isObject(raw.xpLogSeeds)) {
       push('"xpLogSeeds" must be an object keyed by character id.');
     } else {
-      for (const [charId, entries] of Object.entries(raw.xpLogSeeds)) {
+      for (const [charId, entries] of limitEntries(raw.xpLogSeeds, 'xpLogSeeds')) {
         if (!Array.isArray(entries)) {
           push(`"xpLogSeeds.${charId}" must be an array.`);
           continue;
         }
-        entries.forEach((e, i) => {
+        limitArray(entries, `xpLogSeeds.${charId}`).forEach((e, i) => {
           const w = `xpLogSeeds.${charId}[${i}]`;
           if (!isObject(e)) { push(`${w} must be an object.`); return; }
           if (!isString(e.date)) push(`${w} missing string "date".`);
@@ -762,7 +817,7 @@ export function validatePack(raw: unknown): ValidationResult {
       if (!Array.isArray(ns.notes)) {
         push('"noteSeeds.notes" must be an array.');
       } else {
-        ns.notes.forEach((n, i) => {
+        limitArray(ns.notes, 'noteSeeds.notes').forEach((n, i) => {
           const w = `noteSeeds.notes[${i}]`;
           if (!isObject(n)) { push(`${w} must be an object.`); return; }
           for (const f of ['cat', 'title', 'src', 'body']) {
@@ -773,7 +828,7 @@ export function validatePack(raw: unknown): ValidationResult {
       const checkOptions = (value: unknown, where: string) => {
         if (value === undefined) return;
         if (!Array.isArray(value)) { push(`"${where}" must be an array.`); return; }
-        value.forEach((o, i) => {
+        limitArray(value, where).forEach((o, i) => {
           const w = `${where}[${i}]`;
           if (!isObject(o)) { push(`${w} must be an object.`); return; }
           if (!isString(o.value)) push(`${w} missing string "value".`);
@@ -790,7 +845,7 @@ export function validatePack(raw: unknown): ValidationResult {
     if (!Array.isArray(raw.screenGroups)) {
       push('"screenGroups" must be an array.');
     } else {
-      raw.screenGroups.forEach((g, i) => {
+      limitArray(raw.screenGroups, 'screenGroups').forEach((g, i) => {
         const w = `screenGroups[${i}]`;
         if (!isObject(g)) { push(`${w} must be an object.`); return; }
         if (!isString(g.id)) push(`${w} missing string "id".`);
@@ -805,7 +860,7 @@ export function validatePack(raw: unknown): ValidationResult {
       push('"screens" must be an array.');
     } else {
       const ids = new Set<string>();
-      raw.screens.forEach((s, i) => {
+      limitArray(raw.screens, 'screens').forEach((s, i) => {
         const w = `screens[${i}]`;
         if (!isObject(s)) { push(`${w} must be an object.`); return; }
         if (!isString(s.id)) {
@@ -838,9 +893,9 @@ export function validatePack(raw: unknown): ValidationResult {
             // Unknown identifiers compile fine but evaluate to 0 at runtime,
             // silently hiding the screen — warn so typos are caught.
             const idents = s.enabledWhen.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? [];
-            for (const ident of idents) {
+            for (const ident of limitArray(idents, `${w}.enabledWhen identifiers`)) {
               if (!SCREEN_ENABLED_WHEN_IDENTS.has(ident)) {
-                warnings.push(
+                warn(
                   `${w} "enabledWhen" references unknown variable "${ident}" (evaluates to 0). Allowed: ${SCREEN_ENABLED_WHEN_VARS.join(', ')}.`,
                 );
               }
@@ -856,9 +911,9 @@ export function validatePack(raw: unknown): ValidationResult {
     if (!isObject(raw.capabilities)) {
       push('"capabilities" must be an object.');
     } else {
-      for (const [k, v] of Object.entries(raw.capabilities)) {
+      for (const [k, v] of limitEntries(raw.capabilities, 'capabilities')) {
         if (!CAPABILITY_KEYS.has(k)) {
-          warnings.push(`"capabilities" has unknown flag "${k}" — ignored.`);
+          warn(`"capabilities" has unknown flag "${k}" — ignored.`);
         } else if (typeof v !== 'boolean') {
           push(`"capabilities.${k}" must be a boolean.`);
         }
@@ -872,7 +927,8 @@ export function validatePack(raw: unknown): ValidationResult {
       push('"resources" must be an array.');
     } else {
       const ids = new Set<string>();
-      raw.resources.forEach((r, i) => {
+      const limitedResources = limitArray(raw.resources, 'resources');
+      limitedResources.forEach((r, i) => {
         const w = `resources[${i}]`;
         if (!isObject(r)) { push(`${w} must be an object.`); return; }
         if (!isString(r.id)) {
@@ -887,9 +943,9 @@ export function validatePack(raw: unknown): ValidationResult {
         if (r.refreshTo !== undefined && r.refreshTo !== 'cap') push(`${w} "refreshTo" must be "cap".`);
       });
       // capBy must point at a real pool, or the cap silently behaves as 0.
-      raw.resources.forEach((r, i) => {
+      limitedResources.forEach((r, i) => {
         if (isObject(r) && isString(r.capBy) && !ids.has(r.capBy)) {
-          warnings.push(`resources[${i}] "capBy" references unknown resource "${r.capBy}".`);
+          warn(`resources[${i}] "capBy" references unknown resource "${r.capBy}".`);
         }
       });
     }
@@ -901,11 +957,12 @@ export function validatePack(raw: unknown): ValidationResult {
     if (!isObject(raw.deletions)) {
       push('"deletions" must be an object keyed by section.');
     } else {
-      for (const [section, ids] of Object.entries(raw.deletions)) {
+      for (const [section, ids] of limitEntries(raw.deletions, 'deletions')) {
         if (!ID_KEYED_SECTIONS.has(section)) {
-          warnings.push(`"deletions" has unknown section "${section}" — ignored.`);
+          warn(`"deletions" has unknown section "${section}" — ignored.`);
         }
-        if (!Array.isArray(ids) || ids.some(x => !isString(x))) {
+        if (!Array.isArray(ids)
+          || limitArray(ids, `deletions.${section}`).some(x => !isString(x))) {
           push(`"deletions.${section}" must be an array of string ids.`);
         }
       }
@@ -917,9 +974,9 @@ export function validatePack(raw: unknown): ValidationResult {
   // built-in nav for an empty array; warn either way so the author knows.
   if (Array.isArray(raw.screens)) {
     if (raw.screens.length === 0) {
-      warnings.push('"screens" is empty — the built-in navigation will be used instead.');
-    } else if (!raw.screens.some(s => isObject(s) && s.hideFromNav !== true)) {
-      warnings.push('"screens" has no visible (non-hidden) entries — the rail will be empty.');
+      warn('"screens" is empty — the built-in navigation will be used instead.');
+    } else if (!limitArray(raw.screens, 'screens').some(s => isObject(s) && s.hideFromNav !== true)) {
+      warn('"screens" has no visible (non-hidden) entries — the rail will be empty.');
     }
   }
 

@@ -1,4 +1,5 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
+import { MAX_JOURNAL_RAW_LENGTH } from '@grimcomp/core';
 import { ScreenContainer } from './ScreenContainer';
 import { useContentPacks } from '@/content/useContentPacks';
 import { useContent, useContentStatus } from '@/content/useContent';
@@ -11,14 +12,19 @@ import { EditSheet } from '@/components/EditSheet';
 import { useXpRule } from '@/hooks/useSettings';
 import { useRoster } from '@/hooks/useRoster';
 import { useCharacter } from '@/hooks/useCharacter';
+import { useStoragePersistenceStatus } from '@/hooks/useStoredState';
 import {
+  applySettingsImport,
   buildSettingsExport,
-  grimCompanionStorageKeys,
+  wipeGrimCompanionStorage,
   type ExportScope,
 } from '@/utils/settingsExport';
 import { Alert } from '@/ui/alertStore';
 import { colors } from '@/theme';
 import './SettingsScreen.css';
+
+/** Bound memory use before File.text() and stay within one journal's hard cap. */
+export const MAX_SETTINGS_IMPORT_FILE_BYTES = MAX_JOURNAL_RAW_LENGTH;
 
 interface RowProps {
   title: string;
@@ -43,24 +49,49 @@ const Row: React.FC<RowProps> = ({ title, hint, value, right, last }) => (
 export const SettingsScreen: React.FC = () => {
   const [xpRule, setXpRule] = useXpRule();
   const { id, template } = useCharacter();
-  const { all, custom } = useRoster();
+  const { all } = useRoster();
   const content = useContent();
   const { packs: userPacks, add: addPack, remove: removePack, setEnabled } = useContentPacks();
   const { errors: contentErrors } = useContentStatus();
   const [exportSheet, setExportSheet] = useState<{ scope: ExportScope; json: string } | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
+  const storageStatus = useStoragePersistenceStatus();
 
   const packFileRef = useRef<HTMLInputElement>(null);
   const charFileRef = useRef<HTMLInputElement>(null);
   const coreVersion = content.packs.find(pack => pack.id === 'core-rules')?.version ?? 'Unknown';
+  const builtInCharacterIds = useMemo(
+    () => new Set(content.allCharacterTemplates.map(character => character.id)),
+    [content],
+  );
+
+  const fileWithinImportLimit = (file: File): boolean => {
+    if (file.size <= MAX_SETTINGS_IMPORT_FILE_BYTES) return true;
+    Alert.alert(
+      'Import too large',
+      `${file.name} is larger than the ${(MAX_SETTINGS_IMPORT_FILE_BYTES / (1024 * 1024)).toFixed(0)} MiB import limit.`,
+    );
+    return false;
+  };
 
   // Build a portable JSON snapshot. Caller chooses: just the active character
   // template + their live overlays (gc.<id>.*), or the whole roster + all
   // overlays. We collect everything keyed under `gc.` to make import a
   // straightforward `setItem` loop later.
-  const openExport = (scope: ExportScope) => {
-    setExportSheet({ scope, json: buildSettingsExport(scope, id, template.name, custom) });
+  const openExport = async (scope: ExportScope) => {
+    try {
+      const json = await buildSettingsExport(scope, id, template.name, {
+        builtInCharacterIds,
+        bundledContentPacks: content.bundledPacks,
+      });
+      setExportSheet({ scope, json });
+    } catch (error) {
+      Alert.alert(
+        'Export failed',
+        `Local data could not be read. ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   };
 
   // Replaces RN's Share.share — trigger a real file download via a Blob URL.
@@ -88,19 +119,27 @@ export const SettingsScreen: React.FC = () => {
   const wipeAll = () => {
     Alert.alert(
       'Wipe all local data?',
-      'This deletes every character\'s wounds, XP, skill advances, conditions, talents, criticals, notes, and the active-character pointer. Built-in templates remain. There is no undo.',
+      'This deletes every character\'s wounds, XP, skill advances, conditions, talents, criticals, notes, and the active-character pointer. Built-in templates and the internal storage-format marker remain. There is no undo.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Wipe',
           style: 'destructive',
-          onPress: () => {
-            const keys = grimCompanionStorageKeys();
-            for (const k of keys) {
-              try { window.localStorage.removeItem(k); } catch { /* ignore */ }
+          onPress: async () => {
+            const ticket = wipeGrimCompanionStorage();
+            const result = await ticket.completion;
+            if (!result.ok) {
+              Alert.alert(
+                result.outcome === 'blocked' ? 'Reset blocked' : 'Reset failed safely',
+                `${result.error.message} No reset was reported complete; reload to retry recovery if needed.`,
+              );
+              return;
             }
-            // Reload to drop all in-memory state and re-seed from templates.
-            window.location.reload();
+            Alert.alert(
+              'Local data reset',
+              `${result.metadata} stored keys were removed durably. Reload to start fresh.`,
+              [{ text: 'Reload', onPress: () => window.location.reload() }],
+            );
           },
         },
       ],
@@ -109,7 +148,7 @@ export const SettingsScreen: React.FC = () => {
 
   // --- Content-pack import (file + paste) -----------------------------------
 
-  const handlePackImport = (text: string, label: string): boolean => {
+  const handlePackImport = async (text: string, label: string): Promise<boolean> => {
     let raw: unknown;
     try { raw = JSON.parse(text); }
     catch (e) {
@@ -118,14 +157,24 @@ export const SettingsScreen: React.FC = () => {
     }
     const { pack, errors, warnings } = validatePack(raw);
     if (errors.length > 0 || !pack) {
-      Alert.alert('Invalid content pack', errors.join('\n').slice(0, 800) || 'Unknown validation error.');
+      Alert.alert(
+        'Invalid content pack',
+        errors.slice(0, 20).join('\n').slice(0, 800) || 'Unknown validation error.',
+      );
       return false;
     }
-    addPack(pack);
+    const persistence = await addPack(pack, content.bundledPacks).completion;
+    if (!persistence.ok) {
+      Alert.alert(
+        persistence.outcome === 'blocked' ? 'Pack import blocked' : 'Pack import failed safely',
+        `${persistence.error.message} The pack was not reported active.`,
+      );
+      return false;
+    }
     // Surface non-fatal warnings (e.g. a mistyped section name that was silently
     // dropped) so a partial import isn't reported as an unqualified success.
     const warnNote = warnings.length > 0
-      ? `\n\n${warnings.length} warning${warnings.length === 1 ? '' : 's'}:\n${warnings.join('\n')}`.slice(0, 800)
+      ? `\n\n${warnings.length} warning${warnings.length === 1 ? '' : 's'}:\n${warnings.slice(0, 20).join('\n')}`.slice(0, 800)
       : '';
     Alert.alert('Pack imported', `"${pack.name}" (${pack.id}) is now active.${warnNote}`);
     return true;
@@ -135,54 +184,68 @@ export const SettingsScreen: React.FC = () => {
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-importing the same file
     if (!file) return;
+    if (!fileWithinImportLimit(file)) return;
     try {
       const text = await file.text();
-      handlePackImport(text, file.name);
+      await handlePackImport(text, file.name);
     } catch (err) {
       Alert.alert('Import failed', err instanceof Error ? err.message : String(err));
     }
   };
 
-  const submitPaste = () => {
-    if (handlePackImport(pasteText, 'pasted JSON')) {
+  const submitPaste = async () => {
+    if (new Blob([pasteText]).size > MAX_SETTINGS_IMPORT_FILE_BYTES) {
+      Alert.alert(
+        'Import too large',
+        `Pasted JSON is larger than the ${(MAX_SETTINGS_IMPORT_FILE_BYTES / (1024 * 1024)).toFixed(0)} MiB import limit.`,
+      );
+      return;
+    }
+    if (await handlePackImport(pasteText, 'pasted JSON')) {
       setPasteOpen(false);
       setPasteText('');
     }
   };
 
+  const updatePackEnabled = async (packId: string, enabled: boolean) => {
+    const result = await setEnabled(packId, enabled, content.bundledPacks).completion;
+    if (!result.ok) {
+      Alert.alert(
+        result.outcome === 'blocked' ? 'Pack change blocked' : 'Pack change failed safely',
+        `${result.error.message} The content-pack change was not reported complete.`,
+      );
+    }
+  };
+
+  const deletePack = async (packId: string) => {
+    const result = await removePack(packId, content.bundledPacks).completion;
+    if (!result.ok) {
+      Alert.alert(
+        result.outcome === 'blocked' ? 'Pack removal blocked' : 'Pack removal failed safely',
+        `${result.error.message} The content pack was not reported removed.`,
+      );
+    }
+  };
+
   // --- Character / roster import (grimcomp.v1 export) ------------------------
 
-  const applyImportDump = (dump: Record<string, unknown>) => {
-    let written = 0;
-    const failed: string[] = [];
-    for (const [k, v] of Object.entries(dump)) {
-      if (!k.startsWith('gc.')) continue; // skip $schema / metadata keys
-      try {
-        if (k === 'gc.customChars') {
-          // Merge the custom-character map instead of overwriting it, so importing
-          // a single character (or another device's roster) never deletes customs
-          // already on this device. Incoming entries win on id collision.
-          let existing: Record<string, unknown> = {};
-          try { existing = JSON.parse(window.localStorage.getItem(k) || '{}') || {}; }
-          catch { existing = {}; }
-          const incoming = (v && typeof v === 'object') ? (v as Record<string, unknown>) : {};
-          window.localStorage.setItem(k, JSON.stringify({ ...existing, ...incoming }));
-        } else {
-          window.localStorage.setItem(k, JSON.stringify(v));
-        }
-        written += 1;
-      } catch {
-        // Quota exceeded / privacy mode / unserialisable — record so the user
-        // is told the import was partial rather than silently dropping keys.
-        failed.push(k);
-      }
+  const applyImportDump = async (dump: Record<string, unknown>) => {
+    const ticket = applySettingsImport(dump, {
+      builtInCharacterIds,
+      bundledContentPacks: content.bundledPacks,
+    });
+    const result = await ticket.completion;
+    if (!result.ok) {
+      Alert.alert(
+        result.outcome === 'blocked' ? 'Import blocked' : 'Import failed safely',
+        `${result.error.message} The import was not published as complete.`,
+      );
+      return;
     }
     Alert.alert(
-      failed.length > 0 ? 'Import incomplete' : 'Import complete',
-      failed.length > 0
-        ? `${written} keys written, ${failed.length} failed (likely storage quota or privacy mode):\n${failed.join(', ').slice(0, 400)}\n\nReloading to apply what was written…`
-        : `${written} keys written. Reloading to apply the imported data…`,
-      [{ text: 'OK', onPress: () => window.location.reload() }],
+      'Import complete',
+      `${ticket.value.requested} keys committed durably. Reload to apply the imported data.`,
+      [{ text: 'Reload', onPress: () => window.location.reload() }],
     );
   };
 
@@ -190,6 +253,7 @@ export const SettingsScreen: React.FC = () => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    if (!fileWithinImportLimit(file)) return;
     let raw: unknown;
     try {
       const text = await file.text();
@@ -203,14 +267,16 @@ export const SettingsScreen: React.FC = () => {
       return;
     }
     const dump = raw as Record<string, unknown>;
-    const keyCount = Object.keys(dump).filter(k => k.startsWith('gc.')).length;
+    const keyCount = Object.keys(dump).filter(k => (
+      k.startsWith('gc.') && k !== 'gc.storage.transaction' && k !== 'gc.storageVersion'
+    )).length;
     const who = typeof dump.character === 'string' ? dump.character : (dump.scope === 'roster' ? 'the full roster' : 'this export');
     Alert.alert(
       'Import data?',
       `This overwrites local data for ${who} with ${keyCount} keys from ${file.name}. Existing values for those keys are replaced. A reload follows.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Import', style: 'destructive', onPress: () => applyImportDump(dump) },
+        { text: 'Import', style: 'destructive', onPress: () => { void applyImportDump(dump); } },
       ],
     );
   };
@@ -245,6 +311,18 @@ export const SettingsScreen: React.FC = () => {
       />
 
       <Card flush style={{ marginTop: 20 }}>
+        <Row
+          title="Local storage"
+          hint={storageStatus.lastError?.message ?? 'Journal recovery completed before the app opened.'}
+          value={storageStatus.blocked
+            ? 'Blocked'
+            : storageStatus.pending > 0
+              ? 'Saving…'
+              : storageStatus.dirty
+                ? 'Needs recovery'
+                : 'Saved'}
+        />
+
         {/* XP rule toggle — actually used by useXp.spend */}
         <Row
           title="XP rule"
@@ -308,8 +386,8 @@ export const SettingsScreen: React.FC = () => {
           value="JSON"
           right={
             <div className="set-actions">
-              <Button variant="ghost" onPress={() => openExport('character')}>This char</Button>
-              <Button variant="ghost" onPress={() => openExport('roster')}>All</Button>
+              <Button variant="ghost" onPress={() => { void openExport('character'); }}>This char</Button>
+              <Button variant="ghost" onPress={() => { void openExport('roster'); }}>All</Button>
             </div>
           }
         />
@@ -325,7 +403,7 @@ export const SettingsScreen: React.FC = () => {
 
         <Row
           title="Reset local data"
-          hint="Removes every gc.* key from local storage, then reloads. Use this to start over."
+          hint="Removes user data, preserves the internal storage-format marker, then reloads. Use this to start over."
           value="Destructive"
           last
           right={
@@ -364,14 +442,14 @@ export const SettingsScreen: React.FC = () => {
               <button
                 type="button"
                 className={`btn-reset set-pill-btn${p.enabled ? ' set-pill-btn--on' : ''}`}
-                onClick={() => setEnabled(p.pack.id, !p.enabled)}
+                onClick={() => { void updatePackEnabled(p.pack.id, !p.enabled); }}
               >
                 <span className="set-pill-btn-text">{p.enabled ? 'Enabled' : 'Disabled'}</span>
               </button>
               <Button
                 variant="ghost"
                 textStyle={{ color: colors.empire }}
-                onPress={() => removePack(p.pack.id)}
+                onPress={() => { void deletePack(p.pack.id); }}
               >
                 Remove
               </Button>

@@ -6,6 +6,7 @@ import { ContentContext } from '@/content/contentContext';
 import { ContentRegistry } from '@/content/registry';
 import type { ContentPack, SkillDef, Spell, TalentDef } from '@/content/types';
 import { _resetStoredCache } from '@/hooks/useStoredState';
+import { STORAGE_VERSION, STORAGE_VERSION_KEY } from '@/storage/storageSchema';
 import { ContentScreen } from './ContentScreen';
 
 const spell = (id: string, name: string, extra: Partial<Spell> = {}): Spell => ({
@@ -68,6 +69,7 @@ afterEach(() => {
 
 describe('ContentScreen spell sources', () => {
   it('distinguishes edited, sourcebook, and other bundled spells', () => {
+    localStorage.setItem(STORAGE_VERSION_KEY, JSON.stringify(STORAGE_VERSION));
     localStorage.setItem('gc.content.userEdits', JSON.stringify({
       $schema: 'grimcomp.content.v2',
       id: 'user-edits',
