@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { type Critical } from '@/data/character';
-import { useStoredState } from '@/hooks/useStoredState';
+import { runStoredTransaction, useStoredState } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useDerived } from '@/hooks/useDerived';
@@ -45,6 +45,14 @@ const newCritical = (
   return { loc: label, roll: locRoll, name: tpl.name, effect: tpl.effect, days: tpl.days };
 };
 
+const sameCritical = (left: Critical, right: Critical): boolean => (
+  left.loc === right.loc
+  && left.roll === right.roll
+  && left.name === right.name
+  && left.effect === right.effect
+  && left.days === right.days
+);
+
 export const WoundsScreen: React.FC = () => {
   const { id, template: c } = useCharacter();
   const [wounds, setWounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
@@ -72,16 +80,37 @@ export const WoundsScreen: React.FC = () => {
     characterKey(id, 'conditions'),
     Object.fromEntries(names.map(t => [t, 0])),
   );
+  const endOfSceneRef = useRef(false);
+  const cheatDeathRef = useRef(false);
+  const criticalActionRef = useRef(false);
+  const [endingScene, setEndingScene] = useState(false);
+  const [burningFate, setBurningFate] = useState(false);
+  const [criticalActionPending, setCriticalActionPending] = useState(false);
 
-  const endOfScene = () => {
+  const endOfScene = async () => {
+    if (endOfSceneRef.current) return;
     let clearedConditions = 0;
     let clearedStacks = 0;
-    setCondMap(prev => {
-      const result = clearSceneEndConditions(prev, conditionDefs);
-      clearedConditions = result.clearedConditions;
-      clearedStacks = result.clearedStacks;
-      return result.conditions;
-    });
+    endOfSceneRef.current = true;
+    setEndingScene(true);
+    const durability = await (async () => {
+      try {
+        const ticket = setCondMap(prev => {
+          const result = clearSceneEndConditions(prev, conditionDefs);
+          clearedConditions = result.clearedConditions;
+          clearedStacks = result.clearedStacks;
+          return result.conditions;
+        });
+        return await ticket.completion;
+      } finally {
+        endOfSceneRef.current = false;
+        setEndingScene(false);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not end scene', durability.error.message);
+      return;
+    }
 
     Alert.alert(
       'End of scene',
@@ -91,17 +120,32 @@ export const WoundsScreen: React.FC = () => {
     );
   };
 
-  const advanceHealingDay = () => {
+  const advanceHealingDay = async () => {
+    if (criticalActionRef.current) return;
     if (crits.items.length === 0) {
       Alert.alert('Advance healing day', 'No active critical wounds to advance.');
       return;
     }
-    const result = advanceCriticalHealingDay(crits.items);
-    crits.replace(result.criticals);
-    Alert.alert(
-      'Healing day advanced',
-      `${result.criticals.length} critical${result.criticals.length === 1 ? '' : 's'} still healing; ${result.healed} resolved. Scene conditions and Fortune were not changed.`,
-    );
+    criticalActionRef.current = true;
+    setCriticalActionPending(true);
+    let result = advanceCriticalHealingDay(crits.items);
+    try {
+      const durability = await crits.replace((current) => {
+        result = advanceCriticalHealingDay(current);
+        return result.criticals;
+      }).completion;
+      if (!durability.ok) {
+        Alert.alert('Could not advance healing', durability.error.message);
+        return;
+      }
+      Alert.alert(
+        'Healing day advanced',
+        `${result.criticals.length} critical${result.criticals.length === 1 ? '' : 's'} still healing; ${result.healed} resolved. Scene conditions and Fortune were not changed.`,
+      );
+    } finally {
+      criticalActionRef.current = false;
+      setCriticalActionPending(false);
+    }
   };
 
   const showConditionRule = (name: string) => {
@@ -118,14 +162,18 @@ export const WoundsScreen: React.FC = () => {
   // End of round: Bleeding drains 1 Wound per stack (WFRP 4e p.169). At 0
   // Wounds while still Bleeding, the character must pass an Endurance Test at
   // the start of their next turn or die.
-  const endOfRound = () => {
+  const endOfRound = async () => {
     const bleed = conds['Bleeding'] ?? 0;
     if (bleed <= 0) {
       Alert.alert('End of round', 'No Bleeding to resolve.');
       return;
     }
     const newW = Math.max(0, wounds - bleed);
-    setWounds(newW);
+    const durability = await setWounds(newW).completion;
+    if (!durability.ok) {
+      Alert.alert('Could not resolve Bleeding', durability.error.message);
+      return;
+    }
     Alert.alert(
       'End of round — Bleeding',
       `Lost ${bleed} Wound${bleed === 1 ? '' : 's'} to Bleeding (×${bleed}). Wounds ${wounds} → ${newW}.` +
@@ -135,33 +183,110 @@ export const WoundsScreen: React.FC = () => {
 
   // Burn a Fate point to cheat certain death (WFRP 4e p.187): the point is
   // spent permanently and you survive, removed from the fight at 0 Wounds.
-  const cheatDeath = () => {
+  const cheatDeath = async () => {
+    if (cheatDeathRef.current) return;
     if (vitals.fate <= 0) {
       Alert.alert('No Fate to burn', 'No Fate points remain — there is no cheating this death.');
       return;
     }
-    vitals.setFate(vitals.fate - 1);
+    cheatDeathRef.current = true;
+    setBurningFate(true);
+    const durability = await (async () => {
+      try {
+        const transaction = runStoredTransaction(() => {
+          vitals.setFate(vitals.fate - 1);
+          setWounds(0);
+        });
+        return await transaction.completion;
+      } finally {
+        cheatDeathRef.current = false;
+        setBurningFate(false);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not burn Fate', durability.error.message);
+      return;
+    }
     Alert.alert(
       'Fate burned — you cheat death',
       `−1 Fate (now ${vitals.fate - 1}).\n\nYou survive what should have killed you: left at 0 Wounds and out of the fight. The GM may impose a lasting injury.`,
     );
   };
 
-  const addCritical = () => {
-    const fresh = newCritical(hitLocations, prefabCriticals, k => content.criticalTableFor(k));
-    if (!caps.combatHitLocations) fresh.loc = '';
-    crits.add(fresh);
-    const locLine = caps.combatHitLocations ? `Location: ${fresh.loc}\n` : '';
-    Alert.alert(
-      `Critical: ${fresh.name}`,
-      `${locLine}Roll: ${fresh.roll}\n\n${fresh.effect}\n\nHeals in ${fresh.days} day${fresh.days === 1 ? '' : 's'}.`,
-    );
+  const addCritical = async () => {
+    if (criticalActionRef.current) return;
+    criticalActionRef.current = true;
+    setCriticalActionPending(true);
+    try {
+      const fresh = newCritical(hitLocations, prefabCriticals, k => content.criticalTableFor(k));
+      if (!caps.combatHitLocations) fresh.loc = '';
+      const durability = await crits.add(fresh).completion;
+      if (!durability.ok) {
+        Alert.alert('Could not add critical', durability.error.message);
+        return;
+      }
+      const locLine = caps.combatHitLocations ? `Location: ${fresh.loc}\n` : '';
+      Alert.alert(
+        `Critical: ${fresh.name}`,
+        `${locLine}Roll: ${fresh.roll}\n\n${fresh.effect}\n\nHeals in ${fresh.days} day${fresh.days === 1 ? '' : 's'}.`,
+      );
+    } finally {
+      criticalActionRef.current = false;
+      setCriticalActionPending(false);
+    }
   };
 
-  const resolveCritical = (index: number) => {
+  const resolveCritical = async (index: number) => {
+    if (criticalActionRef.current) return;
     const cr = crits.items[index];
-    crits.remove(index);
-    Alert.alert('Resolved', `${cr.name} marked as healed.`);
+    if (!cr) return;
+    const occurrence = crits.items
+      .slice(0, index)
+      .filter(candidate => sameCritical(candidate, cr)).length;
+    criticalActionRef.current = true;
+    setCriticalActionPending(true);
+    let removed = false;
+    try {
+      const durability = await crits.replace((current) => {
+        let seen = 0;
+        return current.filter((candidate) => {
+          if (!sameCritical(candidate, cr)) return true;
+          if (seen++ !== occurrence) return true;
+          removed = true;
+          return false;
+        });
+      }).completion;
+      if (!durability.ok) {
+        Alert.alert('Could not resolve critical', durability.error.message);
+        return;
+      }
+      if (!removed) {
+        Alert.alert('Critical changed', 'That critical wound changed before it could be resolved. Review the current list and retry.');
+        return;
+      }
+      Alert.alert('Resolved', `${cr.name} marked as healed.`);
+    } finally {
+      criticalActionRef.current = false;
+      setCriticalActionPending(false);
+    }
+  };
+
+  const rest = async () => {
+    const durability = await setWounds(w => Math.min(woundsMax, w + restAmount)).completion;
+    if (!durability.ok) {
+      Alert.alert('Could not save rest', durability.error.message);
+      return;
+    }
+    Alert.alert('Rest', `Recovered ${restAmount} wounds (${formulas.restRecovery}).`);
+  };
+
+  const useHealingDraught = async () => {
+    const durability = await setWounds(w => Math.min(woundsMax, w + 4)).completion;
+    if (!durability.ok) {
+      Alert.alert('Could not use draught', durability.error.message);
+      return;
+    }
+    Alert.alert('Healing Draught', 'Recovered 4 wounds.');
   };
 
   const woundsLabel = useMemo(
@@ -201,20 +326,14 @@ export const WoundsScreen: React.FC = () => {
             <Button
               iconLeft={<Icon name="heart" size={13} color={colors.ink} />}
               style={{ alignSelf: 'stretch' }}
-              onPress={() => {
-                setWounds(w => Math.min(woundsMax, w + restAmount));
-                Alert.alert('Rest', `Recovered ${restAmount} wounds (${formulas.restRecovery}).`);
-              }}
+              onPress={rest}
             >
               Rest (recover {restAmount})
             </Button>
             <Button
               iconLeft={<Icon name="dice" size={13} color={colors.ink} />}
               style={{ alignSelf: 'stretch' }}
-              onPress={() => {
-                setWounds(w => Math.min(woundsMax, w + 4));
-                Alert.alert('Healing Draught', 'Recovered 4 wounds.');
-              }}
+              onPress={useHealingDraught}
             >
               Use healing draught
             </Button>
@@ -229,22 +348,25 @@ export const WoundsScreen: React.FC = () => {
               iconLeft={<Icon name="flame" size={13} color={colors.ink} />}
               style={{ alignSelf: 'stretch' }}
               onPress={endOfScene}
+              disabled={endingScene}
             >
-              End of scene (scene conditions)
+              {endingScene ? 'Ending scene…' : 'End of scene (scene conditions)'}
             </Button>
             <Button
               iconLeft={<Icon name="heart" size={13} color={colors.ink} />}
               style={{ alignSelf: 'stretch' }}
               onPress={advanceHealingDay}
+              disabled={criticalActionPending}
             >
-              Advance healing day
+              {criticalActionPending ? 'Saving critical wounds…' : 'Advance healing day'}
             </Button>
             <Button
               iconLeft={<Icon name="star" size={13} color={colors.ink} />}
               style={{ alignSelf: 'stretch' }}
               onPress={cheatDeath}
+              disabled={burningFate}
             >
-              Burn Fate — cheat death
+              {burningFate ? 'Burning Fate…' : 'Burn Fate — cheat death'}
             </Button>
           </div>
         </Card>
@@ -276,6 +398,7 @@ export const WoundsScreen: React.FC = () => {
               variant="primary"
               iconLeft={<Icon name="dice" size={12} color={colors.ivory} />}
               onPress={addCritical}
+              disabled={criticalActionPending}
             >
               New critical
             </Button>
@@ -303,6 +426,7 @@ export const WoundsScreen: React.FC = () => {
                   ariaLabel={`Mark "${cr.name}" healed`}
                   iconLeft={<Icon name="check" size={13} color={colors.success} />}
                   onPress={() => resolveCritical(i)}
+                  disabled={criticalActionPending}
                 >{''}</Button>
               </Cell>
             </TableRow>

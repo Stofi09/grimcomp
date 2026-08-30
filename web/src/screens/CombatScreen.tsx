@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { type Weapon, type Armour, type Critical } from '@/data/character';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
-import { useStoredState } from '@/hooks/useStoredState';
+import { runStoredTransaction, useStoredState } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useCharacterCollection } from '@/hooks/useCharacterCollection';
 import { useContent, useFigureLabels, useSystemRules, useCharacteristicDefs, useWeapons, useCapabilities, useHitLocations, useCriticals } from '@/content/useContent';
@@ -219,7 +219,15 @@ export const CombatScreen: React.FC = () => {
       `${w.name} — ${opposed ? (landed ? 'HIT' : 'NO HIT') : outcomeLabel(r.outcome)}`,
       formatTestResult(r) + advLine + opposedLine + locLine + dmgLine + qualLine + condLine,
       canGain
-        ? [{ text: 'Gain +1 Advantage', onPress: () => setAdvantage(a => a + 1) }, { text: 'Close' }]
+        ? [{
+            text: 'Gain +1 Advantage',
+            onPress: () => {
+              const ticket = setAdvantage(a => a + 1);
+              void ticket.completion.then((durability) => {
+                if (!durability.ok) Alert.alert('Could not save Advantage', durability.error.message);
+              });
+            },
+          }, { text: 'Close' }]
         : undefined,
     );
   };
@@ -228,6 +236,8 @@ export const CombatScreen: React.FC = () => {
   // Bonus + Armour Points at the struck location, apply the net to Wounds, and
   // raise a Critical Wound if it drops them to (or strikes them at) 0.
   const [hit, setHit] = useState<{ damage: number; locKey: ApLocation; locRoll: number } | null>(null);
+  const hitActionRef = useRef(false);
+  const [hitApplying, setHitApplying] = useState(false);
 
   const rollHitLocation = () => {
     const roll = Math.floor(Math.random() * 100) + 1;
@@ -241,41 +251,59 @@ export const CombatScreen: React.FC = () => {
     setHit({ damage: 0, locKey: key, locRoll });
   };
 
-  const resolveHit = () => {
-    if (!hit) return;
-    const apVal = apAt(ap, hit.locKey);
-    const res = applyDamage({ damage: hit.damage, toughnessBonus, ap: apVal, currentWounds: wounds });
-    setWounds(res.newWounds);
-    // WFRP 4e p.164: taking one or more Wounds loses all your Advantage.
-    const lostAdvantage = res.woundsLost > 0 && advantage > 0;
-    if (lostAdvantage) setAdvantage(0);
+  const resolveHit = async () => {
+    if (!hit || hitActionRef.current) return;
+    const appliedHit = hit;
+    hitActionRef.current = true;
+    setHitApplying(true);
+    try {
+      const apVal = apAt(ap, appliedHit.locKey);
+      const res = applyDamage({ damage: appliedHit.damage, toughnessBonus, ap: apVal, currentWounds: wounds });
+      // WFRP 4e p.164: taking one or more Wounds loses all your Advantage.
+      const lostAdvantage = res.woundsLost > 0 && advantage > 0;
 
-    let critLine = '';
-    if (res.critical) {
-      const locLabel = hitLocLabel(hit.locKey);
-      // WFRP 4e: a critical rolls d100 on the struck location's own table.
-      const table = caps.combatHitLocations ? content.criticalTableFor(hit.locKey) : undefined;
-      const critRoll = Math.floor(Math.random() * 100) + 1;
-      const row = critFromTable(table, critRoll);
-      if (row) {
-        crits.add({ loc: caps.combatHitLocations ? locLabel : '', roll: critRoll, name: row.name, effect: row.effect, days: row.days });
-        critLine = `\n\nCRITICAL WOUND — ${row.name}${caps.combatHitLocations ? ` (${locLabel})` : ''}.\n` +
-          `d100 ${critRoll} on the ${locLabel} critical table:\n${row.effect}`;
-      } else if (prefabCriticals.length > 0) {
-        const tpl = prefabCriticals[Math.floor(Math.random() * prefabCriticals.length)];
-        crits.add({ loc: caps.combatHitLocations ? locLabel : '', roll: hit.locRoll, name: tpl.name, effect: tpl.effect, days: tpl.days });
-        critLine = `\n\nCRITICAL WOUND — ${tpl.name}${caps.combatHitLocations ? ` (${locLabel})` : ''}.\nAdded to the Wounds screen.`;
+      let critLine = '';
+      let freshCritical: Critical | null = null;
+      if (res.critical) {
+        const locLabel = hitLocLabel(appliedHit.locKey);
+        // WFRP 4e: a critical rolls d100 on the struck location's own table.
+        const table = caps.combatHitLocations ? content.criticalTableFor(appliedHit.locKey) : undefined;
+        const critRoll = Math.floor(Math.random() * 100) + 1;
+        const row = critFromTable(table, critRoll);
+        if (row) {
+          freshCritical = { loc: caps.combatHitLocations ? locLabel : '', roll: critRoll, name: row.name, effect: row.effect, days: row.days };
+          critLine = `\n\nCRITICAL WOUND — ${row.name}${caps.combatHitLocations ? ` (${locLabel})` : ''}.\n` +
+            `d100 ${critRoll} on the ${locLabel} critical table:\n${row.effect}`;
+        } else if (prefabCriticals.length > 0) {
+          const tpl = prefabCriticals[Math.floor(Math.random() * prefabCriticals.length)];
+          freshCritical = { loc: caps.combatHitLocations ? locLabel : '', roll: appliedHit.locRoll, name: tpl.name, effect: tpl.effect, days: tpl.days };
+          critLine = `\n\nCRITICAL WOUND — ${tpl.name}${caps.combatHitLocations ? ` (${locLabel})` : ''}.\nAdded to the Wounds screen.`;
+        }
       }
-    }
 
-    const locPart = caps.combatHitLocations ? ` to the ${hitLocLabel(hit.locKey)}` : '';
-    const advLine = lostAdvantage ? `\nAdvantage lost — reset to 0 (you took Wounds).` : '';
-    setHit(null);
-    Alert.alert(
-      res.woundsLost > 0 ? `Hit${locPart} — ${res.woundsLost} Wound${res.woundsLost === 1 ? '' : 's'} lost` : `Hit${locPart} — fully soaked`,
-      `Damage ${res.damage} − TB ${res.toughnessBonus} − AP ${res.ap} = ${res.woundsLost} Wound${res.woundsLost === 1 ? '' : 's'}.\n` +
-      `Wounds ${res.currentWounds} → ${res.newWounds}.${advLine}${critLine}`,
-    );
+      const transaction = runStoredTransaction(() => {
+        setWounds(res.newWounds);
+        if (lostAdvantage) setAdvantage(0);
+        if (freshCritical) crits.add(freshCritical);
+      });
+      const durability = await transaction.completion;
+      if (!durability.ok) {
+        Alert.alert('Could not apply hit', durability.error.message);
+        return;
+      }
+
+      const locPart = caps.combatHitLocations ? ` to the ${hitLocLabel(appliedHit.locKey)}` : '';
+      const advLine = lostAdvantage ? `\nAdvantage lost — reset to 0 (you took Wounds).` : '';
+      setHit(null);
+      Alert.alert(
+        res.woundsLost > 0 ? `Hit${locPart} — ${res.woundsLost} Wound${res.woundsLost === 1 ? '' : 's'} lost` : `Hit${locPart} — fully soaked`,
+        `Damage ${res.damage} − TB ${res.toughnessBonus} − AP ${res.ap} = ${res.woundsLost} Wound${res.woundsLost === 1 ? '' : 's'}.\n` +
+        `Wounds ${res.currentWounds} → ${res.newWounds}.${advLine}${critLine}`,
+      );
+    } finally {
+      hitActionRef.current = false;
+      setHitApplying(false);
+    }
   };
 
   // Group picker options come from the loaded packs' weapons; the draft's own
@@ -293,52 +321,112 @@ export const CombatScreen: React.FC = () => {
   // Edit-sheet state for both weapons + armour.
   const [wEdit, setWEdit] = useState<{ index: number | null; draft: Weapon } | null>(null);
   const [aEdit, setAEdit] = useState<{ index: number | null; draft: Armour } | null>(null);
+  const weaponActionRef = useRef(false);
+  const armourActionRef = useRef(false);
+  const [weaponAction, setWeaponAction] = useState<'save' | 'remove' | null>(null);
+  const [armourAction, setArmourAction] = useState<'save' | 'remove' | null>(null);
 
   const openNewWeapon = () => setWEdit({ index: null, draft: blankWeapon() });
   const openEditWeapon = (i: number) => setWEdit({ index: i, draft: { ...weapons.items[i] } });
   const openNewArmour = () => setAEdit({ index: null, draft: blankArmour() });
   const openEditArmour = (i: number) => setAEdit({ index: i, draft: { ...armour.items[i] } });
 
-  const saveWeapon = () => {
-    if (!wEdit) return;
-    if (!wEdit.draft.name.trim()) {
+  const saveWeapon = async () => {
+    if (!wEdit || weaponActionRef.current) return;
+    const edit = wEdit;
+    if (!edit.draft.name.trim()) {
       Alert.alert('Name required', 'Give the weapon a name.');
       return;
     }
-    const ranged = charForWeapon(wEdit.draft, combat) === combat.rangedChar;
-    const weapon = normalizeWeaponDistance(wEdit.draft, ranged);
-    if (wEdit.index == null) weapons.add(weapon);
-    else weapons.update(wEdit.index, weapon);
+    const ranged = charForWeapon(edit.draft, combat) === combat.rangedChar;
+    const weapon = normalizeWeaponDistance(edit.draft, ranged);
+    weaponActionRef.current = true;
+    setWeaponAction('save');
+    const durability = await (async () => {
+      try {
+        const ticket = edit.index == null ? weapons.add(weapon) : weapons.update(edit.index, weapon);
+        return await ticket.completion;
+      } finally {
+        weaponActionRef.current = false;
+        setWeaponAction(null);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not save weapon', durability.error.message);
+      return;
+    }
     setWEdit(null);
   };
 
-  const dropWeapon = () => {
-    if (!wEdit || wEdit.index == null) return;
-    const name = wEdit.draft.name;
-    weapons.remove(wEdit.index);
+  const dropWeapon = async () => {
+    if (!wEdit || wEdit.index == null || weaponActionRef.current) return;
+    const edit = wEdit;
+    const name = edit.draft.name;
+    weaponActionRef.current = true;
+    setWeaponAction('remove');
+    const durability = await (async () => {
+      try {
+        return await weapons.remove(edit.index!).completion;
+      } finally {
+        weaponActionRef.current = false;
+        setWeaponAction(null);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not drop weapon', durability.error.message);
+      return;
+    }
     setWEdit(null);
     Alert.alert('Dropped', `${name} removed from inventory.`);
   };
 
-  const saveArmour = () => {
-    if (!aEdit) return;
-    if (!aEdit.draft.name.trim()) {
+  const saveArmour = async () => {
+    if (!aEdit || armourActionRef.current) return;
+    const edit = aEdit;
+    if (!edit.draft.name.trim()) {
       Alert.alert('Name required', 'Give the armour a name.');
       return;
     }
-    if (aEdit.draft.locs.length === 0) {
+    if (edit.draft.locs.length === 0) {
       Alert.alert('Pick locations', 'Armour must cover at least one location.');
       return;
     }
-    if (aEdit.index == null) armour.add(aEdit.draft);
-    else armour.update(aEdit.index, aEdit.draft);
+    armourActionRef.current = true;
+    setArmourAction('save');
+    const durability = await (async () => {
+      try {
+        const ticket = edit.index == null ? armour.add(edit.draft) : armour.update(edit.index, edit.draft);
+        return await ticket.completion;
+      } finally {
+        armourActionRef.current = false;
+        setArmourAction(null);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not save armour', durability.error.message);
+      return;
+    }
     setAEdit(null);
   };
 
-  const dropArmour = () => {
-    if (!aEdit || aEdit.index == null) return;
-    const name = aEdit.draft.name;
-    armour.remove(aEdit.index);
+  const dropArmour = async () => {
+    if (!aEdit || aEdit.index == null || armourActionRef.current) return;
+    const edit = aEdit;
+    const name = edit.draft.name;
+    armourActionRef.current = true;
+    setArmourAction('remove');
+    const durability = await (async () => {
+      try {
+        return await armour.remove(edit.index!).completion;
+      } finally {
+        armourActionRef.current = false;
+        setArmourAction(null);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not remove armour', durability.error.message);
+      return;
+    }
     setAEdit(null);
     Alert.alert('Removed', `${name} removed from inventory.`);
   };
@@ -383,7 +471,15 @@ export const CombatScreen: React.FC = () => {
             <CardHead
               title="Advantage"
               right={
-                <Button variant="ghost" onPress={() => setAdvantage(0)}>
+                <Button
+                  variant="ghost"
+                  onPress={() => {
+                    const ticket = setAdvantage(0);
+                    void ticket.completion.then((durability) => {
+                      if (!durability.ok) Alert.alert('Could not reset Advantage', durability.error.message);
+                    });
+                  }}
+                >
                   Reset
                 </Button>
               }
@@ -514,9 +610,11 @@ export const CombatScreen: React.FC = () => {
         visible={!!wEdit}
         title={wEdit?.index == null ? 'New weapon' : 'Edit weapon'}
         subtitle={wEdit?.index == null ? 'Add a weapon to this character\'s inventory.' : 'Tap Save to commit, or Drop to remove from inventory.'}
-        onClose={() => setWEdit(null)}
+        onClose={() => { if (!weaponActionRef.current) setWEdit(null); }}
         onSave={saveWeapon}
-        destructive={wEdit?.index != null ? { label: 'Drop', onPress: dropWeapon } : undefined}
+        saveLabel={weaponAction === 'remove' ? 'Removing…' : weaponAction === 'save' ? 'Saving…' : 'Save'}
+        saveDisabled={weaponAction !== null}
+        destructive={wEdit?.index != null && weaponAction === null ? { label: 'Drop', onPress: dropWeapon } : undefined}
       >
         {wEdit ? (
           <>
@@ -581,9 +679,11 @@ export const CombatScreen: React.FC = () => {
         visible={!!aEdit}
         title={aEdit?.index == null ? 'New armour' : 'Edit armour'}
         subtitle={aEdit?.index == null ? 'Add a piece of armour. AP stacks per location.' : 'Tap Save to commit, or Remove to drop from inventory.'}
-        onClose={() => setAEdit(null)}
+        onClose={() => { if (!armourActionRef.current) setAEdit(null); }}
         onSave={saveArmour}
-        destructive={aEdit?.index != null ? { label: 'Remove', onPress: dropArmour } : undefined}
+        saveLabel={armourAction === 'remove' ? 'Removing…' : armourAction === 'save' ? 'Saving…' : 'Save'}
+        saveDisabled={armourAction !== null}
+        destructive={aEdit?.index != null && armourAction === null ? { label: 'Remove', onPress: dropArmour } : undefined}
       >
         {aEdit ? (
           <>
@@ -667,10 +767,10 @@ export const CombatScreen: React.FC = () => {
         visible={!!hit}
         title="Take a hit"
         subtitle="Resolve incoming damage against this character's Toughness and armour."
-        onClose={() => setHit(null)}
+        onClose={() => { if (!hitActionRef.current) setHit(null); }}
         onSave={resolveHit}
-        saveLabel="Apply"
-        saveDisabled={!hit || hit.damage <= 0}
+        saveLabel={hitApplying ? 'Applying…' : 'Apply'}
+        saveDisabled={!hit || hit.damage <= 0 || hitApplying}
       >
         {hit ? (() => {
           const apVal = apAt(ap, hit.locKey);

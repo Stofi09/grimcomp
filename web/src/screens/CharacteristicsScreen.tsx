@@ -4,6 +4,7 @@ import { type CharacteristicKey } from '@/data/character';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useCharacter } from '@/hooks/useCharacter';
 import { useXp } from '@/hooks/useXp';
+import { runStoredTransaction } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useXpRules, useSystemRules, useCareers } from '@/content/useContent';
 import type { XpCostBand } from '@/content/types';
@@ -21,6 +22,7 @@ import { Icon } from '@/components/Icon';
 import { Table, TableRow, Cell } from '@/components/Table';
 import { colors } from '@/theme';
 import { Alert } from '@/ui/alertStore';
+import { useProgressionActionGuard } from './useProgressionActionGuard';
 import './CharacteristicsScreen.css';
 
 // Display label for a cost band ("0–5", or "46+" for the open-ended top band).
@@ -34,6 +36,7 @@ export const CharacteristicsScreen: React.FC = () => {
   const xpRules = useXpRules();
   const system = useSystemRules();
   const careers = useCareers();
+  const beginProgressionAction = useProgressionActionGuard();
   const bands = xpRules.characteristicAdvances;
   const buyStep = xpRules.buyStep;
 
@@ -85,19 +88,39 @@ export const CharacteristicsScreen: React.FC = () => {
   const highlightIdx = bandIndexFor(advNow);
 
   const buy = (key: CharacteristicKey) => {
+    const action = beginProgressionAction(`characteristic:${key}`);
+    if (!action) return;
+
     const cmeta = list.find(x => x.key === key)!;
     const cur = get(key);
     const next = cur + buyStep;
     const cost = stepCost(cur, key);
     const tag = inCareer(key) ? '' : ' [non-career]';
     const reason = `${cmeta.name} +${cur} → +${next}${tag}`;
-    const r = xp.spend(cost, reason, 'char');
-    if (!r.ok) {
-      Alert.alert('Not enough XP', r.message);
+    const transaction = runStoredTransaction(() => {
+      const result = xp.spend(cost, reason, 'char');
+      if (result.ok) adjust(key, +buyStep);
+      return result;
+    });
+    if (!transaction.value?.ok) {
+      void transaction.completion.then(
+        (durability) => {
+          action.release();
+          if (!durability.ok) Alert.alert('Could not save purchase', durability.error.message);
+        },
+        () => action.release(),
+      );
+      if (transaction.value) Alert.alert('Not enough XP', transaction.value.message);
       return;
     }
-    adjust(key, +buyStep);
-    Alert.alert('Bought advance', r.message);
+    void transaction.completion.then(
+      (durability) => {
+        action.release();
+        if (durability.ok) Alert.alert('Bought advance', transaction.value.message);
+        else Alert.alert('Could not save purchase', durability.error.message);
+      },
+      () => action.release(),
+    );
   };
 
   // Per-characteristic stepper: +buyStep buys the next advance, −buyStep
@@ -109,14 +132,29 @@ export const CharacteristicsScreen: React.FC = () => {
     if (next > current) {
       buy(key);
     } else if (next < current) {
+      const action = beginProgressionAction(`characteristic:${key}`);
+      if (!action) return;
+
       const cost = stepCost(next, key);
       const tag = inCareer(key) ? '' : ' [non-career]';
-      const r = xp.refund(cost, `${cmeta.name} +${next} → +${current}${tag}`, 'char');
-      if (!r.ok) {
-        Alert.alert('Cannot refund', `${r.message} Only advances bought this session can be refunded.`);
+      const transaction = runStoredTransaction(() => {
+        const result = xp.refund(cost, `${cmeta.name} +${next} → +${current}${tag}`, 'char');
+        if (result.ok) adjust(key, -buyStep);
+        return result;
+      });
+      void transaction.completion.then(
+        (durability) => {
+          action.release();
+          if (!durability.ok) Alert.alert('Could not save refund', durability.error.message);
+        },
+        () => action.release(),
+      );
+      if (!transaction.value?.ok) {
+        if (transaction.value) {
+          Alert.alert('Cannot refund', `${transaction.value.message} Only advances bought this session can be refunded.`);
+        }
         return;
       }
-      adjust(key, -buyStep);
     }
   };
 

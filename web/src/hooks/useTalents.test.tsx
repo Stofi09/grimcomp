@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { StrictMode, useLayoutEffect, useState } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { StrictMode, act, useLayoutEffect, useState } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { ContentContext } from '@/content/contentContext';
 import { ContentRegistry } from '@/content/registry';
@@ -10,6 +10,11 @@ import { characterKey } from './useCharacter';
 import { useStoredState, _resetStoredCache } from './useStoredState';
 import { useTalents } from './useTalents';
 import { talentIdentityKey, talentTimesEqual } from '@/utils/talents';
+import {
+  cleanupStorageTest,
+  prepareStorageTest,
+  waitForStorageIdle,
+} from '@/test/storageTestUtils';
 import rulesPack from '../../public/content/core-rules.json';
 import racesPack from '../../public/content/core-races.json';
 import careersPack from '../../public/content/core-careers.json';
@@ -84,15 +89,20 @@ function LayoutUpdateProbe({ id, rank }: { id: string; rank: number }) {
   );
 }
 
-afterEach(() => {
+async function settleStorage(): Promise<void> {
+  await act(async () => { await waitForStorageIdle(); });
+}
+
+beforeEach(async () => prepareStorageTest());
+
+afterEach(async () => {
   cleanup();
-  localStorage.clear();
-  _resetStoredCache();
   vi.restoreAllMocks();
+  await cleanupStorageTest();
 });
 
 describe('useTalents rank convergence', () => {
-  it('repairs malformed template ranks and a legacy name key in one bounded write', () => {
+  it('repairs malformed template ranks and a legacy name key in one bounded write', async () => {
     const id = 'malformed-talents';
     const storageKey = characterKey(id, 'talents.times');
     localStorage.setItem('gc.activeCharId', JSON.stringify(id));
@@ -118,6 +128,7 @@ describe('useTalents rank convergence', () => {
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
 
     const view = renderProbe(registry);
+    await settleStorage();
 
     expect(screen.getByTestId('talents').textContent).toBe('Hardy=3,Savvy=1');
     const stored = localStorage.getItem(storageKey);
@@ -136,6 +147,7 @@ describe('useTalents rank convergence', () => {
         </ContentContext.Provider>
       </StrictMode>,
     );
+    await settleStorage();
     expect(setItem.mock.calls.filter(([key]) => key === storageKey)).toHaveLength(1);
   });
 
@@ -164,7 +176,7 @@ describe('useTalents rank convergence', () => {
     expect(setItem.mock.calls.filter(([key]) => key === storageKey)).toHaveLength(0);
   });
 
-  it('preserves a newer same-key layout update over the pending passive migration', () => {
+  it('preserves a newer same-key layout update over the pending passive migration', async () => {
     const id = 'layout-update-talents';
     const storageKey = characterKey(id, 'talents.times');
     const hardyKey = talentIdentityKey({ name: 'Hardy', definitionId: 'tal.hardy' });
@@ -188,6 +200,7 @@ describe('useTalents rank convergence', () => {
         </ContentContext.Provider>
       </StrictMode>,
     );
+    await settleStorage();
 
     expect(screen.getByTestId('talents').textContent).toBe('Hardy=4');
     expect(JSON.parse(localStorage.getItem(storageKey) ?? '{}')).toEqual({ [hardyKey]: 4 });

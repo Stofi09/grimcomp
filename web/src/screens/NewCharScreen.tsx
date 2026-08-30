@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type * as React from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { Hero } from '@/components/Hero';
@@ -10,7 +10,7 @@ import { Avatar } from '@/components/Avatar';
 import { Pill } from '@/components/Pill';
 import { Stepper } from '@/components/Stepper';
 import { Alert } from '@/ui/alertStore';
-import { useStoredState } from '@/hooks/useStoredState';
+import { runStoredTransaction, useStoredState } from '@/hooks/useStoredState';
 import { useRoster } from '@/hooks/useRoster';
 import { useCharacter } from '@/hooks/useCharacter';
 import {
@@ -353,6 +353,8 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
 
   const [step, setStep] = useStoredState('gc.newchar.step', 0);
   const [draft, setDraft] = useStoredState<Draft>('gc.newchar.draft', emptyDraft);
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
 
   const race = races.find(r => r.name === draft.species);
 
@@ -477,7 +479,8 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
     return true;
   })();
 
-  const finish = () => {
+  const finish = async () => {
+    if (savingRef.current) return;
     if (!draft.name.trim()) { Alert.alert('Name required', 'Please give your character a name first.'); return; }
     if (!race) { Alert.alert('Pick a species', 'Choose an available species first.'); return; }
     if (!characteristicsReady) { Alert.alert('Roll your stats', 'Roll characteristics on step 2 first.'); return; }
@@ -496,13 +499,33 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
       draft, id, chosenCareer, race, kitTpl, hasArchetypeTemplate, skillDefs, talentDefs,
       content.allSpells, content.allPrayers, charDefs, woundsRules, creation, system, wealth,
     );
-    add(c);
-    setActive(id);
-    setDraft(emptyDraft);
-    setStep(0);
+    savingRef.current = true;
+    setSaving(true);
+    const result = await (async () => {
+      try {
+        const ticket = runStoredTransaction(() => {
+          add(c);
+          setActive(id);
+          setDraft(emptyDraft);
+          setStep(0);
+        });
+        return await ticket.completion;
+      } finally {
+        savingRef.current = false;
+        setSaving(false);
+      }
+    })();
+    if (!result.ok) {
+      Alert.alert(
+        'Character not created',
+        `Nothing was changed because the character could not be saved. ${result.error.message}`,
+      );
+      return;
+    }
     // The button promises to finish AND switch. Navigate before showing the
     // confirmation so Escape/backdrop dismissal cannot strand the user in a
-    // freshly reset wizard.
+    // freshly reset wizard. Both happen only after the four-key transaction is
+    // durably verified.
     onNav('overview');
     Alert.alert(
       'Character created',
@@ -862,8 +885,13 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
             {STEPS[step + 1]} →
           </Button>
         ) : (
-          <Button variant="primary" onPress={finish} iconLeft={<Icon name="check" size={13} color={colors.ivory} />}>
-            Finish &amp; switch
+          <Button
+            variant="primary"
+            onPress={() => { void finish(); }}
+            disabled={saving}
+            iconLeft={<Icon name="check" size={13} color={colors.ivory} />}
+          >
+            {saving ? 'Saving…' : 'Finish & switch'}
           </Button>
         )}
       </div>

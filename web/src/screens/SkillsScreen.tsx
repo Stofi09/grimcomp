@@ -2,7 +2,7 @@ import type * as React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { type Skill } from '@/data/character';
-import { useStoredState } from '@/hooks/useStoredState';
+import { runStoredTransaction, useStoredState } from '@/hooks/useStoredState';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useXp } from '@/hooks/useXp';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
@@ -29,6 +29,7 @@ import { PickerField, TextField } from '@/components/Fields';
 import { Alert } from '@/ui/alertStore';
 import { colors } from '@/theme';
 import type { SkillDef, XpRules } from '@/content/types';
+import { useProgressionActionGuard } from './useProgressionActionGuard';
 import './SkillsScreen.css';
 
 interface SkillDraft {
@@ -159,6 +160,7 @@ export const SkillsScreen: React.FC = () => {
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState<SkillDraft | null>(null);
   const [pickerQuery, setPickerQuery] = useState('');
+  const beginProgressionAction = useProgressionActionGuard();
 
   const [advances, setAdvances] = useStoredState<Record<string, number>>(
     characterKey(id, 'skills.adv'),
@@ -168,30 +170,54 @@ export const SkillsScreen: React.FC = () => {
   // Stepper change handler that runs through the XP economy. Each +5 click
   // costs the next bracket; each −5 refunds the bracket the user is leaving.
   const onAdvChange = useCallback((skill: Skill, current: number, next: number) => {
+    if (next === current) return;
+    const action = beginProgressionAction(`skill:${skill.definitionId ?? skill.name}`);
+    if (!action) return;
+
     const bracket = skill.career ? careerBracket : otherBracket;
     if (next > current) {
       const cost = bracket(rules, current);
       const reason = `${skill.name} +${current} → +${next}`;
-      const r = xp.spend(cost, reason, 'skill');
-      if (!r.ok) {
-        Alert.alert('Not enough XP', r.message);
+      const transaction = runStoredTransaction(() => {
+        const result = xp.spend(cost, reason, 'skill');
+        if (result.ok) setAdvances(prev => ({ ...prev, [skill.name]: next }));
+        return result;
+      });
+      void transaction.completion.then(
+        (durability) => {
+          action.release();
+          if (!durability.ok) Alert.alert('Could not save purchase', durability.error.message);
+        },
+        () => action.release(),
+      );
+      if (!transaction.value?.ok) {
+        if (transaction.value) Alert.alert('Not enough XP', transaction.value.message);
         return;
       }
-      setAdvances(prev => ({ ...prev, [skill.name]: next }));
     } else if (next < current) {
       // Refund the bracket the user is leaving (the last +5 they bought). Only
       // step the advance down when the refund actually credited XP — otherwise
       // (e.g. stepping a template-granted skill below its starting level, which
       // was never purchased) we'd silently drop the rank for nothing.
       const refund = bracket(rules, next);
-      const r = xp.refund(refund, `${skill.name} +${next} → +${current}`, 'skill');
-      if (!r.ok) {
-        Alert.alert("Can't refund", r.message);
+      const transaction = runStoredTransaction(() => {
+        const result = xp.refund(refund, `${skill.name} +${next} → +${current}`, 'skill');
+        if (result.ok) setAdvances(prev => ({ ...prev, [skill.name]: next }));
+        return result;
+      });
+      void transaction.completion.then(
+        (durability) => {
+          action.release();
+          if (!durability.ok) Alert.alert('Could not save refund', durability.error.message);
+        },
+        () => action.release(),
+      );
+      if (!transaction.value?.ok) {
+        if (transaction.value) Alert.alert("Can't refund", transaction.value.message);
         return;
       }
-      setAdvances(prev => ({ ...prev, [skill.name]: next }));
     }
-  }, [rules, xp, setAdvances]);
+  }, [beginProgressionAction, rules, xp, setAdvances]);
 
   const totalFor = (s: Skill, adv: number) => (charBase[s.char] ?? 0) + adv;
 

@@ -1,12 +1,18 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { act } from 'react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ContentContext } from '@/content/contentContext';
 import { ContentRegistry } from '@/content/registry';
 import type { ContentPack } from '@/content/types';
 import { _resetStoredCache } from '@/hooks/useStoredState';
 import { ReferenceScreen } from './ReferenceScreen';
+import {
+  cleanupStorageTest,
+  prepareStorageTest,
+  waitForStorageIdle,
+} from '@/test/storageTestUtils';
 
 const registry = new ContentRegistry([{
   $schema: 'grimcomp.content.v2',
@@ -20,15 +26,16 @@ const registry = new ContentRegistry([{
   }],
 }] satisfies ContentPack[]);
 
-afterEach(() => {
+beforeEach(async () => prepareStorageTest());
+
+afterEach(async () => {
   cleanup();
-  localStorage.clear();
-  _resetStoredCache();
   document.body.style.overflow = '';
+  await cleanupStorageTest();
 });
 
 describe('ReferenceScreen recent history', () => {
-  it('records entries the user actually opens', () => {
+  it('records entries the user actually opens', async () => {
     render(
       <ContentContext.Provider value={registry}>
         <ReferenceScreen />
@@ -38,6 +45,7 @@ describe('ReferenceScreen recent history', () => {
     expect(screen.getByText('Open a reference entry and it will appear here.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Search rules' }));
     fireEvent.click(screen.getByRole('option', { name: /Surprised/ }));
+    await act(async () => { await waitForStorageIdle(); });
 
     const stored = JSON.parse(localStorage.getItem('gc.reference.recent') || '[]') as Array<{ name: string }>;
     expect(stored.map(item => item.name)).toEqual(['Surprised']);

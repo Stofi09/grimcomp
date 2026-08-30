@@ -2,7 +2,7 @@ import type * as React from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { useCareer } from '@/hooks/useCareer';
 import { useXp } from '@/hooks/useXp';
-import { useStoredState } from '@/hooks/useStoredState';
+import { runStoredTransaction, useStoredState } from '@/hooks/useStoredState';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useCareers, useTalentDefs, useXpRules } from '@/content/useContent';
 import { Hero } from '@/components/Hero';
@@ -22,6 +22,7 @@ import {
   talentDefForTalent,
 } from '@/utils/talents';
 import { careerDefForCharacter } from '@/utils/careers';
+import { useProgressionActionGuard } from './useProgressionActionGuard';
 import './CareerScreen.css';
 
 export const CareerScreen: React.FC = () => {
@@ -30,6 +31,7 @@ export const CareerScreen: React.FC = () => {
   const xp = useXp();
   const careers = useCareers();
   const talentDefs = useTalentDefs();
+  const beginProgressionAction = useProgressionActionGuard();
   // XP to advance to the next rank of the current career (WFRP 4e core p.49 →
   // 100 by default), sourced from the content registry's XP economy.
   const ADVANCE_COST = useXpRules().careerAdvanceCost;
@@ -83,15 +85,38 @@ export const CareerScreen: React.FC = () => {
       Alert.alert('Top of career', `${c.name} is already at the highest rank.`);
       return;
     }
+    const action = beginProgressionAction(`career:${id}`);
+    if (!action) return;
+
     const nextRank = career.ranks[career.level]; // 0-indexed; career.level is the *current* rank
     const reason = `${nextRank.name} (rank ${career.level + 1})`;
-    const r = xp.spend(ADVANCE_COST, reason, 'career');
-    if (!r.ok) {
-      Alert.alert('Not enough XP', r.message);
+    const transaction = runStoredTransaction(() => {
+      const result = xp.spend(ADVANCE_COST, reason, 'career');
+      if (result.ok) career.advance();
+      return result;
+    });
+    if (!transaction.value?.ok) {
+      void transaction.completion.then(
+        (durability) => {
+          action.release();
+          if (!durability.ok) Alert.alert('Could not save advance', durability.error.message);
+        },
+        () => action.release(),
+      );
+      if (transaction.value) Alert.alert('Not enough XP', transaction.value.message);
       return;
     }
-    career.advance();
-    Alert.alert('Advanced!', `You are now a ${nextRank.name} (${nextRank.status}).`);
+    void transaction.completion.then(
+      (durability) => {
+        action.release();
+        if (durability.ok) {
+          Alert.alert('Advanced!', `You are now a ${nextRank.name} (${nextRank.status}).`);
+        } else {
+          Alert.alert('Could not save advance', durability.error.message);
+        }
+      },
+      () => action.release(),
+    );
   };
 
   const tryAdvance = () => {

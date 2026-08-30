@@ -4,7 +4,11 @@
 // reads from it; RosterScreen lists from it.
 
 import { useCallback, useMemo } from 'react';
-import { useStoredState, clearStoredKeys } from './useStoredState';
+import {
+  clearStoredKeys,
+  runStoredTransaction,
+  useStoredState,
+} from './useStoredState';
 import { useContent } from '@/content/useContent';
 import { FALLBACK_CHARACTER_ID, type Character } from '@/data/character';
 
@@ -82,7 +86,10 @@ export function useRoster() {
     [registry],
   );
   const templates = useMemo<Record<string, Character>>(
-    () => Object.fromEntries(templateList.map(c => [c.id, c])),
+    () => Object.assign(
+      Object.create(null) as Record<string, Character>,
+      Object.fromEntries(templateList.map(c => [c.id, c])),
+    ),
     [templateList],
   );
 
@@ -90,7 +97,11 @@ export function useRoster() {
   // Custom wins in the combined map if the same id ever collides (we mint
   // unique ids on creation so this shouldn't happen in practice).
   const all = useMemo<Record<string, Character>>(
-    () => ({ ...templates, ...custom }),
+    () => Object.assign(
+      Object.create(null) as Record<string, Character>,
+      templates,
+      custom,
+    ),
     [templates, custom],
   );
   const list = useMemo<Character[]>(() => Object.values(all), [all]);
@@ -108,12 +119,18 @@ export function useRoster() {
       deletion is actually complete and a later character that reuses this id
       can't inherit the dead character's state. */
   const remove = useCallback((id: string) => {
-    if (!(id in custom)) return;
-    clearStoredKeys(k => k.startsWith(`gc.${id}.`));
-    setCustom(prev => {
-      if (!(id in prev)) return prev;
-      const { [id]: _drop, ...rest } = prev;
-      return rest;
+    if (!(id in custom)) return null;
+    return runStoredTransaction(() => {
+      // Enumeration and all removals join the same ambient draft. If key
+      // inspection fails, clearStoredKeys aborts the outer transaction before
+      // either the roster map or active id can be published.
+      clearStoredKeys(k => k.startsWith(`gc.${id}.`));
+      setCustom(prev => {
+        if (!(id in prev)) return prev;
+        const { [id]: _drop, ...rest } = prev;
+        return rest;
+      });
+      return true;
     });
   }, [custom, setCustom]);
 

@@ -1,8 +1,10 @@
+import { useRef, useState } from 'react';
 import type * as React from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { useCharacter } from '@/hooks/useCharacter';
 import { useCharacterSummary } from '@/hooks/useCharacterSummary';
 import { useRoster } from '@/hooks/useRoster';
+import { runStoredTransaction } from '@/hooks/useStoredState';
 import { FALLBACK_CHARACTER_ID, type Character } from '@/data/character';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -25,6 +27,7 @@ interface RosterCardProps {
   template: Character;
   active: boolean;
   custom: boolean;
+  deleting: boolean;
   onSwitch: (id: string) => void;
   onDelete: (id: string, name: string) => void;
 }
@@ -33,6 +36,7 @@ const RosterCard: React.FC<RosterCardProps> = ({
   template,
   active,
   custom,
+  deleting,
   onSwitch,
   onDelete,
 }) => {
@@ -43,7 +47,7 @@ const RosterCard: React.FC<RosterCardProps> = ({
     <div
       className="rost-cell-wrap"
       onContextMenu={custom
-        ? (e) => { e.preventDefault(); onDelete(c.id, c.name); }
+        ? (e) => { e.preventDefault(); if (!deleting) onDelete(c.id, c.name); }
         : undefined}
     >
       <Card style={{
@@ -91,6 +95,7 @@ const RosterCard: React.FC<RosterCardProps> = ({
             type="button"
             className="btn-reset rost-delete"
             onClick={() => onDelete(c.id, c.name)}
+            disabled={deleting}
             aria-label={`Delete ${c.name}`}
             title={`Delete ${c.name}`}
           >
@@ -105,6 +110,8 @@ const RosterCard: React.FC<RosterCardProps> = ({
 export const RosterScreen: React.FC<Props> = ({ onNav }) => {
   const { id: activeId, template: active, setActive } = useCharacter();
   const { list, remove, custom } = useRoster();
+  const deletingIdsRef = useRef(new Set<string>());
+  const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const switchTo = (id: string) => {
     setActive(id);
@@ -115,7 +122,32 @@ export const RosterScreen: React.FC<Props> = ({ onNav }) => {
   // canonical name when a character has no party set.
   const partyName = active.party?.name?.trim() || DEFAULT_PARTY_NAME;
 
+  const deleteCharacter = async (id: string) => {
+    if (deletingIdsRef.current.has(id)) return;
+    deletingIdsRef.current.add(id);
+    setDeletingIds(new Set(deletingIdsRef.current));
+    const result = await (async () => {
+      try {
+        const ticket = runStoredTransaction(() => {
+          remove(id);
+          if (id === activeId) setActive(FALLBACK_CHARACTER_ID);
+        });
+        return await ticket.completion;
+      } finally {
+        deletingIdsRef.current.delete(id);
+        setDeletingIds(new Set(deletingIdsRef.current));
+      }
+    })();
+    if (!result.ok) {
+      Alert.alert(
+        'Character not deleted',
+        `Nothing was changed because the character could not be deleted. ${result.error.message}`,
+      );
+    }
+  };
+
   const confirmDelete = (id: string, name: string) => {
+    if (deletingIdsRef.current.has(id)) return;
     Alert.alert(
       'Delete character',
       `Permanently delete ${name}? This wipes their XP, wounds, conditions and inventory.`,
@@ -124,10 +156,7 @@ export const RosterScreen: React.FC<Props> = ({ onNav }) => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            remove(id);
-            if (id === activeId) setActive(FALLBACK_CHARACTER_ID);
-          },
+          onPress: () => { void deleteCharacter(id); },
         },
       ],
     );
@@ -158,6 +187,7 @@ export const RosterScreen: React.FC<Props> = ({ onNav }) => {
             template={c}
             active={c.id === activeId}
             custom={c.id in custom}
+            deleting={deletingIds.has(c.id)}
             onSwitch={switchTo}
             onDelete={confirmDelete}
           />

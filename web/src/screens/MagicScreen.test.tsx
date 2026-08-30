@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ContentContext } from '@/content/contentContext';
 import { ContentRegistry } from '@/content/registry';
@@ -8,6 +9,11 @@ import type { ContentPack, Spell } from '@/content/types';
 import { _resetStoredCache } from '@/hooks/useStoredState';
 import { closeCurrentAlert, getCurrentAlert } from '@/ui/alertStore';
 import { MagicScreen } from './MagicScreen';
+import {
+  cleanupStorageTest,
+  prepareStorageTest,
+  waitForStorageIdle,
+} from '@/test/storageTestUtils';
 import careersPack from '../../public/content/core-careers.json';
 import charactersPack from '../../public/content/core-characters.json';
 import magicPack from '../../public/content/core-magic.json';
@@ -45,13 +51,14 @@ function drainAlerts(): void {
   while (getCurrentAlert() !== null) closeCurrentAlert();
 }
 
-afterEach(() => {
+beforeEach(async () => prepareStorageTest());
+
+afterEach(async () => {
   cleanup();
   drainAlerts();
-  localStorage.clear();
-  _resetStoredCache();
   document.body.style.overflow = '';
   vi.restoreAllMocks();
+  await cleanupStorageTest();
 });
 
 describe('MagicScreen spellbook', () => {
@@ -101,7 +108,7 @@ describe('MagicScreen spellbook', () => {
     expect(getCurrentAlert()?.message).toContain('Casting test failed — spell fizzles');
   });
 
-  it('persists additions and removals as a character overlay and casts from the effective list', () => {
+  it('persists additions and removals as a character overlay and casts from the effective list', async () => {
     selectCaster();
     const templateIds = [...(registry.getCharacterTemplate('c2')?.knownSpells ?? [])];
     renderMagic();
@@ -113,6 +120,7 @@ describe('MagicScreen spellbook', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Add Aethyric Armour to spellbook' }));
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await act(async () => { await waitForStorageIdle(); });
 
     expect(screen.getByRole('button', { name: 'Cast Aethyric Armour' })).toBeTruthy();
     expect(JSON.parse(localStorage.getItem('gc.c2.magic.spellbook') ?? '{}')).toEqual({
@@ -131,6 +139,7 @@ describe('MagicScreen spellbook', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Remove Dart from spellbook' }));
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await act(async () => { await waitForStorageIdle(); });
 
     expect(screen.queryByRole('button', { name: 'Cast Dart' })).toBeNull();
     expect(JSON.parse(localStorage.getItem('gc.c2.magic.spellbook') ?? '{}')).toEqual({
@@ -157,7 +166,7 @@ describe('MagicScreen spellbook', () => {
     expect(screen.queryByRole('button', { name: 'Cast Bolt' })).toBeNull();
   });
 
-  it('normalizes malformed imported spellbook data without dropping stale ids', () => {
+  it('normalizes malformed imported spellbook data without dropping stale ids', async () => {
     selectCaster();
     localStorage.setItem('gc.c2.magic.spellbook', JSON.stringify({
       added: ['sp.arcane.bolt', 17, 'sp.arcane.bolt', 'sp.unavailable.from-disabled-pack'],
@@ -170,6 +179,7 @@ describe('MagicScreen spellbook', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Manage spellbook' }));
     expect(screen.getByRole('dialog', { name: 'Manage spellbook' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await act(async () => { await waitForStorageIdle(); });
 
     expect(JSON.parse(localStorage.getItem('gc.c2.magic.spellbook') ?? '{}')).toEqual({
       added: ['sp.arcane.bolt', 'sp.unavailable.from-disabled-pack'],

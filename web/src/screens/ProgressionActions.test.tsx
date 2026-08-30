@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { act } from 'react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ContentContext } from '@/content/contentContext';
 import { ContentRegistry } from '@/content/registry';
 import type { ContentPack } from '@/content/types';
-import { _resetStoredCache } from '@/hooks/useStoredState';
 import { closeCurrentAlert, getCurrentAlert } from '@/ui/alertStore';
+import {
+  cleanupStorageTest,
+  prepareStorageTest,
+  waitForStorageIdle,
+} from '@/test/storageTestUtils';
 import { SkillsScreen } from './SkillsScreen';
 import { TalentsScreen } from './TalentsScreen';
 import { CareerScreen } from './CareerScreen';
@@ -34,15 +39,20 @@ function drainAlerts(): void {
   while (getCurrentAlert() !== null) closeCurrentAlert();
 }
 
-afterEach(() => {
+async function settleStorage(): Promise<void> {
+  await act(async () => { await waitForStorageIdle(); });
+}
+
+beforeEach(async () => prepareStorageTest());
+
+afterEach(async () => {
   cleanup();
   drainAlerts();
-  localStorage.clear();
-  _resetStoredCache();
+  await cleanupStorageTest();
 });
 
 describe('progression add and discovery actions', () => {
-  it('filters skills and persists a custom skill instead of showing a placeholder alert', () => {
+  it('filters skills and persists a custom skill instead of showing a placeholder alert', async () => {
     renderScreen(<SkillsScreen />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
@@ -57,6 +67,7 @@ describe('progression add and discovery actions', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Career cost' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await settleStorage();
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Filter skills' }), {
       target: { value: 'Lore (Testing)' },
@@ -67,7 +78,7 @@ describe('progression add and discovery actions', () => {
     ]);
   });
 
-  it('buys a first talent rank through the talent picker', () => {
+  it('buys a first talent rank through the talent picker', async () => {
     renderScreen(<TalentsScreen />);
 
     const newTalent = screen.getByRole('button', {
@@ -81,6 +92,7 @@ describe('progression add and discovery actions', () => {
     expect(result).toBeTruthy();
     fireEvent.click(result);
     fireEvent.click(screen.getByRole('button', { name: 'Buy · 100 XP' }));
+    await settleStorage();
 
     expect(getCurrentAlert()?.title).toBe('Bought talent');
     expect(JSON.parse(localStorage.getItem('gc.c1.talents.added') ?? '[]')).toEqual([
@@ -88,7 +100,7 @@ describe('progression add and discovery actions', () => {
     ]);
   });
 
-  it('uses modelled fallback requirements for a formerly incomplete higher rank', () => {
+  it('uses modelled fallback requirements for a formerly incomplete higher rank', async () => {
     localStorage.setItem('gc.c1.skills.adv', JSON.stringify({
       'Melee (Basic)': 10,
       'Ranged (Bow)': 10,
@@ -98,6 +110,7 @@ describe('progression add and discovery actions', () => {
 
     expect(screen.getByText('3/3 skills ready')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Advance to rank 3' }));
+    await settleStorage();
 
     expect(getCurrentAlert()?.title).toBe('Advanced!');
   });

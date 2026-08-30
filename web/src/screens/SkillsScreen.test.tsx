@@ -1,12 +1,18 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ContentContext } from '@/content/contentContext';
 import { ContentRegistry } from '@/content/registry';
 import type { ContentPack } from '@/content/types';
 import { _resetStoredCache } from '@/hooks/useStoredState';
 import { closeCurrentAlert, getCurrentAlert } from '@/ui/alertStore';
+import {
+  cleanupStorageTest,
+  prepareStorageTest,
+  waitForStorageIdle,
+} from '@/test/storageTestUtils';
 import careersPack from '../../public/content/core-careers.json';
 import charactersPack from '../../public/content/core-characters.json';
 import racesPack from '../../public/content/core-races.json';
@@ -71,12 +77,17 @@ function drainAlerts(): void {
   while (getCurrentAlert() !== null) closeCurrentAlert();
 }
 
-afterEach(() => {
+async function settleStorage(): Promise<void> {
+  await act(async () => { await waitForStorageIdle(); });
+}
+
+beforeEach(async () => prepareStorageTest());
+
+afterEach(async () => {
   cleanup();
   drainAlerts();
-  localStorage.clear();
-  _resetStoredCache();
   vi.restoreAllMocks();
+  await cleanupStorageTest();
 });
 
 describe('loaded skill acquisition', () => {
@@ -108,7 +119,7 @@ describe('loaded skill acquisition', () => {
     expect(screen.getByRole('button', { name: 'Test Augury' })).toBeTruthy();
   });
 
-  it('selects a canonical advanced skill, shows provenance, and cites its manual procedure on rolls', () => {
+  it('selects a canonical advanced skill, shows provenance, and cites its manual procedure on rolls', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.09);
     renderScreen();
 
@@ -143,6 +154,7 @@ describe('loaded skill acquisition', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Career cost' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await settleStorage();
 
     expect(JSON.parse(localStorage.getItem('gc.c1.skills.extra') ?? '[]')).toEqual([
       {
@@ -163,6 +175,7 @@ describe('loaded skill acquisition', () => {
     closeCurrentAlert();
 
     fireEvent.click(screen.getByRole('button', { name: 'Increase Augury' }));
+    await settleStorage();
     fireEvent.click(screen.getByRole('button', { name: 'Test Augury' }));
     expect(getCurrentAlert()?.title).toMatch(/^Augury — /);
     expect(getCurrentAlert()?.message)
@@ -224,7 +237,7 @@ describe('loaded skill acquisition', () => {
     expect(JSON.parse(localStorage.getItem('gc.c1.skills.extra') ?? '[]')).toEqual(owned);
   });
 
-  it('keeps the custom grouped workflow and sanitizes a malformed extra-skills overlay on write', () => {
+  it('keeps the custom grouped workflow and sanitizes a malformed extra-skills overlay on write', async () => {
     localStorage.setItem('gc.c1.skills.extra', JSON.stringify([
       null,
       'bad record',
@@ -244,6 +257,7 @@ describe('loaded skill acquisition', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Dex' }));
     fireEvent.click(screen.getByRole('button', { name: 'Advanced' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await settleStorage();
 
     expect(JSON.parse(localStorage.getItem('gc.c1.skills.extra') ?? '[]')).toEqual([
       expect.objectContaining({ name: 'Existing custom', char: 'int', advanced: false }),

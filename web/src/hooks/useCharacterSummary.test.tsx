@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { act } from 'react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ContentContext } from '@/content/contentContext';
 import { ContentRegistry } from '@/content/registry';
@@ -10,6 +11,11 @@ import { characterKey } from './useCharacter';
 import { useCharacterSummary } from './useCharacterSummary';
 import { _resetStoredCache, useStoredState } from './useStoredState';
 import { talentIdentityKey } from '@/utils/talents';
+import {
+  cleanupStorageTest,
+  prepareStorageTest,
+  waitForStorageIdle,
+} from '@/test/storageTestUtils';
 import charactersPack from '../../public/content/core-characters.json';
 import racesPack from '../../public/content/core-races.json';
 import rulesPack from '../../public/content/core-rules.json';
@@ -61,10 +67,11 @@ function renderSummary() {
   );
 }
 
-afterEach(() => {
+beforeEach(async () => prepareStorageTest());
+
+afterEach(async () => {
   cleanup();
-  localStorage.clear();
-  _resetStoredCache();
+  await cleanupStorageTest();
 });
 
 describe('useCharacterSummary', () => {
@@ -88,11 +95,12 @@ describe('useCharacterSummary', () => {
     expect(screen.getByTestId('xp').textContent).toBe('125');
   });
 
-  it('updates immediately when another hook writes the same character XP key', () => {
+  it('updates after another hook durably writes the same character XP key', async () => {
     renderSummary();
     expect(screen.getByTestId('xp').textContent).toBe(String(template.xpCurrent));
 
     fireEvent.click(screen.getByRole('button', { name: 'Award XP' }));
+    await act(async () => { await waitForStorageIdle(); });
 
     expect(screen.getByTestId('xp').textContent).toBe(String(template.xpCurrent + 25));
   });

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { ContentContext } from '@/content/contentContext';
 import { ContentRegistry } from '@/content/registry';
@@ -9,6 +9,11 @@ import type { ContentPack, TalentDef } from '@/content/types';
 import { _resetStoredCache } from '@/hooks/useStoredState';
 import { TALENT_TRACKING_NOTICE, talentIdentityKey } from '@/utils/talents';
 import { closeCurrentAlert, getCurrentAlert } from '@/ui/alertStore';
+import {
+  cleanupStorageTest,
+  prepareStorageTest,
+  waitForStorageIdle,
+} from '@/test/storageTestUtils';
 import careersPack from '../../public/content/core-careers.json';
 import charactersPack from '../../public/content/core-characters.json';
 import racesPack from '../../public/content/core-races.json';
@@ -59,12 +64,17 @@ function drainAlerts(): void {
   while (getCurrentAlert() !== null) closeCurrentAlert();
 }
 
-afterEach(() => {
+async function settleStorage(): Promise<void> {
+  await act(async () => { await waitForStorageIdle(); });
+}
+
+beforeEach(async () => prepareStorageTest());
+
+afterEach(async () => {
   cleanup();
   drainAlerts();
-  localStorage.clear();
-  _resetStoredCache();
   document.body.style.overflow = '';
+  await cleanupStorageTest();
 });
 
 describe('catalog talent acquisition', () => {
@@ -87,7 +97,7 @@ describe('catalog talent acquisition', () => {
     expect(localStorage.getItem('gc.c1.talents.added')).toBeNull();
   });
 
-  it('requires explicit eligibility confirmation and retains manual source metadata', () => {
+  it('requires explicit eligibility confirmation and retains manual source metadata', async () => {
     renderScreen();
 
     expect(screen.getByText(TALENT_TRACKING_NOTICE)).toBeTruthy();
@@ -113,6 +123,7 @@ describe('catalog talent acquisition', () => {
       closeCurrentAlert();
       confirm?.onPress?.();
     });
+    await settleStorage();
 
     expect(getCurrentAlert()?.title).toBe('Bought talent');
     expect(JSON.parse(localStorage.getItem('gc.c1.talents.added') ?? '[]')).toEqual([
@@ -128,7 +139,7 @@ describe('catalog talent acquisition', () => {
     expect(screen.queryByRole('button', { name: /Test Magical Assistant/ })).toBeNull();
   });
 
-  it('requires one Wind, permits another variant, excludes the same choice, and applies Max per form', () => {
+  it('requires one Wind, permits another variant, excludes the same choice, and applies Max per form', async () => {
     renderScreen();
 
     openPicker('Aqshy');
@@ -145,6 +156,7 @@ describe('catalog talent acquisition', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Aqshy' }));
     fireEvent.click(buyButton);
+    await settleStorage();
     expect(JSON.parse(localStorage.getItem('gc.c1.talents.added') ?? '[]')).toEqual([
       {
         definitionId: 'tal.suffuse-with-wind',
@@ -161,6 +173,7 @@ describe('catalog talent acquisition', () => {
     expect(screen.getByText(/Already acquired: Aqshy/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Azyr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Buy · 100 XP' }));
+    await settleStorage();
 
     expect(JSON.parse(localStorage.getItem('gc.c1.talents.added') ?? '[]')).toEqual([
       {
@@ -190,7 +203,7 @@ describe('catalog talent acquisition', () => {
     }));
   });
 
-  it('keeps same-name definitions independent through purchase and removal', () => {
+  it('keeps same-name definitions independent through purchase and removal', async () => {
     const duplicateRegistry = registryWithTalents([{
       id: 'tal.echo-first',
       name: 'Echo Gift',
@@ -211,6 +224,7 @@ describe('catalog talent acquisition', () => {
       .find(option => option.textContent?.includes('First identity'))!;
     fireEvent.click(firstOption);
     fireEvent.click(screen.getByRole('button', { name: 'Buy · 100 XP' }));
+    await settleStorage();
     closeCurrentAlert();
 
     openPicker('Echo Gift');
@@ -218,6 +232,7 @@ describe('catalog talent acquisition', () => {
     expect(remainingOption.textContent).toContain('Second identity');
     fireEvent.click(remainingOption);
     fireEvent.click(screen.getByRole('button', { name: 'Buy · 100 XP' }));
+    await settleStorage();
     closeCurrentAlert();
 
     expect(JSON.parse(localStorage.getItem('gc.c1.talents.added') ?? '[]')).toEqual([
@@ -238,6 +253,7 @@ describe('catalog talent acquisition', () => {
     expect(within(secondCard).getByRole('button', { name: 'Increase Echo Gift' }).hasAttribute('disabled'))
       .toBe(false);
     fireEvent.click(within(firstCard).getByRole('button', { name: 'Remove Echo Gift' }));
+    await settleStorage();
 
     expect(JSON.parse(localStorage.getItem('gc.c1.talents.added') ?? '[]')).toEqual([
       { definitionId: 'tal.echo-second', name: 'Echo Gift' },
@@ -257,7 +273,7 @@ describe('catalog talent acquisition', () => {
     ]));
   });
 
-  it('refunds a renamed definition by stable key and its stored legacy label', () => {
+  it('refunds a renamed definition by stable key and its stored legacy label', async () => {
     const oldRegistry = registryWithTalents([{
       id: 'tal.rename-check',
       name: 'Old Gift',
@@ -275,8 +291,10 @@ describe('catalog talent acquisition', () => {
     openPicker('Old Gift');
     fireEvent.click(screen.getByRole('option', { name: /Old Gift/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Buy · 100 XP' }));
+    await settleStorage();
     closeCurrentAlert();
     fireEvent.click(screen.getByRole('button', { name: 'Increase Old Gift' }));
+    await settleStorage();
     closeCurrentAlert();
 
     cleanup();
@@ -285,6 +303,7 @@ describe('catalog talent acquisition', () => {
 
     expect(screen.getByText('New Gift').closest('.gc-card')?.textContent).toContain('×2 / 3');
     fireEvent.click(screen.getByRole('button', { name: 'Decrease New Gift' }));
+    await settleStorage();
     expect(screen.getByText('New Gift').closest('.gc-card')?.textContent).toContain('×1 / 3');
     const afterStableRefund = JSON.parse(localStorage.getItem('gc.c1.xp') ?? '{}');
     expect(afterStableRefund.log.filter((entry: { reason: string }) => entry.reason.startsWith('Old Gift')))
@@ -308,13 +327,14 @@ describe('catalog talent acquisition', () => {
     renderScreen(renamedRegistry);
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove New Gift' }));
+    await settleStorage();
     expect(JSON.parse(localStorage.getItem('gc.c1.talents.added') ?? '[]')).toEqual([]);
     expect(screen.queryByText('New Gift')).toBeNull();
     expect(JSON.parse(localStorage.getItem('gc.c1.xp') ?? '{}').log
       .filter((entry: { reason: string }) => entry.reason.startsWith('Old Gift'))).toEqual([]);
   });
 
-  it('persists legacy ownership/ranks as an idempotent canonical migration', () => {
+  it('persists legacy ownership/ranks as an idempotent canonical migration', async () => {
     localStorage.setItem('gc.c1.talents.added', JSON.stringify([
       'Alley Cat',
       { name: 'Historical Alley Cat', definitionId: 'tal.alley-cat' },
@@ -325,6 +345,7 @@ describe('catalog talent acquisition', () => {
     }));
     _resetStoredCache();
     renderScreen();
+    await settleStorage();
 
     expect(screen.getAllByText('Alley Cat')).toHaveLength(1);
     expect(screen.getByText('Alley Cat').closest('.gc-card')?.textContent).toContain('×2');
@@ -344,12 +365,13 @@ describe('catalog talent acquisition', () => {
     cleanup();
     _resetStoredCache();
     renderScreen();
+    await settleStorage();
 
     expect(localStorage.getItem('gc.c1.talents.added')).toBe(persistedAdded);
     expect(localStorage.getItem('gc.c1.talents.times')).toBe(persistedTimes);
   });
 
-  it('keeps malformed, legacy, custom, and unavailable stored entries safe and visible', () => {
+  it('keeps malformed, legacy, custom, and unavailable stored entries safe and visible', async () => {
     localStorage.setItem('gc.c1.talents.added', JSON.stringify([
       null,
       7,
@@ -370,6 +392,7 @@ describe('catalog talent acquisition', () => {
     }));
     _resetStoredCache();
     renderScreen();
+    await settleStorage();
 
     expect(screen.getByText('Acute Sense')).toBeTruthy();
     expect(screen.getByText('Legacy Gift').closest('.gc-card')?.textContent).toContain('×2');
@@ -382,6 +405,7 @@ describe('catalog talent acquisition', () => {
     openPicker('Alley Cat');
     fireEvent.click(screen.getByRole('option', { name: /Alley Cat/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Buy · 100 XP' }));
+    await settleStorage();
 
     expect(JSON.parse(localStorage.getItem('gc.c1.talents.added') ?? '[]')).toEqual([
       { name: 'Acute Sense', definitionId: 'tal.acute-sense' },

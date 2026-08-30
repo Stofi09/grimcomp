@@ -3,6 +3,7 @@ import { ScreenContainer } from './ScreenContainer';
 import { useTalents } from '@/hooks/useTalents';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useXp } from '@/hooks/useXp';
+import { runStoredTransaction } from '@/hooks/useStoredState';
 import { useCharacter } from '@/hooks/useCharacter';
 import { useCareers, useXpRules, useTalentDefs } from '@/content/useContent';
 import { talentMaxRank } from '@/utils/advancement';
@@ -32,6 +33,7 @@ import { EditSheet } from '@/components/EditSheet';
 import { PickerField, TextField } from '@/components/Fields';
 import { Alert } from '@/ui/alertStore';
 import { colors } from '@/theme';
+import { useProgressionActionGuard } from './useProgressionActionGuard';
 import './TalentsScreen.css';
 
 const normalized = (value: string): string => value.trim().toLocaleLowerCase();
@@ -55,6 +57,7 @@ export const TalentsScreen: React.FC = () => {
   const [query, setQuery] = React.useState('');
   const [selectedDefinitionId, setSelectedDefinitionId] = React.useState('');
   const [selectedSpecialization, setSelectedSpecialization] = React.useState('');
+  const beginProgressionAction = useProgressionActionGuard();
   const registryCareer = careerDefForCharacter(careers, c);
   const careerTalentNames = React.useMemo(
     () => new Set(registryCareer?.advanceScheme?.talents ?? []),
@@ -185,57 +188,109 @@ export const TalentsScreen: React.FC = () => {
       );
       return;
     }
+    const action = beginProgressionAction(`talent:${talentIdentityKey(talent)}`);
+    if (!action) return;
+
     const cost = talentCost(currentTimes);
     const reason = `${talent.name} ×${currentTimes + 1}`;
-    const result = xp.spend(cost, reason, 'talent', talentIdentityKey(talent));
-    if (!result.ok) {
-      Alert.alert('Not enough XP', result.message);
+    const transaction = runStoredTransaction(() => {
+      const result = xp.spend(cost, reason, 'talent', talentIdentityKey(talent));
+      if (result.ok) buyAnother(talent);
+      return result;
+    });
+    if (!transaction.value?.ok) {
+      void transaction.completion.then(
+        (durability) => {
+          action.release();
+          if (!durability.ok) Alert.alert('Could not save purchase', durability.error.message);
+        },
+        () => action.release(),
+      );
+      if (transaction.value) Alert.alert('Not enough XP', transaction.value.message);
       return;
     }
-    buyAnother(talent);
-    Alert.alert('Bought talent', result.message);
+    void transaction.completion.then(
+      (durability) => {
+        action.release();
+        if (durability.ok) Alert.alert('Bought talent', transaction.value.message);
+        else Alert.alert('Could not save purchase', durability.error.message);
+      },
+      () => action.release(),
+    );
   };
 
   // Undo the most recent rank after a successful XP refund. Template-granted
   // ranks cannot be sold back because they have no matching purchase log entry.
   const undo = (talent: LiveTalent) => {
+    const action = beginProgressionAction(`talent:${talentIdentityKey(talent)}`);
+    if (!action) return;
+
     const currentTimes = talent.times;
     const cost = talentCost(currentTimes - 1);
     const reason = `${talent.name} ×${currentTimes}`;
     const legacyReasons = talent.storedName === talent.name
       ? []
       : [`${talent.storedName} ×${currentTimes}`];
-    const result = xp.refund(
-      cost,
-      reason,
-      'talent',
-      talentIdentityKey(talent),
-      legacyReasons,
+    const transaction = runStoredTransaction(() => {
+      const result = xp.refund(
+        cost,
+        reason,
+        'talent',
+        talentIdentityKey(talent),
+        legacyReasons,
+      );
+      if (result.ok) refundRank(talent);
+      return result;
+    });
+    void transaction.completion.then(
+      (durability) => {
+        action.release();
+        if (!durability.ok) Alert.alert('Could not save refund', durability.error.message);
+      },
+      () => action.release(),
     );
-    if (!result.ok) {
-      Alert.alert('Cannot refund', `${result.message} Only ranks you bought this session can be refunded.`);
+    if (!transaction.value?.ok) {
+      if (transaction.value) {
+        Alert.alert('Cannot refund', `${transaction.value.message} Only ranks you bought this session can be refunded.`);
+      }
       return;
     }
-    refundRank(talent);
   };
 
   const removeAddedTalent = (talent: LiveTalent) => {
+    const action = beginProgressionAction(`talent:${talentIdentityKey(talent)}`);
+    if (!action) return;
+
     const cost = talentCost(0);
     const reason = `${talent.name} ×1`;
     const legacyReasons = talent.storedName === talent.name ? [] : [`${talent.storedName} ×1`];
-    const result = xp.refund(
-      cost,
-      reason,
-      'talent',
-      talentIdentityKey(talent),
-      legacyReasons,
+    const transaction = runStoredTransaction(() => {
+      const result = xp.refund(
+        cost,
+        reason,
+        'talent',
+        talentIdentityKey(talent),
+        legacyReasons,
+      );
+      if (result.ok) {
+        removeTalentRef(talent);
+        forgetTalent(talent);
+      }
+      return result;
+    });
+    void transaction.completion.then(
+      (durability) => {
+        action.release();
+        if (!durability.ok) Alert.alert('Could not save refund', durability.error.message);
+      },
+      () => action.release(),
     );
-    if (!result.ok) {
-      Alert.alert('Cannot refund', `${result.message} Only talents bought through this picker can be removed.`);
+    if (!transaction.value?.ok) {
+      if (transaction.value) {
+        Alert.alert('Cannot refund', `${transaction.value.message} Only talents bought through this picker can be removed.`);
+      }
       return;
     }
-    removeTalentRef(talent);
-    forgetTalent(talent);
   };
 
   const onTimesChange = (talent: LiveTalent, next: number) => {
@@ -255,16 +310,41 @@ export const TalentsScreen: React.FC = () => {
   };
 
   const commitTalentPurchase = (ref: StoredTalentRef) => {
+    const action = beginProgressionAction(`talent:${talentIdentityKey(ref)}`);
+    if (!action) return;
+
     const cost = talentCost(0);
-    const result = xp.spend(cost, `${ref.name} ×1`, 'talent', talentIdentityKey(ref));
-    if (!result.ok) {
-      Alert.alert('Not enough XP', result.message);
+    const transaction = runStoredTransaction(() => {
+      const result = xp.spend(cost, `${ref.name} ×1`, 'talent', talentIdentityKey(ref));
+      if (result.ok) {
+        addTalentRef(ref);
+        buyAnother(ref);
+      }
+      return result;
+    });
+    if (!transaction.value?.ok) {
+      void transaction.completion.then(
+        (durability) => {
+          action.release();
+          if (!durability.ok) Alert.alert('Could not save purchase', durability.error.message);
+        },
+        () => action.release(),
+      );
+      if (transaction.value) Alert.alert('Not enough XP', transaction.value.message);
       return;
     }
-    addTalentRef(ref);
-    buyAnother(ref);
-    setPickerOpen(false);
-    Alert.alert('Bought talent', result.message);
+    void transaction.completion.then(
+      (durability) => {
+        action.release();
+        if (durability.ok) {
+          setPickerOpen(false);
+          Alert.alert('Bought talent', transaction.value.message);
+        } else {
+          Alert.alert('Could not save purchase', durability.error.message);
+        }
+      },
+      () => action.release(),
+    );
   };
 
   const buySelectedTalent = () => {
