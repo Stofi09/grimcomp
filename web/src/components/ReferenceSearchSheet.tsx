@@ -43,12 +43,17 @@ export const ReferenceSearchSheet: React.FC<ReferenceSearchSheetProps> = ({
   const [category, setCategory] = React.useState<ReferenceCategory | 'All'>(initialCategory);
   const [query, setQuery] = React.useState(initialQuery);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [activeId, setActiveId] = React.useState<string | null>(null);
+  const listboxId = React.useId();
+  const listboxRef = React.useRef<HTMLDivElement>(null);
+  const optionRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
 
   React.useEffect(() => {
     if (!visible) return;
     setCategory(initialCategory);
     setQuery(initialQuery);
     setSelectedId(null);
+    setActiveId(null);
   }, [initialCategory, initialQuery, visible]);
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -61,6 +66,55 @@ export const ReferenceSearchSheet: React.FC<ReferenceSearchSheetProps> = ({
   });
   const visibleResults = filtered.slice(0, 80);
   const selected = items.find(item => item.id === selectedId);
+  const storedActiveIndex = visibleResults.findIndex(item => item.id === activeId);
+  const activeIndex = storedActiveIndex >= 0
+    ? storedActiveIndex
+    : visibleResults.length > 0 ? 0 : -1;
+  const activeItem = activeIndex >= 0 ? visibleResults[activeIndex] : undefined;
+  const activeOptionId = activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined;
+
+  const selectItem = (item: ReferenceItem) => {
+    setActiveId(item.id);
+    setSelectedId(item.id);
+    onViewed?.(item);
+  };
+
+  const moveActive = (nextIndex: number) => {
+    const nextItem = visibleResults[nextIndex];
+    if (!nextItem) return;
+    setActiveId(nextItem.id);
+    optionRefs.current[nextIndex]?.scrollIntoView?.({ block: 'nearest' });
+  };
+
+  const onResultsKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (visibleResults.length === 0) return;
+
+    let nextIndex: number | undefined;
+    switch (event.key) {
+      case 'ArrowDown':
+        nextIndex = Math.min(activeIndex + 1, visibleResults.length - 1);
+        break;
+      case 'ArrowUp':
+        nextIndex = Math.max(activeIndex - 1, 0);
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = visibleResults.length - 1;
+        break;
+      case 'Enter':
+      case ' ':
+        event.preventDefault();
+        if (activeItem) selectItem(activeItem);
+        return;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    moveActive(nextIndex);
+  };
 
   return (
     <EditSheet
@@ -75,6 +129,7 @@ export const ReferenceSearchSheet: React.FC<ReferenceSearchSheetProps> = ({
         onChangeText={next => {
           setQuery(next);
           setSelectedId(null);
+          setActiveId(null);
         }}
         placeholder="name, rule text, lore, or source"
         autoCapitalize="none"
@@ -90,6 +145,7 @@ export const ReferenceSearchSheet: React.FC<ReferenceSearchSheetProps> = ({
             onClick={() => {
               setCategory(candidate);
               setSelectedId(null);
+              setActiveId(null);
             }}
           >
             {candidate}
@@ -110,19 +166,32 @@ export const ReferenceSearchSheet: React.FC<ReferenceSearchSheetProps> = ({
         </div>
       ) : null}
 
-      <div className="ref-search-results" role="listbox" aria-label="Reference results">
-        {visibleResults.map(item => {
+      <div
+        ref={listboxRef}
+        className="ref-search-results"
+        role="listbox"
+        aria-label="Reference results"
+        aria-activedescendant={activeOptionId}
+        tabIndex={0}
+        onKeyDown={onResultsKeyDown}
+      >
+        {visibleResults.map((item, index) => {
           const isSelected = selectedId === item.id;
+          const isActive = activeIndex === index;
           return (
             <button
               key={item.id}
+              ref={element => { optionRefs.current[index] = element; }}
+              id={`${listboxId}-option-${index}`}
               type="button"
-              className={`btn-reset ref-search-result${isSelected ? ' ref-search-result--selected' : ''}`}
+              className={`btn-reset ref-search-result${isSelected ? ' ref-search-result--selected' : ''}${isActive ? ' ref-search-result--active' : ''}`}
               role="option"
               aria-selected={isSelected}
+              tabIndex={-1}
+              onMouseDown={event => event.preventDefault()}
               onClick={() => {
-                setSelectedId(item.id);
-                onViewed?.(item);
+                selectItem(item);
+                listboxRef.current?.focus();
               }}
             >
               <span className="ref-search-result-main">

@@ -130,12 +130,12 @@ export const OverviewScreen: React.FC = () => {
               </Text>
             </View>
             <View style={{ flex: 1 }} />
-            <Stepper value={vitals.fortune} min={0} max={vitals.fate} onChange={vitals.setFortune} />
+            <Stepper accessibilityLabel="Fortune" value={vitals.fortune} min={0} max={vitals.fate} onChange={vitals.setFortune} />
           </View>
           <View style={styles.dividerLine} />
           <View style={layoutStyles.rowBetween}>
             <Text style={styles.subUpper}>Fate · burn to cheat death</Text>
-            <Stepper value={vitals.fate} min={0} max={20} onChange={vitals.setFate} />
+            <Stepper accessibilityLabel="Fate" value={vitals.fate} min={0} max={20} onChange={vitals.setFate} />
           </View>
         </Card>
 
@@ -154,18 +154,18 @@ export const OverviewScreen: React.FC = () => {
               </Text>
             </View>
             <View style={{ flex: 1 }} />
-            <Stepper value={vitals.resolve} min={0} max={vitals.resilience} onChange={vitals.setResolve} />
+            <Stepper accessibilityLabel="Resolve" value={vitals.resolve} min={0} max={vitals.resilience} onChange={vitals.setResolve} />
           </View>
           <View style={[layoutStyles.rowBetween, { marginTop: 10 }]}>
             <Text style={styles.subUpper}>Resilience</Text>
-            <Stepper value={vitals.resilience} min={0} max={20} onChange={vitals.setResilience} />
+            <Stepper accessibilityLabel="Resilience" value={vitals.resilience} min={0} max={20} onChange={vitals.setResilience} />
           </View>
           <View style={styles.dividerLine} />
           <View style={layoutStyles.rowBetween}>
             <Text style={[styles.subUpper, { color: colors.corruption }]}>
               Corruption {vitals.corruption}/{corrThresh}
             </Text>
-            <Stepper value={vitals.corruption} min={0} max={99} onChange={vitals.setCorruption} />
+            <Stepper accessibilityLabel="Corruption" value={vitals.corruption} min={0} max={99} onChange={vitals.setCorruption} />
           </View>
           <Bar value={corrThresh > 0 ? Math.min(1, vitals.corruption / corrThresh) : 0} variant="corr" style={{ marginTop: 10 }} />
         </Card>

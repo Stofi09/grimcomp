@@ -18,6 +18,7 @@ import {
   type XpCostRow,
 } from './types';
 import { compileFormula } from '@/utils/formula';
+import { safeRegexError } from '@/utils/safeRegex';
 import { validateCharacterTemplate } from './validateCharacter';
 
 export interface ValidationResult {
@@ -708,15 +709,12 @@ export function validatePack(raw: unknown): ValidationResult {
       }
       if (checkStrings(sys.combat, 'system.combat',
         ['rangedGroupPattern', 'meleeChar', 'rangedChar', 'meleeSkillPattern', 'rangedSkillPattern'])) {
-        // The pattern is executed as a regex at render time — compile it here
-        // so a malformed one fails the import instead of crashing Combat.
+        // JavaScript regexes have no execution timeout. Reject malformed or
+        // backtracking-prone pack patterns before Combat can execute them.
         const pattern = (sys.combat as Record<string, unknown>).rangedGroupPattern;
         if (isString(pattern)) {
-          try {
-            new RegExp(pattern, 'i');
-          } catch (e) {
-            push(`"system.combat.rangedGroupPattern": ${e instanceof Error ? e.message : 'invalid regular expression.'}`);
-          }
+          const error = safeRegexError(pattern);
+          if (error) push(`"system.combat.rangedGroupPattern" ${error}`);
         }
       }
     }

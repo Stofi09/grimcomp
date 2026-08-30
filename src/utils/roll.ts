@@ -2,7 +2,8 @@
 //
 // Rules implemented (from the core rulebook):
 // - Roll 1d100 against a target.
-// - SL (Success Levels) = (target tens) − (roll tens), keeping the sign.
+// - Base SL (Success Levels) = (target tens) − (roll tens). A positive delta
+//   on an auto-failure is displayed as negative so it cannot contradict FUMBLE.
 // - Doubles (11, 22, 33, …, 99): if the roll succeeds → critical success;
 //   if it fails → fumble.
 // - 01–05 always succeeds; 96–100 always fails (regardless of target).
@@ -42,7 +43,7 @@ export interface RollResult {
   effectiveTarget: number;
   modifier: number;
   success: boolean;
-  /** Signed SL — positive on success, negative on failure. */
+  /** Signed SL. Auto-failure never reports a positive value; 0 is possible. */
   sl: number;
   outcome: Outcome;
 }
@@ -91,9 +92,14 @@ export function resolveTest(input: RollInput): RollResult {
     success = false;
   }
 
-  // SL per WFRP 4e core p.151: (target tens − roll tens). Positive on success,
-  // negative on failure; the same delta is read on the crit/fumble bands.
-  const sl = tens(effective) - tens(roll);
+  // SL per WFRP 4e core p.151: (target tens − roll tens). Zero can occur on
+  // either outcome; the auto-failure normalization below prevents a positive
+  // fumble result when a high target would otherwise pass.
+  let sl = tens(effective) - tens(roll);
+  // Auto-failure can override an otherwise passing high target (for example,
+  // 96 against 100). Keep the displayed SL's sign consistent with the outcome
+  // instead of reporting a positive success level for a fumble.
+  if (!success && sl > 0) sl = -sl;
 
   return {
     label: input.label,

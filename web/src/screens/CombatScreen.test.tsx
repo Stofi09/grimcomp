@@ -8,6 +8,7 @@ import { ContentContext } from '@/content/contentContext';
 import { ContentRegistry } from '@/content/registry';
 import type { ContentPack } from '@/content/types';
 import { _resetStoredCache } from '@/hooks/useStoredState';
+import { browserStorageCore } from '@/storage/browserStorage';
 import {
   cleanupStorageTest,
   prepareStorageTest,
@@ -38,6 +39,12 @@ function renderCombatScreen(): void {
 
 async function settleStorage(): Promise<void> {
   await act(async () => { await waitForStorageIdle(); });
+}
+
+function applyCrossTabCollection(key: string, value: readonly unknown[]): void {
+  const raw = JSON.stringify(value);
+  localStorage.setItem(key, raw);
+  act(() => { browserStorageCore.applyExternal(key, raw); });
 }
 
 function seedHitState(): void {
@@ -96,6 +103,87 @@ describe('CombatScreen weapon distance', () => {
     }>;
     expect(stored[0]).toMatchObject({ range: '120' });
     expect(stored[0].reach).toBeUndefined();
+  });
+});
+
+describe('CombatScreen inventory identity', () => {
+  it('relocates a weapon after a cross-tab reorder and durably edits only the selected weapon', async () => {
+    const sword = {
+      name: 'QA Sword', group: 'Basic', enc: 1, reach: 'Average', dmg: 'SB+4', qual: [],
+    };
+    const axe = {
+      name: 'QA Axe', group: 'Basic', enc: 1, reach: 'Average', dmg: 'SB+3', qual: [],
+    };
+    localStorage.setItem('gc.c1.weapons', JSON.stringify([sword, axe]));
+    _resetStoredCache();
+    renderCombatScreen();
+
+    fireEvent.click(screen.getByRole('button', { name: 'QA Sword' }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'QA Fine Sword' } });
+    applyCrossTabCollection('gc.c1.weapons', [axe, sword]);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByRole('dialog', { name: 'Edit weapon' })).toBeTruthy();
+    await settleStorage();
+
+    expect(JSON.parse(localStorage.getItem('gc.c1.weapons') ?? '[]')).toEqual([
+      axe,
+      { ...sword, name: 'QA Fine Sword' },
+    ]);
+    expect(localStorage.getItem(STORAGE_TRANSACTION_JOURNAL_KEY)).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Edit weapon' })).toBeNull();
+  });
+
+  it('refuses to remove another armour piece when the selection disappeared in another tab', async () => {
+    const leather = {
+      name: 'QA Leather', locs: ['Body'], enc: 1, ap: 1, qual: [],
+    };
+    const mail = {
+      name: 'QA Mail', locs: ['Body'], enc: 2, ap: 2, qual: [],
+    };
+    localStorage.setItem('gc.c1.armour', JSON.stringify([leather, mail]));
+    _resetStoredCache();
+    renderCombatScreen();
+
+    fireEvent.click(screen.getByRole('button', { name: /QA Leather/u }));
+    applyCrossTabCollection('gc.c1.armour', [mail]);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    await settleStorage();
+
+    expect(JSON.parse(localStorage.getItem('gc.c1.armour') ?? '[]')).toEqual([mail]);
+    expect(screen.getByRole('dialog', { name: 'Edit armour' })).toBeTruthy();
+    expect(getCurrentAlert()?.title).toBe('Armour changed');
+  });
+
+  it('rolls a failed weapon drop back and keeps the editor open', async () => {
+    const sword = {
+      name: 'QA Sword', group: 'Basic', enc: 1, reach: 'Average', dmg: 'SB+4', qual: [],
+    };
+    localStorage.setItem('gc.c1.weapons', JSON.stringify([sword]));
+    _resetStoredCache();
+    const realSetItem = Storage.prototype.setItem;
+    let injected = false;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ): void {
+      if (!injected && key === 'gc.c1.weapons') {
+        injected = true;
+        throw new Error('injected weapon drop failure');
+      }
+      realSetItem.call(this, key, value);
+    });
+    renderCombatScreen();
+
+    fireEvent.click(screen.getByRole('button', { name: 'QA Sword' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Drop' }));
+    expect(getCurrentAlert()).toBeNull();
+    await settleStorage();
+
+    expect(injected).toBe(true);
+    expect(JSON.parse(localStorage.getItem('gc.c1.weapons') ?? '[]')).toEqual([sword]);
+    expect(screen.getByRole('dialog', { name: 'Edit weapon' })).toBeTruthy();
+    expect(getCurrentAlert()?.title).toBe('Could not drop weapon');
   });
 });
 

@@ -86,9 +86,14 @@
 }
 
 .ref-search-result:hover,
-.ref-search-result--selected {
+.ref-search-result--selected,
+.ref-search-result--active {
   border-color: var(--brass);
   background: var(--surface2);
+}
+
+.ref-search-results:focus-visible .ref-search-result--active {
+  box-shadow: inset 3px 0 0 var(--brass);
 }
 
 .ref-search-result-main {

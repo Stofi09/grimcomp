@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { type Trapping, type Weapon, type Armour } from '@/data/character';
@@ -41,23 +41,54 @@ export const TrappingsScreen: React.FC = () => {
   const enc = encItems + encW + encA;
 
   const [editing, setEditing] = useState<{ index: number | null; draft: Trapping } | null>(null);
+  const itemActionRef = useRef(false);
+  const [itemAction, setItemAction] = useState<'save' | 'remove' | null>(null);
   const openNew = () => setEditing({ index: null, draft: blankTrapping() });
   const openEdit = (i: number) => setEditing({ index: i, draft: { ...trappings.items[i] } });
 
-  const save = () => {
-    if (!editing) return;
-    if (!editing.draft.name.trim()) {
+  const save = async () => {
+    if (!editing || itemActionRef.current) return;
+    const edit = editing;
+    if (!edit.draft.name.trim()) {
       Alert.alert('Name required', 'Give the item a name.');
       return;
     }
-    if (editing.index == null) trappings.add(editing.draft);
-    else trappings.update(editing.index, editing.draft);
+    itemActionRef.current = true;
+    setItemAction('save');
+    const durability = await (async () => {
+      try {
+        return await (edit.index == null
+          ? trappings.add(edit.draft)
+          : trappings.update(edit.index, edit.draft));
+      } finally {
+        itemActionRef.current = false;
+        setItemAction(null);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not save item', durability.error.message);
+      return;
+    }
     setEditing(null);
   };
-  const drop = () => {
-    if (!editing || editing.index == null) return;
-    const name = editing.draft.name;
-    trappings.remove(editing.index);
+  const drop = async () => {
+    if (!editing || editing.index == null || itemActionRef.current) return;
+    const edit = editing;
+    const name = edit.draft.name;
+    itemActionRef.current = true;
+    setItemAction('remove');
+    const durability = await (async () => {
+      try {
+        return await trappings.remove(edit.index!);
+      } finally {
+        itemActionRef.current = false;
+        setItemAction(null);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not drop item', durability.error.message);
+      return;
+    }
     setEditing(null);
     Alert.alert('Dropped', `${name} removed from inventory.`);
   };
@@ -154,9 +185,11 @@ export const TrappingsScreen: React.FC = () => {
         visible={!!editing}
         title={editing?.index == null ? 'New item' : 'Edit item'}
         subtitle={editing?.index == null ? 'Add a trapping to this character\'s pack.' : 'Tap Save to commit, or Drop to remove from inventory.'}
-        onClose={() => setEditing(null)}
+        onClose={() => { if (!itemActionRef.current) setEditing(null); }}
         onSave={save}
-        destructive={editing?.index != null ? { label: 'Drop', onPress: drop } : undefined}
+        saveLabel={itemAction === 'remove' ? 'Dropping…' : itemAction === 'save' ? 'Saving…' : 'Save'}
+        saveDisabled={itemAction !== null}
+        destructive={editing?.index != null && itemAction === null ? { label: 'Drop', onPress: drop } : undefined}
       >
         {editing ? (
           <>

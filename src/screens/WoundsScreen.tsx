@@ -2,18 +2,18 @@ import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { computeMaxWounds, SMALL_SPECIES, type Critical } from '@/data/character';
-import { runStoredTransaction, useStoredState } from '@/hooks/useStoredState';
+import { useStoredState } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useTalents } from '@/hooks/useTalents';
-import { useVitals } from '@/hooks/useVitals';
 import { useCharacterCollection } from '@/hooks/useCharacterCollection';
 import {
-  applyNativeEndOfSceneUpdates,
+  advanceNativeCriticalHealingDay,
+  clearNativeSceneEndConditions,
   locateCriticalOccurrence,
   removeCriticalOccurrence,
-  type NativeEndOfSceneSummary,
+  type NativeSceneEndResult,
 } from './nativeWoundsState';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -62,7 +62,6 @@ export const WoundsScreen: React.FC = () => {
   const { conds, cycle, names } = useConditions();
   const { list: chars } = useCharacteristics();
   const { list: talentList } = useTalents();
-  const vitals = useVitals();
   const tb = chars.find(x => x.key === 't')?.bonus ?? 0;
   const sb = chars.find(x => x.key === 's')?.bonus ?? 0;
   const wpb = chars.find(x => x.key === 'wp')?.bonus ?? 0;
@@ -72,8 +71,8 @@ export const WoundsScreen: React.FC = () => {
   const hardyRanks = talentList.find(t => t.name === 'Hardy')?.times ?? 0;
   const woundsMax = computeMaxWounds(sb, tb, wpb, c.species, hardyRanks);
 
-  // Live critical wounds + the shared conditions map (so "End of scene" can
-  // tick conditions down too).
+  // Live critical wounds and conditions use separate clocks: healing advances
+  // by day, while only explicitly scene-scoped conditions clear at scene end.
   const crits = useCharacterCollection<Critical>('criticals', c.criticals);
   const [, setCondMap] = useStoredState<Record<string, number>>(
     characterKey(id, 'conditions'),
@@ -85,28 +84,23 @@ export const WoundsScreen: React.FC = () => {
   const [criticalActionPending, setCriticalActionPending] = useState(false);
 
   const endOfScene = async () => {
-    if (endOfSceneRef.current || criticalActionRef.current) return;
-    let summary: NativeEndOfSceneSummary = { healed: 0, removedConditions: 0 };
+    if (endOfSceneRef.current) return;
+    let summary: NativeSceneEndResult = {
+      conditions: {},
+      clearedConditions: 0,
+      clearedStacks: 0,
+    };
     endOfSceneRef.current = true;
-    criticalActionRef.current = true;
     setEndingScene(true);
-    setCriticalActionPending(true);
     const durability = await (async () => {
       try {
-        return await runStoredTransaction(() => {
-          // Fortune refresh, critical healing, and condition clocks are one logical
-          // scene transition and must survive a crash together.
-          summary = applyNativeEndOfSceneUpdates({
-            refreshFortune: vitals.refreshFortune,
-            replaceCriticals: crits.replace,
-            updateConditions: setCondMap,
-          });
+        return await setCondMap((previous) => {
+          summary = clearNativeSceneEndConditions(previous);
+          return summary.conditions;
         });
       } finally {
         endOfSceneRef.current = false;
-        criticalActionRef.current = false;
         setEndingScene(false);
-        setCriticalActionPending(false);
       }
     })();
     if (!durability.ok) {
@@ -116,10 +110,38 @@ export const WoundsScreen: React.FC = () => {
 
     Alert.alert(
       'End of scene',
-      `Fortune refreshed to ${vitals.fate}.\n` +
-      `${summary.healed} critical${summary.healed === 1 ? '' : 's'} healed.\n` +
-      `${summary.removedConditions} condition${summary.removedConditions === 1 ? '' : 's'} cleared, the rest tick down by 1.`,
+      summary.clearedConditions > 0
+        ? `Cleared ${summary.clearedStacks} Surprised stack${summary.clearedStacks === 1 ? '' : 's'}. Other conditions, Fortune, and healing days were not changed.`
+        : 'No active conditions use the scene-end clock. Fortune and healing days were not changed.',
     );
+  };
+
+  const advanceHealingDay = async () => {
+    if (criticalActionRef.current) return;
+    if (crits.items.length === 0) {
+      Alert.alert('Advance healing day', 'No active critical wounds to advance.');
+      return;
+    }
+    criticalActionRef.current = true;
+    setCriticalActionPending(true);
+    let result = advanceNativeCriticalHealingDay(crits.items);
+    try {
+      const durability = await crits.replace((current) => {
+        result = advanceNativeCriticalHealingDay(current);
+        return result.criticals;
+      });
+      if (!durability.ok) {
+        Alert.alert('Could not advance healing', durability.error.message);
+        return;
+      }
+      Alert.alert(
+        'Healing day advanced',
+        `${result.criticals.length} critical${result.criticals.length === 1 ? '' : 's'} still healing; ${result.healed} resolved. Scene conditions and Fortune were not changed.`,
+      );
+    } finally {
+      criticalActionRef.current = false;
+      setCriticalActionPending(false);
+    }
   };
 
   const addCritical = async () => {
@@ -207,7 +229,7 @@ export const WoundsScreen: React.FC = () => {
             <Text style={[styles.bigEmpire, tabular]}>{wounds}</Text>
             <Text style={styles.bigFrac}>/ {woundsMax}</Text>
             <View style={{ flex: 1 }} />
-            <Stepper value={wounds} min={0} max={woundsMax} onChange={setWounds} />
+            <Stepper accessibilityLabel="Current wounds" value={wounds} min={0} max={woundsMax} onChange={setWounds} />
           </View>
           <Bar value={woundsMax > 0 ? wounds / woundsMax : 0} variant="empire" large style={{ marginTop: 14 }} />
           <View style={[layoutStyles.rowBetween, { marginTop: 8 }]}>
@@ -237,9 +259,17 @@ export const WoundsScreen: React.FC = () => {
               iconLeft={<Icon name="flame" size={13} color={colors.ink} />}
               style={{ alignSelf: 'stretch' }}
               onPress={endOfScene}
-              disabled={endingScene || criticalActionPending}
+              disabled={endingScene}
             >
-              {endingScene ? 'Ending scene…' : 'End of scene'}
+              {endingScene ? 'Ending scene…' : 'End of scene (scene conditions)'}
+            </Button>
+            <Button
+              iconLeft={<Icon name="heart" size={13} color={colors.ink} />}
+              style={{ alignSelf: 'stretch' }}
+              onPress={advanceHealingDay}
+              disabled={criticalActionPending}
+            >
+              {criticalActionPending ? 'Saving critical wounds…' : 'Advance healing day'}
             </Button>
           </View>
         </Card>
@@ -288,6 +318,7 @@ export const WoundsScreen: React.FC = () => {
                 <Button
                   variant="ghost"
                   iconLeft={<Icon name="check" size={13} color={colors.success} />}
+                  accessibilityLabel={`Resolve ${cr.name} critical wound`}
                   onPress={() => resolveCritical(i)}
                   disabled={criticalActionPending}
                 >{''}</Button>
@@ -297,7 +328,7 @@ export const WoundsScreen: React.FC = () => {
           {crits.items.length === 0 ? (
             <TableRow last>
               <Cell flex={1} textStyle={{ color: colors.ink3, fontStyle: 'italic' }}>
-                No active criticals. End of scene ticks down healing days.
+                No active criticals. "Advance healing day" ticks down healing days.
               </Cell>
             </TableRow>
           ) : null}

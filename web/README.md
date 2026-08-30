@@ -2,7 +2,7 @@
 
 A grimdark fantasy RPG character companion, rebuilt as a **plain React + Vite static site** — no iOS/Android dependency. It ships as static files (`pnpm build`) you can host anywhere, and its authored rules content lives in editable JSON so spells, races, careers, the XP economy, character creation, and even the starter characters can be added, removed, or rebalanced **without touching code or rebuilding**. Small built-in fallbacks keep incomplete packs usable and are identified as approximate where they supply rule details.
 
-This is a port of the original Expo/React-Native app (kept at the repo root). Same parchment look, same screens, same rules — now in the browser, and far more configurable.
+This is a browser counterpart to the Expo/React-Native app kept at the repo root. It shares the parchment look and main character-companion workflows, while the web build also provides a content editor and a more extensively configurable rules runtime.
 
 ---
 
@@ -17,6 +17,8 @@ pnpm preview    # serve the production build locally
 pnpm tsc        # type-check the app (test files run under Vitest, see below)
 pnpm lint       # ESLint (typescript-eslint + react-hooks)
 pnpm test       # run the unit suite once (Vitest)
+pnpm test:coverage # run the full suite with V8 coverage reports under coverage/
+pnpm test:native # focused root-native regressions through this Vitest toolchain
 pnpm test:watch # run the unit suite in watch mode
 ```
 
@@ -274,6 +276,7 @@ The `system` section in `core-rules.json` defines the *mechanics*, not just the 
 - **`formulas`** are arithmetic expressions evaluated against the live characteristics. Each characteristic is available by key (`s` = current value, `sb` = bonus) and by short name (`S`, `SB`). Supported: `+ - * / %`, comparisons, `cond ? a : b`, `floor/ceil/round/abs/min/max`. A d20-style game could set `"bonus": "floor((value - 10) / 2)"`.
 - The **`characteristics` roster is open** — keys are no longer restricted to the WFRP ten, so a pack can ship `str/dex/con/int/wis/cha` and reference them in formulas.
 - **Weapon `dmg` strings are formulas too** (`"SB+4"`), evaluated live against the bonuses.
+- **`combat.rangedGroupPattern` is safety-checked and bounded.** Literal alternatives such as `bow|cross|sling` and ordinary anchored groups are supported; lookarounds, backreferences, nested/ambiguous repetition, oversized bounds, and patterns longer than 256 characters are rejected at import.
 - Roll **tables** may declare their own `"dice": { "count": 2, "sides": 6 }` (default 1d100).
 
 ### How combat, magic & faith resolve
@@ -315,9 +318,9 @@ In `core-characters.json`, the `characters` array holds full character templates
 
 ## Tests & data migrations
 
-A [Vitest](https://vitest.dev) suite covers the rules-critical pure logic and the QA-sensitive UI flows: the d100/dice **roll engine** (`src/utils/roll.ts`), the **formula evaluator** (`src/utils/formula.ts`), **combat resolution** (`src/utils/combat.ts` — hit location, armour soak, the 0-Wounds Critical, Advantage, Opposed tests, weapon distance, and quality-aware damage), **spellcasting** (`src/utils/magic.ts` — SL-vs-CN and Overcasting), **advancement** (`src/utils/advancement.ts` — talent caps, non-career pricing), **character creation** (`src/utils/creation.ts` plus `NewCharScreen.test.tsx`), **separate recovery clocks** (`src/utils/recovery.ts`), **critical tables** (`src/content/tables.ts`), the **persistence store** (`src/hooks/storageCore.ts`), **content-pack validation** (`src/content/validate.ts`), scoped **Settings exports**, reference history, accessible fields/condition help, and **storage migrations** (`src/storage/migrations.ts`). Run it with `pnpm test` (or `pnpm test:watch`).
+A [Vitest](https://vitest.dev) suite covers the rules-critical pure logic and the QA-sensitive UI flows: the d100/dice **roll engine** (`src/utils/roll.ts`), the **formula evaluator** (`src/utils/formula.ts`), **combat resolution** (`src/utils/combat.ts` — hit location, armour soak, the 0-Wounds Critical, Advantage, Opposed tests, weapon distance, and quality-aware damage), **spellcasting** (`src/utils/magic.ts` — SL-vs-CN and Overcasting), **advancement** (`src/utils/advancement.ts` — talent caps, non-career pricing), **character creation** (`src/utils/creation.ts` plus `NewCharScreen.test.tsx`), **separate recovery clocks** (`src/utils/recovery.ts`), **critical tables** (`src/content/tables.ts`), the **persistence store** (`src/hooks/storageCore.ts`), bounded content regular expressions and **content-pack validation** (`src/content/validate.ts`), scoped **Settings exports**, reference history, accessible fields/listbox behavior, and **storage migrations** (`src/storage/migrations.ts`). Run it with `pnpm test` (or `pnpm test:watch`).
 
-Tests live next to the code they cover as `*.test.ts` or `*.test.tsx`. They're **excluded from `pnpm tsc`** (which type-checks only the app) because some use Node APIs (`node:fs`) or a per-file jsdom environment; Vitest transforms and runs them itself, so both `pnpm tsc` and `pnpm test` stay green.
+Tests live next to the code they cover as `*.test.ts` or `*.test.tsx`. They're **excluded from `pnpm tsc`** (which type-checks only the app) because some use Node APIs (`node:fs`) or a per-file jsdom environment; Vitest transforms and runs them itself, so both `pnpm tsc` and `pnpm test` stay green. `pnpm test:coverage` writes ignored text/JSON V8 reports under `coverage/`. `pnpm test:native` is the focused React-Native CI lane: it imports platform-neutral native storage, roll, and control-accessibility modules through this workspace's Vitest installation rather than running the full web suite. Native React-Native screen TSX is outside the web runner's coverage report and still requires the native typecheck, Expo export, and device/simulator smoke coverage described in the root README.
 
 **Storage migrations.** All player data is stored as `gc.*` JSON keys in `localStorage`. `runStorageMigrations()` (called once in `main.tsx` before React renders) stamps and versions that data, so a future breaking change to a data shape can *rewrite* existing saves rather than silently hydrating them as the wrong shape. The migration table is empty today on purpose — the framework ships one release ahead of the first breaking change so it's proven before anything depends on it.
 
@@ -325,17 +328,20 @@ Tests live next to the code they cover as `*.test.ts` or `*.test.tsx`. They're *
 
 **Settings** provides full data portability:
 
-- **This char** — exports only the active character's `gc.<id>.*` overlays, the active-character pointer, and that character's definition when it is custom. It deliberately excludes global notes, filters/settings, reference history, and imported content packs because those stores cannot be attributed safely to one character. If the character depends on homebrew content, install the same pack separately on the destination.
-- **All** — exports every `gc.*` key, including the whole roster and all live overlays plus global notes, settings/filters, recent-reference history, character-creation draft state, and imported content packs. Review this broader file before sharing it.
-- **Import data** — loads matching keys from a `grimcomp.v1` export and then reloads. Custom-character definitions are merged with the destination roster; incoming values replace other matching keys.
+- **This char** — exports only the active character's `gc.<id>.*` overlays, the active-character pointer, and that character's definition when it is custom. It deliberately excludes global notes, filters/settings, reference history, and content packs. If the selected character's template depends on an imported or edited pack, this narrow export is refused; use **All** so the defining content travels with it.
+- **All** — exports the whole roster and all live overlays plus global notes, settings/filters, recent-reference history, and imported/edited content packs. In-progress character-creation draft/step state stays local because its runtime shape differs between web and native. Review this broader file before sharing it.
+- **Import data** — validates and applies matching keys from a `grimcomp.v1` export as one recoverable transaction, then offers a reload. Custom-character definitions are merged with the destination roster; incoming values replace other matching keys.
 - **Content packs** — import/paste homebrew packs, toggle them, or remove them.
 - **Reset local data** — wipe everything and start fresh.
+
+Portable web/native backups share a 960 KiB UTF-8 file limit. The cap leaves the 4 MiB crash-recovery journal room for JSON-escaped before- and after-images. Export refuses to create a file over the matching import cap, and import validates the exact post-import roster before publishing anything.
 
 ## Everyday UI behavior
 
 - The rail and Characters roster read live character overlays, so Fate/Fortune, wounds, XP, identity, and career changes update without a reload.
-- **Search** in the app bar and Reference screen searches the loaded offline rules. Reference's **Recently viewed** list is populated by entries opened from that screen's search; it is not seeded with sample history.
+- **Search** in the app bar and Reference screen searches the loaded offline rules. Its result list is one keyboard tab stop: Arrow Up/Down and Home/End move the active option, while Enter/Space opens it. Reference's **Recently viewed** list is populated by entries opened from that screen's search; it is not seeded with sample history.
 - **Trappings → Edit wealth** edits the active character's denominations from `system.currency.units`; the base-unit total updates from those persisted values.
+- Magic, Faith, XP, content, and inventory mutation flows withhold success feedback until storage confirms the write and ignore duplicate activation while a save is pending. Stale weapon, armour, and Trappings editors refuse to update a different item after a cross-tab reorder or conflict.
 - Bounded steppers disable their decrease/increase controls at the minimum/maximum. Form labels, choice-group state, modal focus handling, and the Settings XP-mode selection are exposed to keyboard and assistive-technology users.
 
 ---
@@ -349,7 +355,7 @@ web/
 │   ├── content/         ← pack types, validator, registry, runtime loader, React provider + hooks
 │   ├── data/            ← character TYPES + nav structure (no game data — that's in JSON)
 │   ├── hooks/           ← persisted state (localStorage), per-character domain hooks
-│   ├── storage/         ← versioned localStorage migrations (run once at boot)
+│   ├── storage/         ← localStorage adapter, recovery, migrations, boot gate, cross-tab sync
 │   ├── components/      ← UI kit (Card, Table, Stepper, Icon, HitLocationFigure, …)
 │   ├── screens/         ← the 18 screens + ScreenContainer
 │   ├── ui/              ← Alert dialog system

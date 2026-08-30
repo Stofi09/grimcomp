@@ -87,6 +87,21 @@ describe('validatePack — unit', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
+  it('rejects backtracking-prone combat patterns before they reach rendering', () => {
+    const { pack, errors } = validatePack({
+      $schema: 'grimcomp.content.v2',
+      id: 'unsafe-regex',
+      name: 'Unsafe regex',
+      version: '1',
+      system: { combat: { rangedGroupPattern: '(a+)+$' } },
+    });
+
+    expect(pack).toBeUndefined();
+    expect(errors).toEqual(expect.arrayContaining([
+      expect.stringContaining('rangedGroupPattern'),
+    ]));
+  });
+
   it('rejects blank pack identity fields', () => {
     const { pack, errors } = validatePack({
       $schema: 'grimcomp.content.v2', id: ' ', name: '\t', version: '',

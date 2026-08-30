@@ -27,6 +27,8 @@ export const FaithScreen: React.FC = () => {
   const { list: chars } = useCharacteristics();
   const { modifier: condMod } = useConditions();
   const [sin, setSin] = useStoredState(characterKey(id, 'sin'), 0);
+  const prayerActionRef = React.useRef(false);
+  const [prayerPending, setPrayerPending] = React.useState(false);
 
   const prayers = useResolvePrayers(c.knownPrayers ?? []);
   const wrathTable = useTable('wrath');
@@ -34,7 +36,8 @@ export const FaithScreen: React.FC = () => {
   const praySkill = c.skills.find(s => s.name === 'Pray');
   const prayTarget = fel.current + (praySkill?.adv ?? 0);
 
-  const pray = (prayer: Prayer) => {
+  const pray = async (prayer: Prayer) => {
+    if (prayerActionRef.current) return;
     const r = resolveTest({ target: prayTarget, modifier: condMod.total, label: `Pray ${prayer.name}` });
     // Wrath of the Gods: on ANY Pray test whose units die ≤ current Sin Points
     // (WFRP 4e), regardless of pass/fail. Add +10 per Sin to the roll, then
@@ -45,10 +48,26 @@ export const FaithScreen: React.FC = () => {
     if (wrathTriggered) {
       const wRoll = Math.min(100, rollD100() + 10 * sin);
       const wrath = rollOnTable(wrathTable, wRoll);
-      setSin(s => Math.max(0, s - 1));
       const effectLine = r.success
         ? `\n\nThe prayer is still answered: ${prayer.description}`
         : `\n\nThe prayer falters.`;
+      prayerActionRef.current = true;
+      setPrayerPending(true);
+      const durability = await (async () => {
+        try {
+          return await setSin(s => Math.max(0, s - 1));
+        } finally {
+          prayerActionRef.current = false;
+          setPrayerPending(false);
+        }
+      })();
+      if (!durability.ok) {
+        Alert.alert(
+          'Could not record Wrath',
+          `The prayer result was discarded because the Sin change could not be saved. ${durability.error.message}`,
+        );
+        return;
+      }
       Alert.alert(
         `${prayer.name} — Wrath of the Gods`,
         `${formatTestResult(r)}${effectLine}\n\nWrath (${wRoll}):\n${wrath}\n\n−1 Sin (now ${Math.max(0, sin - 1)}).`,
@@ -86,7 +105,7 @@ export const FaithScreen: React.FC = () => {
               Sin points accumulate when dogma is broken. Thresholds carry penalties.
             </Text>
             <View style={styles.controls}>
-              <Stepper value={sin} min={0} max={10} onChange={setSin} />
+              <Stepper accessibilityLabel="Sin" value={sin} min={0} max={10} onChange={setSin} />
               <Button
                 variant="ghost"
                 iconLeft={<Icon name="info" size={12} color={colors.ink2} />}
@@ -145,7 +164,7 @@ export const FaithScreen: React.FC = () => {
             Sin from broken dogma. Each Pray test risks Wrath when the units die ≤ your Sin ({sin}).
           </Text>
           <View style={styles.controls}>
-            <Stepper value={sin} min={0} max={10} onChange={setSin} />
+            <Stepper accessibilityLabel="Sin" value={sin} min={0} max={10} onChange={setSin} />
             <Button
               variant="ghost"
               iconLeft={<Icon name="info" size={12} color={colors.ink2} />}
@@ -198,7 +217,9 @@ export const FaithScreen: React.FC = () => {
                 <Button
                   variant="ghost"
                   iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
+                  accessibilityLabel={`Pray ${p.name}`}
                   onPress={() => pray(p)}
+                  disabled={prayerPending}
                 >{''}</Button>
               </Cell>
             </TableRow>

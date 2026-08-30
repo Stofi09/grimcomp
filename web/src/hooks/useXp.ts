@@ -7,6 +7,7 @@ import { useRoster } from './useRoster';
 import { useXpRule } from './useSettings';
 import { useContent } from '@/content/useContent';
 import { type XpKind, type Character } from '@/data/character';
+import type { StorageCommitResult } from './storageCore';
 
 export interface XpEntry {
   date: string;
@@ -38,6 +39,8 @@ const today = () => {
 export interface XpResult {
   ok: boolean;
   message: string;
+  /** Present when the request reached the durable storage transaction. */
+  completion?: Promise<StorageCommitResult>;
 }
 
 export function useXp() {
@@ -59,7 +62,7 @@ export function useXp() {
   ): XpResult => {
     if (amount <= 0) return { ok: false, message: 'Cost must be positive.' };
     let result: XpResult = { ok: false, message: '' };
-    setState(prev => {
+    const ticket = setState(prev => {
       // Strict mode (default): refuse overdraft. Flexible mode: allow it,
       // taking spendable into the negative — the alert tells the user that
       // they're now in debt with the GM.
@@ -84,16 +87,20 @@ export function useXp() {
       };
       return { current: remaining, spent: prev.spent + amount, log: [entry, ...prev.log] };
     });
-    return result;
+    return { ...result, completion: ticket.completion };
   }, [setState, xpRule]);
 
   const gain = useCallback((amount: number, reason: string, kind: XpKind = 'gain'): XpResult => {
     if (amount <= 0) return { ok: false, message: 'Amount must be positive.' };
-    setState(prev => {
+    const ticket = setState(prev => {
       const entry: XpEntry = { date: today(), reason, amount: +amount, kind };
       return { current: prev.current + amount, spent: prev.spent, log: [entry, ...prev.log] };
     });
-    return { ok: true, message: `Gained ${amount} XP — ${reason}.` };
+    return {
+      ok: true,
+      message: `Gained ${amount} XP — ${reason}.`,
+      completion: ticket.completion,
+    };
   }, [setState]);
 
   const refund = useCallback((
@@ -105,7 +112,7 @@ export function useXp() {
   ): XpResult => {
     if (amount <= 0) return { ok: false, message: 'Amount must be positive.' };
     let result: XpResult = { ok: false, message: '' };
-    setState(prev => {
+    const ticket = setState(prev => {
       const idx = prev.log.findIndex(e => (
         e.kind === kind
         && e.amount === -amount
@@ -125,7 +132,7 @@ export function useXp() {
       result = { ok: true, message: `Refunded ${amount} XP.` };
       return { current: prev.current + amount, spent: Math.max(0, prev.spent - amount), log };
     });
-    return result;
+    return { ...result, completion: ticket.completion };
   }, [setState]);
 
   return { ...state, total: state.current + state.spent, spend, gain, refund };

@@ -35,7 +35,7 @@ export function useContentEdits() {
   const [pack, setPack] = useStoredState<ContentPack>(KEY, emptyPack());
 
   // Upsert an entry into a section (override-by-id), clearing any tombstone.
-  const upsertEntry = useCallback((section: EditableSection, entry: Entry) => {
+  const upsertEntry = useCallback((section: EditableSection, entry: Entry) => (
     setPack(prev => {
       const p = { ...(prev as unknown as Record<string, unknown>) };
       const list = Array.isArray(p[section]) ? [...(p[section] as Entry[])] : [];
@@ -46,11 +46,32 @@ export function useContentEdits() {
       if (deletions[section]) deletions[section] = deletions[section].filter(id => id !== entry.id);
       p.deletions = deletions;
       return prune(p) as unknown as ContentPack;
-    });
-  }, [setPack]);
+    })
+  ), [setPack]);
+
+  // Rename under one functional update so the new entry and old-id tombstone
+  // cannot commit independently.
+  const renameEntry = useCallback((section: EditableSection, oldId: string, entry: Entry) => (
+    setPack(prev => {
+      const p = { ...(prev as unknown as Record<string, unknown>) };
+      const list = Array.isArray(p[section])
+        ? (p[section] as Entry[]).filter(candidate => candidate.id !== oldId)
+        : [];
+      const existing = list.findIndex(candidate => candidate.id === entry.id);
+      if (existing >= 0) list[existing] = entry;
+      else list.push(entry);
+      p[section] = list;
+      const deletions = { ...((p.deletions as Record<string, string[]>) ?? {}) };
+      deletions[section] = [
+        ...new Set([...(deletions[section] ?? []).filter(id => id !== entry.id), oldId]),
+      ];
+      p.deletions = deletions;
+      return prune(p) as unknown as ContentPack;
+    })
+  ), [setPack]);
 
   // Tombstone an id (and drop any local override of it).
-  const deleteEntry = useCallback((section: EditableSection, id: string) => {
+  const deleteEntry = useCallback((section: EditableSection, id: string) => (
     setPack(prev => {
       const p = { ...(prev as unknown as Record<string, unknown>) };
       if (Array.isArray(p[section])) p[section] = (p[section] as Entry[]).filter(e => e.id !== id);
@@ -58,12 +79,12 @@ export function useContentEdits() {
       deletions[section] = [...new Set([...(deletions[section] ?? []), id])];
       p.deletions = deletions;
       return prune(p) as unknown as ContentPack;
-    });
-  }, [setPack]);
+    })
+  ), [setPack]);
 
   // Drop a local override and any tombstone, restoring the bundled entry (or
   // removing a purely-custom one).
-  const revertEntry = useCallback((section: EditableSection, id: string) => {
+  const revertEntry = useCallback((section: EditableSection, id: string) => (
     setPack(prev => {
       const p = { ...(prev as unknown as Record<string, unknown>) };
       if (Array.isArray(p[section])) p[section] = (p[section] as Entry[]).filter(e => e.id !== id);
@@ -71,10 +92,10 @@ export function useContentEdits() {
       if (deletions[section]) deletions[section] = deletions[section].filter(d => d !== id);
       p.deletions = deletions;
       return prune(p) as unknown as ContentPack;
-    });
-  }, [setPack]);
+    })
+  ), [setPack]);
 
   const resetAll = useCallback(() => setPack(emptyPack()), [setPack]);
 
-  return { pack, upsertEntry, deleteEntry, revertEntry, resetAll };
+  return { pack, upsertEntry, renameEntry, deleteEntry, revertEntry, resetAll };
 }

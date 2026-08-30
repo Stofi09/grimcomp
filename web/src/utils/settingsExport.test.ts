@@ -1,4 +1,5 @@
 import {
+  MAX_SETTINGS_BACKUP_FILE_BYTES,
   STORAGE_TRANSACTION_JOURNAL_KEY,
   createStorageCoordinator,
   type RawAsyncKeyValue,
@@ -19,9 +20,11 @@ import {
   wipeGrimCompanionStorage,
 } from './settingsExport';
 import { MAX_STORED_CONTENT_PACKS } from '@/content/storedContentPacks';
+import { validateNativeSettingsImport } from '../../../src/storage/nativeDataValidation';
 
 interface FaultBackend extends StorageBackend {
   readonly store: Map<string, string>;
+  readonly journalWrites: string[];
   failNextSetFor: string | null;
   failNextRemoveFor: string | null;
 }
@@ -30,6 +33,7 @@ function makeBackend(): FaultBackend {
   const store = new Map<string, string>();
   const backend: FaultBackend = {
     store,
+    journalWrites: [],
     failNextSetFor: null,
     failNextRemoveFor: null,
     getItem: (key) => store.get(key) ?? null,
@@ -39,6 +43,7 @@ function makeBackend(): FaultBackend {
         throw new Error(`injected set fault for ${key}`);
       }
       store.set(key, value);
+      if (key === STORAGE_TRANSACTION_JOURNAL_KEY) backend.journalWrites.push(value);
     },
     removeItem: (key) => {
       if (backend.failNextRemoveFor === key) {
@@ -335,6 +340,46 @@ describe('settings export snapshot', () => {
     )) as Record<string, unknown>;
     expect(parsed['gc.future.extension']).toEqual({ version: 7, payload: ['kept'] });
   });
+
+  it('omits web creation progress so a roster backup passes native validation', async () => {
+    backend.setItem('gc.activeCharId', JSON.stringify('c1'));
+    backend.setItem('gc.c1.wounds', JSON.stringify(7));
+    backend.setItem('gc.newchar.step', JSON.stringify(7));
+    backend.setItem('gc.newchar.draft', JSON.stringify({
+      name: 'Marta',
+      species: 'Human',
+      careerId: 'car.roadwarden',
+      extraToFate: 0,
+      speciesRandom: false,
+      careerMode: 'choose',
+      careerChoices: [],
+      inits: {},
+    }));
+
+    expect(grimCompanionStorageKeys(backend)).not.toContain('gc.newchar.step');
+    expect(grimCompanionStorageKeys(backend)).not.toContain('gc.newchar.draft');
+    const parsed = JSON.parse(await buildSettingsExport('roster', 'c1', 'Elsa', {
+      backend,
+      core,
+      bundledContentPacks: [packWithCharacter(validCustomCharacter('c1'))],
+    })) as Record<string, unknown>;
+
+    expect(parsed).not.toHaveProperty('gc.newchar.step');
+    expect(parsed).not.toHaveProperty('gc.newchar.draft');
+    expect(validateNativeSettingsImport(parsed, {
+      availableCharacterIds: new Set(['c1']),
+    })).toMatchObject({ ok: true, keyCount: 2 });
+  });
+
+  it('refuses to create a web backup over the shared import-file cap', async () => {
+    backend.setItem('gc.future.payload', JSON.stringify('a'.repeat(4 * 1024 * 1024)));
+
+    await expect(buildSettingsExport('roster', 'c1', 'Elsa', {
+      backend,
+      core,
+      bundledContentPacks: [packWithCharacter(validCustomCharacter('c1'))],
+    })).rejects.toThrow(/larger than the 960 KiB import limit/iu);
+  });
 });
 
 describe('journaled settings import and reset', () => {
@@ -343,6 +388,33 @@ describe('journaled settings import and reset', () => {
   beforeEach(async () => {
     backend = makeBackend();
     ({ core } = await makeCore(backend));
+  });
+
+  it('commits an escape-heavy portable backup while preserving journal headroom', async () => {
+    const repetitions = Math.floor(MAX_SETTINGS_BACKUP_FILE_BYTES / 5);
+    const incoming = '"\\'.repeat(repetitions);
+    const previous = '\\"'.repeat(repetitions);
+    const sourceBackend = makeBackend();
+    sourceBackend.setItem(STORAGE_VERSION_KEY, JSON.stringify(STORAGE_VERSION));
+    sourceBackend.setItem('gc.future.payload', JSON.stringify(incoming));
+    const { core: sourceCore } = await makeCore(sourceBackend);
+    const exported = await buildSettingsExport('roster', 'c1', 'Elsa', {
+      backend: sourceBackend,
+      core: sourceCore,
+      bundledContentPacks: [packWithCharacter(validCustomCharacter('c1'))],
+    });
+    backend.setItem('gc.future.payload', JSON.stringify(previous));
+
+    expect(exported.length).toBeGreaterThan(MAX_SETTINGS_BACKUP_FILE_BYTES * 0.75);
+    const result = await applySettingsImport(
+      JSON.parse(exported) as Record<string, unknown>,
+      { core },
+    ).completion;
+
+    expect(result).toMatchObject({ ok: true, outcome: 'committed' });
+    expect(backend.journalWrites).toHaveLength(1);
+    expect(backend.getItem(STORAGE_TRANSACTION_JOURNAL_KEY)).toBeNull();
+    expect(backend.getItem('gc.future.payload')).toBe(JSON.stringify(incoming));
   });
 
   it('merges custom characters', async () => {

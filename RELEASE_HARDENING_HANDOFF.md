@@ -1,20 +1,38 @@
 # Release-hardening handoff
 
-Finalized on 2026-08-30 after the user resumed the work. This document supersedes the stop-point handoff written on 2026-08-29.
+Updated on 2026-08-30 after an additional implementation-review pass. This document supersedes the stop-point handoff written on 2026-08-29.
 
 ## Executive outcome
 
 - Branch: `codex/release-hardening`
 - Base: `origin/main` at `e86d3fc`
-- Implementation HEAD before this document commit: `15ce519`
-- Branch state before this document commit: 11 commits ahead of `origin/main`; only this handoff file remained untracked
-- Aggregate branch diff before this document commit: 167 files, 34,420 insertions, 1,502 deletions
-- Final web suite: 58/58 files and 722/722 tests passed
+- Continuation base: `981a3bf` (12 commits ahead of `origin/main` before this commit)
+- Continuation state: reviewed and committed locally in the commit containing this handoff update
+- Original finalized branch diff before the handoff commit: 167 files, 34,420 insertions, 1,502 deletions
+- Final web suite: 65/65 files and 772/772 tests passed
+- Focused native lane: 6/6 files and 100/100 tests passed
+- Final V8 coverage: 77.67% statements, 68.88% branches, 77.47% functions, and 81.30% lines
 - Root, core, and web TypeScript checks passed
 - Web ESLint, production build, package-boundary check, scratch-file gate, iOS configuration audit, and `git diff --check` passed
+- A local Expo iOS export bundled 768 modules successfully
 - No branch was pushed, no PR was opened, and nothing was deployed, submitted, or released
 
-The implementation work requested in the original six-phase plan is complete locally. A real-device/native smoke test, a real multi-tab browser smoke test, code review, push/PR, and release submission remain operational follow-ups rather than unfinished implementation.
+The implementation work requested in the original six-phase plan and the continuation review is complete locally. A fresh two-tab browser bootstrap/navigation-sync smoke and a live keyboard-listbox exercise passed with no console warnings or errors. A real-device/native smoke test, deeper concurrent-edit/import/recovery browser exercises, code review, push/PR, and release submission remain operational follow-ups rather than unfinished implementation.
+
+## Continuation review on 2026-08-30
+
+The post-handoff audit found and repaired additional edge cases:
+
+- Magic, Faith, Trappings, XP awards, and content-editor mutations now wait for confirmed persistence, suppress rapid duplicate actions, roll back on injected write failure, and withhold success feedback on failure.
+- Content entry renames now commit the replacement and old-ID tombstone in one atomic update.
+- Native scene, session, and day clocks are separated: ending a scene clears only `Surprised`; critical healing has its own durable “Advance healing day” action; Fortune is not refreshed by either action.
+- Native automatic failures can no longer report a positive Success Level.
+- Web Trappings, weapon, and armour editors now relocate structurally identical selections after cross-tab reorders and refuse to mutate a different entry after a conflicting edit/removal.
+- Web/native backups now share the `grimcomp.v1` schema and 960 KiB UTF-8 file limit, omit incompatible platform-local character-creation drafts, and refuse to produce a file over the matching import cap. The cap reserves journal space for escaped before- and after-images during transactional import.
+- Pack-authored combat regular expressions are bounded and reject backtracking-prone constructs before execution.
+- Global reference results now expose one keyboard-operable ARIA listbox, while native Buttons and Steppers have contextual semantics and genuine 44-point Stepper targets.
+- Native CI now watches native source, shared-core, release-config, asset, and focused-harness paths; it installs the isolated web harness, runs the native regression lane, and performs an iOS Expo export.
+- Seven new test files plus expanded regressions cover the repaired durability, clock, roll, portability, concurrency, regex, accessibility, and CI paths.
 
 ## Direction changes and chronology
 
@@ -26,6 +44,7 @@ The implementation work requested in the original six-phase plan is complete loc
 6. The user later said `continue`. Work resumed from that handoff rather than restarting or discarding anything.
 7. The remaining web, native, gameplay, compatibility, content/import, recovery, and test work was completed. Independent read-only audits found several last-edge cases; each production-path blocker was repaired and covered before the final matrix was run.
 8. The completed changes were committed in dependency order with explicit path staging. No blanket staging, destructive Git command, push, or deployment was used.
+9. A later continuation review audited implementation, tests, and UX in parallel, repaired the additional issues listed above, reran the complete matrix, exported the iOS bundle, and performed a fresh two-tab browser smoke. The reviewed continuation changes were then committed locally with this handoff update.
 
 ## Research and resulting design decisions
 
@@ -134,13 +153,18 @@ Important findings from the final audits and how they were resolved:
 - Grouped roster deletion, every known character overlay removal, and active-character fallback.
 - Grouped hit resolution across Wounds, Advantage, and generated criticals.
 - Grouped cheat death across Fate and Wounds.
-- Grouped native end-of-scene Fortune refresh, critical healing, and condition ticking.
+- Separated native scene, session, and healing-day clocks so scene end clears only `Surprised`, while critical healing advances through its own durable day action and Fortune remains session-scoped.
 - Made wounds, criticals, recovery, weapon/armour, content, and roster success feedback wait for confirmed durability.
+- Made Magic, Faith, Trappings, XP awards, and content edits wait for confirmed durability and reject duplicate in-flight actions.
+- Made content renames atomic and corrected native auto-failure Success Level signs.
+- Made web inventory editors resolve stable item identities against the latest cross-tab state.
+- Unified portable-backup schema/size rules and excluded platform-local draft shapes.
+- Added bounded content-regex execution, keyboard listbox behavior, and native control semantics/touch targets.
 - Added success, grouping, stale-update, duplicate-action, mid-write failure, rollback, and UI regression tests.
 
 ## Implementation commit ledger
 
-The implementation commits after `origin/main` are listed below, oldest first; the handoff document is committed separately after this ledger:
+The committed work after `origin/main` is listed below, oldest first:
 
 1. `8ffee68 chore: checkpoint in-progress web work`
 2. `faa4512 fix(talents): make rank migration finite and convergent`
@@ -153,8 +177,9 @@ The implementation commits after `origin/main` are listed below, oldest first; t
 9. `1ba67e4 feat(native): make gameplay mutations recoverable`
 10. `4f8bdff feat(web): enforce atomic storage and portable content`
 11. `15ce519 feat(gameplay): make multi-key actions durable`
+12. `981a3bf docs: finalize release-hardening handoff`
 
-The first commit is intentionally a preservation checkpoint, not an isolated release-ready unit. The later commits harden and verify that preserved feature work.
+The continuation commit containing this document follows `981a3bf` with the subject `fix: complete release-hardening follow-up`; it cannot list its own hash without changing that hash. The first commit is intentionally a preservation checkpoint, not an isolated release-ready unit. The later commits harden and verify that preserved feature work.
 
 ## Final verification ledger
 
@@ -162,15 +187,23 @@ Final commands run after the last source/test change:
 
 ```text
 pnpm --dir web test -- --reporter=dot
-  58 test files passed
-  722 tests passed
+  65 test files passed
+  772 tests passed
+
+pnpm --dir web run test:coverage
+  65 test files passed
+  772 tests passed
+  statements 77.67%; branches 68.88%; functions 77.47%; lines 81.30%
 
 pnpm --dir web build
-  192 modules transformed
+  194 modules transformed
   production build passed
 
 pnpm --dir web lint
   passed with no errors or warnings
+
+pnpm --dir web tsc
+  passed
 
 pnpm tsc
   passed
@@ -184,14 +217,22 @@ pnpm run check:core-boundary
 pnpm --dir web run check:no-scratch
   passed; no scratch files under web/src
 
+pnpm --dir web run test:native -- --reporter=dot
+  6 test files passed
+  100 tests passed
+
 pnpm run audit:ios
   passed; no configuration blockers reported
+
+pnpm exec expo export --platform ios --output-dir /tmp/grimcomp-ios-export-precommit-20260830-2231
+  768 modules bundled
+  iOS export passed
 
 git diff --check
   passed
 ```
 
-Focused suites were also repeatedly run while repairing failures. The last focused storage/settings run passed 110/110 tests; the last browser/core-storage run passed 95/95 tests; the pre-freeze release slice passed 169/169 tests. Earlier red runs were test-harness/context regressions during the conversion and were resolved before the final matrix.
+Focused suites were also repeatedly run while repairing failures. The final journal-aware Settings/import slice passed 64/64 tests; the last browser/core-storage run passed 95/95 tests; the pre-freeze release slice passed 169/169 tests; and the final focused native lane passed 100/100 tests. The last targeted report for instrumented changed paths measured 84.2% statements, 77.5% branches, 75.3% functions, and 88.5% lines. Twelve changed native React-Native TSX/hook files are outside the web V8 runner and remain covered by typechecking, the focused pure-native lane where applicable, bundle export, and the outstanding device smoke. Earlier red runs were test-harness/context regressions during the conversion and were resolved before the final matrix.
 
 ## Safety and recovery invariants now covered
 
@@ -216,14 +257,14 @@ These are explicit boundaries, not known red tests:
 - Browser recovery and the following authoritative snapshot use consecutive lock acquisitions. A new writer in the gap causes a safe failed resync/retry rather than partial publication.
 - Native coordination is per JavaScript process because the AsyncStorage adapter exposes no portable cross-process exclusive lock.
 - `localStorage` remains synchronous; the hardening bounds hostile work but does not turn it into an asynchronous database.
-- Automated tests use deterministic storage adapters and a test Web Lock. A manual two-tab browser exercise and a native simulator/device smoke test were not run in this task.
-- The iOS audit checked project configuration only; no EAS build or TestFlight submission was started.
-- No load/performance benchmark, accessibility audit, remote telemetry validation, security penetration test, push, PR, or deployment was requested or performed.
+- Automated tests use deterministic storage adapters and a test Web Lock. A fresh two-tab browser bootstrap/navigation-sync and keyboard-listbox smoke passed, but concurrent-edit, import/export, and interrupted-journal exercises still need a manual pass. A native simulator/device smoke test was not run.
+- The iOS audit and local Expo bundle export passed; no signed EAS build or TestFlight submission was started.
+- No load/performance benchmark, comprehensive screen-reader/device accessibility certification, remote telemetry validation, security penetration test, push, PR, or deployment was performed. The continuation review did include a bounded keyboard/ARIA and shared-native-control accessibility pass.
 
 ## Recommended next actions
 
-1. Review the 11-commit branch, especially the checkpoint commit plus the four final hardening commits.
-2. Run a short manual browser smoke test over HTTPS with two tabs: concurrent edits, import/export, reload recovery, and a simulated interrupted journal.
+1. Review the 12-commit baseline plus the continuation commit, especially the checkpoint commit and persistence hardening.
+2. Complete the remaining manual browser exercises over HTTPS with two tabs: concurrent edits, import/export, reload recovery, and a simulated interrupted journal.
 3. Run native smoke tests on the intended iPhone/iPad simulator or device: boot recovery, progression, roster creation/deletion, hit/critical/wounds flows, settings import/export, and reset.
 4. Push/open a PR only when explicitly authorized.
 5. Build or submit a release only after review and the manual smoke tests.

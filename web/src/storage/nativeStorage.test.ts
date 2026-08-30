@@ -22,7 +22,8 @@ import {
 } from '../../../src/storage/migrations';
 import { CHARACTER_TEMPLATES } from '../../../src/data/character';
 import {
-  applyNativeEndOfSceneUpdates,
+  advanceNativeCriticalHealingDay,
+  clearNativeSceneEndConditions,
   locateCriticalOccurrence,
   removeCriticalOccurrence,
 } from '../../../src/screens/nativeWoundsState';
@@ -1114,7 +1115,7 @@ describe('NativeStorageStore', () => {
     expect(store.read('gc.activeCharId', 'c1')).toBe(customId);
   });
 
-  it('rolls Fortune, critical healing, and condition clocks back together', async () => {
+  it('clears only scene-scoped native conditions without touching session or day clocks', async () => {
     const backend = new FakeNativeBackend();
     const vitalsKey = 'gc.c1.vitals';
     const criticalsKey = 'gc.c1.criticals';
@@ -1130,7 +1131,7 @@ describe('NativeStorageStore', () => {
       { loc: 'Head', roll: 11, name: 'Closing cut', effect: 'Nearly healed.', days: 1 },
       { loc: 'Body', roll: 55, name: 'Deep bruise', effect: 'Still painful.', days: 3 },
     ];
-    const conditions = { Bleeding: 2, Surprised: 3, Prone: 0 };
+    const conditions = { Bleeding: 2, Surprised: 3, Prone: 1 };
     const vitalsRaw = JSON.stringify(vitals);
     const criticalsRaw = JSON.stringify(criticals);
     const conditionsRaw = JSON.stringify(conditions);
@@ -1141,38 +1142,113 @@ describe('NativeStorageStore', () => {
     const store = new NativeStorageStore(backend, coordinatorFor(backend));
     expect((await store.initialize()).ready).toBe(true);
     backend.journalWrites.length = 0;
-    backend.failOnce = (key, value) => key === conditionsKey && value !== conditionsRaw;
-
-    let summary = { healed: 0, removedConditions: 0 };
-    const result = await store.runTransaction(() => {
-      summary = applyNativeEndOfSceneUpdates({
-        refreshFortune: () => store.update(vitalsKey, vitals, previous => ({
-          ...previous,
-          fortune: previous.fate,
-        })),
-        replaceCriticals: update => store.update(criticalsKey, criticals, update),
-        updateConditions: update => store.update(conditionsKey, conditions, update),
-      });
+    let summary = clearNativeSceneEndConditions(conditions);
+    const result = await store.update(conditionsKey, conditions, (previous) => {
+      summary = clearNativeSceneEndConditions(previous);
+      return summary.conditions;
     });
 
-    expect(summary).toEqual({ healed: 1, removedConditions: 1 });
-    expect(result).toMatchObject({ ok: false, outcome: 'rolled-back' });
+    expect(summary).toEqual({
+      conditions: { Bleeding: 2, Surprised: 0, Prone: 1 },
+      clearedConditions: 1,
+      clearedStacks: 3,
+    });
+    expect(result.ok).toBe(true);
     expect(backend.journalWrites).toHaveLength(1);
     const journal = JSON.parse(backend.journalWrites[0]) as {
       operations: Array<{ key: string }>;
     };
-    expect(journal.operations.map(operation => operation.key)).toEqual([
-      vitalsKey,
-      criticalsKey,
-      conditionsKey,
-    ]);
+    expect(journal.operations.map(operation => operation.key)).toEqual([conditionsKey]);
     expect(backend.values.get(vitalsKey)).toBe(vitalsRaw);
     expect(backend.values.get(criticalsKey)).toBe(criticalsRaw);
+    expect(JSON.parse(backend.values.get(conditionsKey)!)).toEqual(summary.conditions);
+  });
+
+  it('leaves other native conditions unchanged when no scene-scoped stacks remain', () => {
+    const current = { Bleeding: 2, Prone: 1 };
+
+    expect(clearNativeSceneEndConditions(current)).toEqual({
+      conditions: current,
+      clearedConditions: 0,
+      clearedStacks: 0,
+    });
+  });
+
+  it('advances critical healing as a separate durable day-clock action', async () => {
+    const backend = new FakeNativeBackend();
+    const vitalsKey = 'gc.c1.vitals';
+    const criticalsKey = 'gc.c1.criticals';
+    const conditionsKey = 'gc.c1.conditions';
+    const vitals = {
+      fate: 2,
+      fortune: 0,
+      resilience: 1,
+      resolve: 1,
+      corruption: 0,
+    };
+    const criticals = [
+      { loc: 'Head', roll: 11, name: 'Closing cut', effect: 'Nearly healed.', days: 1 },
+      { loc: 'Body', roll: 55, name: 'Deep bruise', effect: 'Still painful.', days: 3 },
+    ];
+    const conditions = { Bleeding: 2, Surprised: 3, Prone: 1 };
+    const vitalsRaw = JSON.stringify(vitals);
+    const criticalsRaw = JSON.stringify(criticals);
+    const conditionsRaw = JSON.stringify(conditions);
+    backend.values.set(NATIVE_STORAGE_VERSION_KEY, '1');
+    backend.values.set(vitalsKey, vitalsRaw);
+    backend.values.set(criticalsKey, criticalsRaw);
+    backend.values.set(conditionsKey, conditionsRaw);
+    const store = new NativeStorageStore(backend, coordinatorFor(backend));
+    expect((await store.initialize()).ready).toBe(true);
+    backend.journalWrites.length = 0;
+
+    let summary = advanceNativeCriticalHealingDay(criticals);
+    const result = await store.update(criticalsKey, criticals, (previous) => {
+      summary = advanceNativeCriticalHealingDay(previous);
+      return summary.criticals;
+    });
+
+    expect(summary).toEqual({
+      criticals: [
+        { loc: 'Body', roll: 55, name: 'Deep bruise', effect: 'Still painful.', days: 2 },
+      ],
+      healed: 1,
+    });
+    expect(result.ok).toBe(true);
+    expect(backend.journalWrites).toHaveLength(1);
+    const journal = JSON.parse(backend.journalWrites[0]) as {
+      operations: Array<{ key: string }>;
+    };
+    expect(journal.operations.map(operation => operation.key)).toEqual([criticalsKey]);
+    expect(backend.values.get(vitalsKey)).toBe(vitalsRaw);
     expect(backend.values.get(conditionsKey)).toBe(conditionsRaw);
+    expect(JSON.parse(backend.values.get(criticalsKey)!)).toEqual(summary.criticals);
+  });
+
+  it('rolls a failed native healing-day write back without changing other clocks', async () => {
+    const backend = new FakeNativeBackend();
+    const criticalsKey = 'gc.c1.criticals';
+    const criticals = [
+      { loc: 'Head', roll: 11, name: 'Closing cut', effect: 'Nearly healed.', days: 1 },
+      { loc: 'Body', roll: 55, name: 'Deep bruise', effect: 'Still painful.', days: 3 },
+    ];
+    const criticalsRaw = JSON.stringify(criticals);
+    backend.values.set(NATIVE_STORAGE_VERSION_KEY, '1');
+    backend.values.set(criticalsKey, criticalsRaw);
+    const store = new NativeStorageStore(backend, coordinatorFor(backend));
+    expect((await store.initialize()).ready).toBe(true);
+    backend.journalWrites.length = 0;
+    backend.failOnce = (key, value) => key === criticalsKey && value !== criticalsRaw;
+
+    const result = await store.update(criticalsKey, criticals, (previous) => (
+      advanceNativeCriticalHealingDay(previous).criticals
+    ));
+
+    expect(result).toMatchObject({ ok: false, outcome: 'rolled-back' });
+    expect(backend.journalWrites).toHaveLength(1);
+    expect(backend.values.get(criticalsKey)).toBe(criticalsRaw);
     expect(backend.values.has(STORAGE_TRANSACTION_JOURNAL_KEY)).toBe(false);
-    expect(store.read(vitalsKey, null)).toEqual(vitals);
     expect(store.read(criticalsKey, null)).toEqual(criticals);
-    expect(store.read(conditionsKey, null)).toEqual(conditions);
   });
 
   it('resolves only the selected occurrence among equal native criticals', () => {

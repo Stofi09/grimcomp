@@ -11,7 +11,7 @@ describe('native Settings import memory bounds', () => {
     expect(knownNativeImportSizeError(
       'oversized.json',
       MAX_NATIVE_IMPORT_FILE_BYTES + 1,
-    )).toMatch(/4 MiB import limit/u);
+    )).toMatch(/960 KiB import limit/u);
     expect(knownNativeImportSizeError('boundary.json', MAX_NATIVE_IMPORT_FILE_BYTES)).toBeNull();
     expect(knownNativeImportSizeError('unknown.json', undefined)).toBeNull();
   });
@@ -33,10 +33,30 @@ describe('native Settings import memory bounds', () => {
     expect(nativeImportTextSizeError(
       'oversized.json',
       'a'.repeat(MAX_NATIVE_IMPORT_FILE_BYTES + 1),
-    )).toMatch(/4 MiB import limit/u);
+    )).toMatch(/960 KiB import limit/u);
+    expect(nativeImportTextSizeError(
+      'multibyte.json',
+      'é'.repeat(MAX_NATIVE_IMPORT_FILE_BYTES / 2),
+    )).toBeNull();
     expect(nativeImportTextSizeError(
       'multibyte.json',
       'é'.repeat(Math.floor(MAX_NATIVE_IMPORT_FILE_BYTES / 2) + 1),
-    )).toMatch(/4 MiB import limit/u);
+    )).toMatch(/960 KiB import limit/u);
+    expect(nativeImportTextSizeError(
+      'astral-boundary.json',
+      '😀'.repeat(MAX_NATIVE_IMPORT_FILE_BYTES / 4),
+    )).toBeNull();
+    expect(nativeImportTextSizeError(
+      'astral-oversized.json',
+      `${'😀'.repeat(MAX_NATIVE_IMPORT_FILE_BYTES / 4)}a`,
+    )).toMatch(/960 KiB import limit/u);
+    expect(nativeImportTextSizeError(
+      'unpaired-surrogate-boundary.json',
+      `${'a'.repeat(MAX_NATIVE_IMPORT_FILE_BYTES - 4)}\ud800a`,
+    )).toBeNull();
+    expect(nativeImportTextSizeError(
+      'unpaired-surrogate-oversized.json',
+      `${'a'.repeat(MAX_NATIVE_IMPORT_FILE_BYTES - 3)}\ud800a`,
+    )).toMatch(/960 KiB import limit/u);
   });
 });

@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { type Trapping, type Weapon, type Armour } from '@/data/character';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useDerived } from '@/hooks/useDerived';
-import { useCharacterCollection } from '@/hooks/useCharacterCollection';
+import {
+  useCharacterCollection,
+  type CollectionItemIdentity,
+} from '@/hooks/useCharacterCollection';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useSystemRules } from '@/content/useContent';
 import { Alert } from '@/ui/alertStore';
@@ -50,30 +53,104 @@ export const TrappingsScreen: React.FC = () => {
   const encA = armour.items.reduce((a, x) => a + (x.enc ?? 0), 0);
   const enc = encItems + encW + encA;
 
-  const [editing, setEditing] = useState<{ index: number | null; draft: Trapping } | null>(null);
-  const openNew = () => setEditing({ index: null, draft: blankTrapping() });
-  const openEdit = (i: number) => setEditing({ index: i, draft: { ...trappings.items[i] } });
+  const [editing, setEditing] = useState<{
+    identity: CollectionItemIdentity | null;
+    draft: Trapping;
+  } | null>(null);
+  const itemActionRef = useRef(false);
+  const wealthActionRef = useRef(false);
+  const [itemAction, setItemAction] = useState<'save' | 'remove' | null>(null);
+  const [wealthSaving, setWealthSaving] = useState(false);
+  const openNew = () => setEditing({ identity: null, draft: blankTrapping() });
+  const openEdit = (i: number) => {
+    const identity = trappings.identify(i);
+    if (!identity) {
+      Alert.alert('Item changed', 'That item is no longer available. Review the current list and retry.');
+      return;
+    }
+    setEditing({ identity, draft: { ...trappings.items[i] } });
+  };
 
-  const save = () => {
-    if (!editing) return;
-    if (!editing.draft.name.trim()) {
+  const save = async () => {
+    if (!editing || itemActionRef.current) return;
+    const edit = editing;
+    if (!edit.draft.name.trim()) {
       Alert.alert('Name required', 'Give the item a name.');
       return;
     }
-    if (editing.index == null) trappings.add(editing.draft);
-    else trappings.update(editing.index, editing.draft);
+    itemActionRef.current = true;
+    setItemAction('save');
+    let found = true;
+    const durability = await (async () => {
+      try {
+        const ticket = edit.identity == null
+          ? trappings.add(edit.draft)
+          : (() => {
+              const mutation = trappings.updateIdentified(edit.identity, edit.draft);
+              found = mutation.found;
+              return mutation.ticket;
+            })();
+        return await ticket.completion;
+      } finally {
+        itemActionRef.current = false;
+        setItemAction(null);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not save item', durability.error.message);
+      return;
+    }
+    if (!found) {
+      Alert.alert('Item changed', 'That item changed or was removed in another tab. Review the current list and retry.');
+      return;
+    }
     setEditing(null);
   };
-  const drop = () => {
-    if (!editing || editing.index == null) return;
-    const name = editing.draft.name;
-    trappings.remove(editing.index);
+  const drop = async () => {
+    if (!editing || editing.identity == null || itemActionRef.current) return;
+    const edit = editing;
+    const name = edit.draft.name;
+    itemActionRef.current = true;
+    setItemAction('remove');
+    let found = false;
+    const durability = await (async () => {
+      try {
+        const mutation = trappings.removeIdentified(edit.identity!);
+        found = mutation.found;
+        return await mutation.ticket.completion;
+      } finally {
+        itemActionRef.current = false;
+        setItemAction(null);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not drop item', durability.error.message);
+      return;
+    }
+    if (!found) {
+      Alert.alert('Item changed', 'That item changed or was removed in another tab. Review the current list and retry.');
+      return;
+    }
     setEditing(null);
     Alert.alert('Dropped', `${name} removed from inventory.`);
   };
-  const saveWealth = () => {
-    if (!wealthDraft) return;
-    setWealth(wealthDraft);
+  const saveWealth = async () => {
+    if (!wealthDraft || wealthActionRef.current) return;
+    const draft = wealthDraft;
+    wealthActionRef.current = true;
+    setWealthSaving(true);
+    const durability = await (async () => {
+      try {
+        return await setWealth(draft).completion;
+      } finally {
+        wealthActionRef.current = false;
+        setWealthSaving(false);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not save wealth', durability.error.message);
+      return;
+    }
     setWealthDraft(null);
   };
 
@@ -175,11 +252,13 @@ export const TrappingsScreen: React.FC = () => {
 
       <EditSheet
         visible={!!editing}
-        title={editing?.index == null ? 'New item' : 'Edit item'}
-        subtitle={editing?.index == null ? 'Add a trapping to this character\'s pack.' : 'Tap Save to commit, or Drop to remove from inventory.'}
-        onClose={() => setEditing(null)}
+        title={editing?.identity == null ? 'New item' : 'Edit item'}
+        subtitle={editing?.identity == null ? 'Add a trapping to this character\'s pack.' : 'Tap Save to commit, or Drop to remove from inventory.'}
+        onClose={() => { if (!itemActionRef.current) setEditing(null); }}
         onSave={save}
-        destructive={editing?.index != null ? { label: 'Drop', onPress: drop } : undefined}
+        saveLabel={itemAction === 'remove' ? 'Dropping…' : itemAction === 'save' ? 'Saving…' : 'Save'}
+        saveDisabled={itemAction !== null}
+        destructive={editing?.identity != null && itemAction === null ? { label: 'Drop', onPress: drop } : undefined}
       >
         {editing ? (
           <>
@@ -205,8 +284,10 @@ export const TrappingsScreen: React.FC = () => {
         visible={wealthDraft !== null}
         title="Edit wealth"
         subtitle={`Coin is stored per character. Totals are shown in ${currency.baseLabel}.`}
-        onClose={() => setWealthDraft(null)}
+        onClose={() => { if (!wealthActionRef.current) setWealthDraft(null); }}
         onSave={saveWealth}
+        saveLabel={wealthSaving ? 'Saving…' : 'Save'}
+        saveDisabled={wealthSaving}
       >
         {wealthDraft ? currency.units.map(unit => (
           <NumberField

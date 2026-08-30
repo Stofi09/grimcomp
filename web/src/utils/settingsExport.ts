@@ -1,7 +1,11 @@
 import {
   MAX_TRANSACTION_OPERATIONS,
+  SETTINGS_BACKUP_FILE_LIMIT_LABEL,
+  SETTINGS_BACKUP_SCHEMA,
   STORAGE_TRANSACTION_JOURNAL_KEY,
+  isPlatformPortableSettingsKey,
   isValidStorageKey,
+  settingsBackupExceedsFileLimit,
   type StorageExclusiveLock,
 } from '@grimcomp/core';
 import type {
@@ -122,6 +126,7 @@ export function grimCompanionStorageKeys(
   return backend.keys()
     .filter((key) => (
       key.startsWith('gc.')
+      && isPlatformPortableSettingsKey(key)
       && key !== STORAGE_TRANSACTION_JOURNAL_KEY
       && key !== STORAGE_VERSION_KEY
       && key !== STORAGE_RECOVERY_RESET_INTENT_KEY
@@ -163,7 +168,7 @@ export async function buildSettingsExport(
       ? keys.filter(key => key.startsWith(`gc.${id}.`) || key === 'gc.activeCharId')
       : keys;
     const dump: Record<string, unknown> = {
-      $schema: 'grimcomp.v1',
+      $schema: SETTINGS_BACKUP_SCHEMA,
       exportedAt: new Date().toISOString(),
       scope,
       character: scope === 'character' ? characterName : undefined,
@@ -309,7 +314,13 @@ export async function buildSettingsExport(
     if (backend.getItem(STORAGE_VERSION_KEY) !== expectedVersionRaw) {
       throw new Error('The local storage schema changed while the export snapshot was being read.');
     }
-    return JSON.stringify(dump, null, 2);
+    const serialized = JSON.stringify(dump, null, 2);
+    if (settingsBackupExceedsFileLimit(serialized)) {
+      throw new Error(
+        `Portable backup is larger than the ${SETTINGS_BACKUP_FILE_LIMIT_LABEL} import limit.`,
+      );
+    }
+    return serialized;
   });
 }
 
@@ -327,7 +338,7 @@ export function applySettingsImport(
     bundledContentPacks,
   } = options;
   return core.transaction((draft) => {
-    if (dump.$schema !== 'grimcomp.v1') {
+    if (dump.$schema !== SETTINGS_BACKUP_SCHEMA) {
       throw new Error('Import must declare $schema as "grimcomp.v1".');
     }
     const status = core.getStatus();

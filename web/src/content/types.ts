@@ -96,7 +96,7 @@ export interface FaithRules {
 
 /** How weapons map to test characteristics and skills on the Combat screen. */
 export interface CombatRules {
-  /** Case-insensitive regex matched against the weapon group → ranged weapon. */
+  /** Bounded, safety-checked case-insensitive regex matched against the weapon group. */
   rangedGroupPattern: string;
   meleeChar: string;
   rangedChar: string;
@@ -223,7 +223,7 @@ export interface ConditionDef {
   maxStacks?: number;
   /** One-line rule text. */
   description?: string;
-  /** All stacks clear at end of scene (default: tick down by 1). */
+  /** All stacks clear at end of scene. Omitted/false conditions are unchanged. */
   clearsAtSceneEnd?: boolean;
 }
 

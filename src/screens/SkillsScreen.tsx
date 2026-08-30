@@ -196,6 +196,7 @@ const SkillTable: React.FC<SkillTableProps> = ({ skills, advances, onChange, tot
             <Cell flex={2}>
               <View style={styles.purchaseCell}>
                 <Stepper
+                  accessibilityLabel={`${s.name} advances`}
                   value={adv}
                   step={5}
                   min={0}
@@ -209,6 +210,7 @@ const SkillTable: React.FC<SkillTableProps> = ({ skills, advances, onChange, tot
               <Button
                 variant="ghost"
                 iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
+                accessibilityLabel={`Test ${s.name}`}
                 onPress={() => {
                   const r = resolveTest({ target: tot, modifier: condMod.total, label: s.name });
                   const breakdown = condMod.parts.length

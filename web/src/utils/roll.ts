@@ -3,7 +3,8 @@
 // a TestRules config (content packs' `system.test` section). DEFAULT_TEST_RULES
 // reproduces WFRP 4e exactly:
 // - Roll 1d100 against a target; pass when roll ≤ target.
-// - SL (Success Levels) = (target tens) − (roll tens), keeping the sign.
+// - Base SL (Success Levels) = (target tens) − (roll tens). A positive delta
+//   on an auto-failure is displayed as negative so it cannot contradict FUMBLE.
 // - Doubles (11, 22, …, 99): if the roll succeeds → critical success;
 //   if it fails → fumble.
 // - 01–05 always succeeds; 96–100 always fails (regardless of target).
@@ -50,7 +51,7 @@ export interface RollResult {
   effectiveTarget: number;
   modifier: number;
   success: boolean;
-  /** Signed SL — positive on success, negative on failure. 0 when the system has no SL formula. */
+  /** Signed SL. Auto-failure never reports a positive value; 0 also represents systems without an SL formula. */
   sl: number;
   /** Whether this system models success levels (controls SL display). */
   hasSl: boolean;

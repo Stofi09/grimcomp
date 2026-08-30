@@ -14,13 +14,15 @@
     "check:core-boundary": "node ../packages/core/scripts/check-boundary.mjs",
     "check:no-scratch": "node scripts/check-no-scratch.mjs",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:native": "vitest run src/storage/native*.test.ts src/utils/nativeRoll.test.ts src/components/nativeControls.test.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@grimcomp/core": "file:../packages/core",
     "@fontsource/im-fell-english": "^5.2.5",
     "@fontsource/inter": "^5.2.5",
     "@fontsource/jetbrains-mono": "^5.2.5",
+    "@grimcomp/core": "file:../packages/core",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -30,6 +32,7 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^4.1.9",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.26",

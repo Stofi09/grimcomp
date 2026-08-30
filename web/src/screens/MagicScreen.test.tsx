@@ -51,6 +51,10 @@ function drainAlerts(): void {
   while (getCurrentAlert() !== null) closeCurrentAlert();
 }
 
+async function settleStorage(): Promise<void> {
+  await act(async () => { await waitForStorageIdle(); });
+}
+
 beforeEach(async () => prepareStorageTest());
 
 afterEach(async () => {
@@ -87,7 +91,7 @@ describe('MagicScreen spellbook', () => {
     expect(screen.getByRole('note').textContent).toContain('Resolve Winds of Magic’s revised Channelling and Overcasting');
   });
 
-  it('does not cast a CN 0 spell when the casting test fails despite a large pool', () => {
+  it('does not cast a CN 0 spell when the casting test fails despite a large pool', async () => {
     selectCaster();
     localStorage.setItem('gc.c2.magic.pool', JSON.stringify(10));
     vi.spyOn(Math, 'random').mockReturnValue(0.9); // d100 → 91: ordinary failure
@@ -102,6 +106,8 @@ describe('MagicScreen spellbook', () => {
 
     renderMagic(new ContentRegistry([...basePacks, zeroCnPack]));
     fireEvent.click(screen.getByRole('button', { name: 'Cast Dart' }));
+    expect(getCurrentAlert()).toBeNull();
+    await settleStorage();
 
     expect(getCurrentAlert()?.title).toBe('Dart — FIZZLE');
     expect(getCurrentAlert()?.message).toContain('Channelling pool used: +10');
@@ -120,7 +126,7 @@ describe('MagicScreen spellbook', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Add Aethyric Armour to spellbook' }));
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
-    await act(async () => { await waitForStorageIdle(); });
+    await settleStorage();
 
     expect(screen.getByRole('button', { name: 'Cast Aethyric Armour' })).toBeTruthy();
     expect(JSON.parse(localStorage.getItem('gc.c2.magic.spellbook') ?? '{}')).toEqual({
@@ -139,7 +145,7 @@ describe('MagicScreen spellbook', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Remove Dart from spellbook' }));
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
-    await act(async () => { await waitForStorageIdle(); });
+    await settleStorage();
 
     expect(screen.queryByRole('button', { name: 'Cast Dart' })).toBeNull();
     expect(JSON.parse(localStorage.getItem('gc.c2.magic.spellbook') ?? '{}')).toEqual({
@@ -179,7 +185,7 @@ describe('MagicScreen spellbook', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Manage spellbook' }));
     expect(screen.getByRole('dialog', { name: 'Manage spellbook' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
-    await act(async () => { await waitForStorageIdle(); });
+    await settleStorage();
 
     expect(JSON.parse(localStorage.getItem('gc.c2.magic.spellbook') ?? '{}')).toEqual({
       added: ['sp.arcane.bolt', 'sp.unavailable.from-disabled-pack'],
@@ -187,7 +193,7 @@ describe('MagicScreen spellbook', () => {
     });
   });
 
-  it('shows source metadata and rules notes in the spell list and cast result', () => {
+  it('shows source metadata and rules notes in the spell list and cast result', async () => {
     selectCaster();
     vi.spyOn(Math, 'random').mockReturnValue(0.01);
     const dart = (magicPack.spells as unknown as Spell[]).find(spell => spell.id === 'sp.petty.dart')!;
@@ -210,12 +216,13 @@ describe('MagicScreen spellbook', () => {
     expect(screen.getByText('Approximate companion summary — verify in source')).toBeTruthy();
     expect(screen.getByText('Rules note: Use the revised spell text.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Cast Dart' }));
+    await settleStorage();
     expect(getCurrentAlert()?.message).toContain('Rules note: Use the revised spell text.');
     expect(getCurrentAlert()?.message).toContain('Rules status: Approximate companion summary — verify in source');
     expect(getCurrentAlert()?.message).toContain('Source: Winds of Magic · p. 42');
   });
 
-  it('treats a bibliographic spell as a source lookup after reaching its threshold', () => {
+  it('treats a bibliographic spell as a source lookup after reaching its threshold', async () => {
     selectCaster();
     const random = vi.spyOn(Math, 'random').mockReturnValue(0.01);
     const dart = (magicPack.spells as unknown as Spell[]).find(spell => spell.id === 'sp.petty.dart')!;
@@ -238,6 +245,7 @@ describe('MagicScreen spellbook', () => {
     expect(screen.getByText('Index only — resolve from source')).toBeTruthy();
     expect(screen.queryByText(placeholder)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Cast Dart' }));
+    await settleStorage();
     expect(getCurrentAlert()?.title).toBe('Dart — THRESHOLD');
     expect(getCurrentAlert()?.message)
       .toContain('Casting threshold reached — resolve Dart from its source.');
@@ -247,9 +255,84 @@ describe('MagicScreen spellbook', () => {
     closeCurrentAlert();
     random.mockReturnValue(0.1); // d100 → 11: successful double and Minor Miscast
     fireEvent.click(screen.getByRole('button', { name: 'Cast Dart' }));
+    await settleStorage();
     expect(getCurrentAlert()?.title).toBe('Dart — THRESHOLD · MISCAST');
     expect(getCurrentAlert()?.message)
       .toContain('Casting threshold reached — resolve Dart from its source.');
     expect(getCurrentAlert()?.message).not.toContain('the spell still resolves');
+  });
+
+  it('rolls the pool back and withholds the cast result when persistence fails', async () => {
+    selectCaster();
+    localStorage.setItem('gc.c2.magic.pool', JSON.stringify(10));
+    vi.spyOn(Math, 'random').mockReturnValue(0.01);
+    const realSetItem = Storage.prototype.setItem;
+    let injected = false;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ): void {
+      if (!injected && key === 'gc.c2.magic.pool' && value === '0') {
+        injected = true;
+        throw new Error('injected pool write failure');
+      }
+      realSetItem.call(this, key, value);
+    });
+    renderMagic();
+
+    const cast = screen.getByRole('button', { name: 'Cast Dart' });
+    fireEvent.click(cast);
+    fireEvent.click(cast);
+    expect(getCurrentAlert()).toBeNull();
+    await settleStorage();
+
+    expect(injected).toBe(true);
+    expect(JSON.parse(localStorage.getItem('gc.c2.magic.pool') ?? 'null')).toBe(10);
+    expect(getCurrentAlert()?.title).toBe('Could not cast spell');
+    expect(getCurrentAlert()?.message).toContain('pool could not be saved');
+  });
+
+  it('rolls Channelling back and ignores a duplicate action when persistence fails', async () => {
+    selectCaster();
+    vi.spyOn(Math, 'random').mockReturnValue(0.2); // d100 → 21: ordinary success
+    const realSetItem = Storage.prototype.setItem;
+    let poolWrites = 0;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ): void {
+      if (key === 'gc.c2.magic.pool') {
+        poolWrites += 1;
+        if (poolWrites === 1) throw new Error('injected Channelling pool failure');
+      }
+      realSetItem.call(this, key, value);
+    });
+    renderMagic();
+
+    const channel = screen.getByRole('button', { name: 'Channel' });
+    fireEvent.click(channel);
+    fireEvent.click(channel);
+    expect(getCurrentAlert()).toBeNull();
+    await settleStorage();
+
+    expect(poolWrites).toBe(1);
+    expect(localStorage.getItem('gc.c2.magic.pool')).toBeNull();
+    expect(getCurrentAlert()?.title).toBe('Could not save Channelling');
+  });
+
+  it('durably banks SL from a successful Channelling Minor Miscast', async () => {
+    selectCaster();
+    vi.spyOn(Math, 'random').mockReturnValue(0.1); // d100 → 11: successful double
+    renderMagic();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Channel' }));
+    expect(getCurrentAlert()).toBeNull();
+    await settleStorage();
+
+    expect(JSON.parse(localStorage.getItem('gc.c2.magic.pool') ?? '0')).toBeGreaterThan(0);
+    expect(getCurrentAlert()?.title).toBe('Channelling — Minor Miscast');
+    expect(getCurrentAlert()?.message).toContain('Pool still gained');
   });
 });

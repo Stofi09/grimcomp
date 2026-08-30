@@ -90,7 +90,7 @@ describe('SettingsScreen import files', () => {
     expect(text).not.toHaveBeenCalled();
     expect(getCurrentAlert()).toMatchObject({
       title: 'Import too large',
-      message: expect.stringContaining('4 MiB import limit'),
+      message: expect.stringContaining('960 KiB import limit'),
     });
   });
 });

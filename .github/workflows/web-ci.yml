@@ -1,6 +1,7 @@
 name: web-ci
 
-# Type-check, test, and build the web app on every change under web/.
+# Type-check, test, and build the web app on changes under web/ or the shared
+# core package it imports.
 # This is the PR0 safety net: the regression-locked content packs and the pure
 # engine tests run here so a broken pack or a regressed formula fails CI instead
 # of white-screening the deployed app.

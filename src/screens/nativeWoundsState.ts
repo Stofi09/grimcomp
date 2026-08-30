@@ -2,52 +2,42 @@ import type { Critical } from '@/data/character';
 
 export type NativeConditionMap = Record<string, number>;
 
-type SyncFunctionalUpdate<T> = (update: (previous: T) => T) => unknown;
-
-export interface NativeEndOfSceneBindings {
-  /** These bindings must resolve their functional updaters synchronously. */
-  readonly refreshFortune: () => unknown;
-  readonly replaceCriticals: SyncFunctionalUpdate<Critical[]>;
-  readonly updateConditions: SyncFunctionalUpdate<NativeConditionMap>;
-}
-
-export interface NativeEndOfSceneSummary {
-  readonly healed: number;
-  readonly removedConditions: number;
+export interface NativeSceneEndResult {
+  readonly conditions: NativeConditionMap;
+  readonly clearedConditions: number;
+  readonly clearedStacks: number;
 }
 
 /**
- * Compose the native end-of-scene state changes. Call this inside one
- * `runStoredTransaction` so Fortune, criticals, and conditions share a journal.
+ * Clear only conditions whose native rules use the scene clock. Fortune uses
+ * the session clock, while critical healing uses the day clock, so neither is
+ * part of this transition.
  */
-export function applyNativeEndOfSceneUpdates(
-  bindings: NativeEndOfSceneBindings,
-): NativeEndOfSceneSummary {
-  let healed = 0;
-  let removedConditions = 0;
+export function clearNativeSceneEndConditions(
+  current: NativeConditionMap,
+): NativeSceneEndResult {
+  const conditions = { ...current };
+  const surprisedStacks = Math.max(0, conditions.Surprised ?? 0);
+  if (surprisedStacks === 0) {
+    return { conditions, clearedConditions: 0, clearedStacks: 0 };
+  }
+  conditions.Surprised = 0;
+  return { conditions, clearedConditions: 1, clearedStacks: surprisedStacks };
+}
 
-  bindings.refreshFortune();
-  bindings.replaceCriticals((current) => {
-    const next = current
-      .map(critical => ({ ...critical, days: Math.max(0, critical.days - 1) }))
-      .filter(critical => critical.days > 0);
-    healed = current.length - next.length;
-    return next;
-  });
-  bindings.updateConditions((previous) => {
-    const next: NativeConditionMap = { ...previous };
-    for (const name of Object.keys(next)) {
-      const stacks = next[name] ?? 0;
-      if (stacks <= 0) continue;
-      const decrement = name === 'Surprised' ? stacks : 1;
-      const remaining = Math.max(0, stacks - decrement);
-      if (remaining === 0) removedConditions += 1;
-      next[name] = remaining;
-    }
-    return next;
-  });
+export interface NativeHealingDayResult {
+  readonly criticals: Critical[];
+  readonly healed: number;
+}
 
-  return { healed, removedConditions };
+/** Advance day-based critical healing without touching scene/session state. */
+export function advanceNativeCriticalHealingDay(
+  current: readonly Critical[],
+): NativeHealingDayResult {
+  const criticals = current
+    .map(critical => ({ ...critical, days: Math.max(0, critical.days - 1) }))
+    .filter(critical => critical.days > 0);
+  return { criticals, healed: current.length - criticals.length };
 }
 
 function sameCritical(left: Critical, right: Critical): boolean {

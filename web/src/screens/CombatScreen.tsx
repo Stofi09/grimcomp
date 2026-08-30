@@ -5,12 +5,16 @@ import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { runStoredTransaction, useStoredState } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
-import { useCharacterCollection } from '@/hooks/useCharacterCollection';
+import {
+  useCharacterCollection,
+  type CollectionItemIdentity,
+} from '@/hooks/useCharacterCollection';
 import { useContent, useFigureLabels, useSystemRules, useCharacteristicDefs, useWeapons, useCapabilities, useHitLocations, useCriticals } from '@/content/useContent';
 import type { CombatRules } from '@/content/types';
 import { critFromTable } from '@/content/tables';
 import { resolveTest, outcomeLabel, formatTestResult, isDouble, rollExploding } from '@/utils/roll';
 import { charVars, evalFormula } from '@/utils/formula';
+import { testSafeRegex } from '@/utils/safeRegex';
 import {
   apByLocation, apAt, hitLocationFromRoll, applyDamage,
   advantageBonus, resolveAttackOutcome, computeHitDamage, weaponQualityNotes, hasQuality,
@@ -72,14 +76,8 @@ const hitLocLabel = (key: ApLocation): string =>
 
 // Weapon group → test characteristic and skill name, per system.combat config.
 const charForWeapon = (w: Weapon, combat: CombatRules): string => {
-  // A pack-authored pattern may be an invalid regex; fall back to melee rather
-  // than throwing during render.
-  let ranged = false;
-  try {
-    ranged = new RegExp(combat.rangedGroupPattern, 'i').test(w.group);
-  } catch {
-    ranged = false;
-  }
+  // Invalid or backtracking-prone pack patterns fail closed to melee.
+  const ranged = testSafeRegex(combat.rangedGroupPattern, w.group);
   return ranged ? combat.rangedChar : combat.meleeChar;
 };
 
@@ -319,17 +317,37 @@ export const CombatScreen: React.FC = () => {
   const rangedShort = charDefs.find(d => d.key === combat.rangedChar)?.short ?? combat.rangedChar.toUpperCase();
 
   // Edit-sheet state for both weapons + armour.
-  const [wEdit, setWEdit] = useState<{ index: number | null; draft: Weapon } | null>(null);
-  const [aEdit, setAEdit] = useState<{ index: number | null; draft: Armour } | null>(null);
+  const [wEdit, setWEdit] = useState<{
+    identity: CollectionItemIdentity | null;
+    draft: Weapon;
+  } | null>(null);
+  const [aEdit, setAEdit] = useState<{
+    identity: CollectionItemIdentity | null;
+    draft: Armour;
+  } | null>(null);
   const weaponActionRef = useRef(false);
   const armourActionRef = useRef(false);
   const [weaponAction, setWeaponAction] = useState<'save' | 'remove' | null>(null);
   const [armourAction, setArmourAction] = useState<'save' | 'remove' | null>(null);
 
-  const openNewWeapon = () => setWEdit({ index: null, draft: blankWeapon() });
-  const openEditWeapon = (i: number) => setWEdit({ index: i, draft: { ...weapons.items[i] } });
-  const openNewArmour = () => setAEdit({ index: null, draft: blankArmour() });
-  const openEditArmour = (i: number) => setAEdit({ index: i, draft: { ...armour.items[i] } });
+  const openNewWeapon = () => setWEdit({ identity: null, draft: blankWeapon() });
+  const openEditWeapon = (i: number) => {
+    const identity = weapons.identify(i);
+    if (!identity) {
+      Alert.alert('Weapon changed', 'That weapon is no longer available. Review the current list and retry.');
+      return;
+    }
+    setWEdit({ identity, draft: { ...weapons.items[i] } });
+  };
+  const openNewArmour = () => setAEdit({ identity: null, draft: blankArmour() });
+  const openEditArmour = (i: number) => {
+    const identity = armour.identify(i);
+    if (!identity) {
+      Alert.alert('Armour changed', 'That armour is no longer available. Review the current list and retry.');
+      return;
+    }
+    setAEdit({ identity, draft: { ...armour.items[i] } });
+  };
 
   const saveWeapon = async () => {
     if (!wEdit || weaponActionRef.current) return;
@@ -342,9 +360,16 @@ export const CombatScreen: React.FC = () => {
     const weapon = normalizeWeaponDistance(edit.draft, ranged);
     weaponActionRef.current = true;
     setWeaponAction('save');
+    let found = true;
     const durability = await (async () => {
       try {
-        const ticket = edit.index == null ? weapons.add(weapon) : weapons.update(edit.index, weapon);
+        const ticket = edit.identity == null
+          ? weapons.add(weapon)
+          : (() => {
+              const mutation = weapons.updateIdentified(edit.identity, weapon);
+              found = mutation.found;
+              return mutation.ticket;
+            })();
         return await ticket.completion;
       } finally {
         weaponActionRef.current = false;
@@ -355,18 +380,25 @@ export const CombatScreen: React.FC = () => {
       Alert.alert('Could not save weapon', durability.error.message);
       return;
     }
+    if (!found) {
+      Alert.alert('Weapon changed', 'That weapon changed or was removed in another tab. Review the current list and retry.');
+      return;
+    }
     setWEdit(null);
   };
 
   const dropWeapon = async () => {
-    if (!wEdit || wEdit.index == null || weaponActionRef.current) return;
+    if (!wEdit || wEdit.identity == null || weaponActionRef.current) return;
     const edit = wEdit;
     const name = edit.draft.name;
     weaponActionRef.current = true;
     setWeaponAction('remove');
+    let found = false;
     const durability = await (async () => {
       try {
-        return await weapons.remove(edit.index!).completion;
+        const mutation = weapons.removeIdentified(edit.identity!);
+        found = mutation.found;
+        return await mutation.ticket.completion;
       } finally {
         weaponActionRef.current = false;
         setWeaponAction(null);
@@ -374,6 +406,10 @@ export const CombatScreen: React.FC = () => {
     })();
     if (!durability.ok) {
       Alert.alert('Could not drop weapon', durability.error.message);
+      return;
+    }
+    if (!found) {
+      Alert.alert('Weapon changed', 'That weapon changed or was removed in another tab. Review the current list and retry.');
       return;
     }
     setWEdit(null);
@@ -393,9 +429,16 @@ export const CombatScreen: React.FC = () => {
     }
     armourActionRef.current = true;
     setArmourAction('save');
+    let found = true;
     const durability = await (async () => {
       try {
-        const ticket = edit.index == null ? armour.add(edit.draft) : armour.update(edit.index, edit.draft);
+        const ticket = edit.identity == null
+          ? armour.add(edit.draft)
+          : (() => {
+              const mutation = armour.updateIdentified(edit.identity, edit.draft);
+              found = mutation.found;
+              return mutation.ticket;
+            })();
         return await ticket.completion;
       } finally {
         armourActionRef.current = false;
@@ -406,18 +449,25 @@ export const CombatScreen: React.FC = () => {
       Alert.alert('Could not save armour', durability.error.message);
       return;
     }
+    if (!found) {
+      Alert.alert('Armour changed', 'That armour changed or was removed in another tab. Review the current list and retry.');
+      return;
+    }
     setAEdit(null);
   };
 
   const dropArmour = async () => {
-    if (!aEdit || aEdit.index == null || armourActionRef.current) return;
+    if (!aEdit || aEdit.identity == null || armourActionRef.current) return;
     const edit = aEdit;
     const name = edit.draft.name;
     armourActionRef.current = true;
     setArmourAction('remove');
+    let found = false;
     const durability = await (async () => {
       try {
-        return await armour.remove(edit.index!).completion;
+        const mutation = armour.removeIdentified(edit.identity!);
+        found = mutation.found;
+        return await mutation.ticket.completion;
       } finally {
         armourActionRef.current = false;
         setArmourAction(null);
@@ -425,6 +475,10 @@ export const CombatScreen: React.FC = () => {
     })();
     if (!durability.ok) {
       Alert.alert('Could not remove armour', durability.error.message);
+      return;
+    }
+    if (!found) {
+      Alert.alert('Armour changed', 'That armour changed or was removed in another tab. Review the current list and retry.');
       return;
     }
     setAEdit(null);
@@ -608,13 +662,13 @@ export const CombatScreen: React.FC = () => {
       {/* Weapon edit sheet */}
       <EditSheet
         visible={!!wEdit}
-        title={wEdit?.index == null ? 'New weapon' : 'Edit weapon'}
-        subtitle={wEdit?.index == null ? 'Add a weapon to this character\'s inventory.' : 'Tap Save to commit, or Drop to remove from inventory.'}
+        title={wEdit?.identity == null ? 'New weapon' : 'Edit weapon'}
+        subtitle={wEdit?.identity == null ? 'Add a weapon to this character\'s inventory.' : 'Tap Save to commit, or Drop to remove from inventory.'}
         onClose={() => { if (!weaponActionRef.current) setWEdit(null); }}
         onSave={saveWeapon}
         saveLabel={weaponAction === 'remove' ? 'Removing…' : weaponAction === 'save' ? 'Saving…' : 'Save'}
         saveDisabled={weaponAction !== null}
-        destructive={wEdit?.index != null && weaponAction === null ? { label: 'Drop', onPress: dropWeapon } : undefined}
+        destructive={wEdit?.identity != null && weaponAction === null ? { label: 'Drop', onPress: dropWeapon } : undefined}
       >
         {wEdit ? (
           <>
@@ -677,13 +731,13 @@ export const CombatScreen: React.FC = () => {
       {/* Armour edit sheet */}
       <EditSheet
         visible={!!aEdit}
-        title={aEdit?.index == null ? 'New armour' : 'Edit armour'}
-        subtitle={aEdit?.index == null ? 'Add a piece of armour. AP stacks per location.' : 'Tap Save to commit, or Remove to drop from inventory.'}
+        title={aEdit?.identity == null ? 'New armour' : 'Edit armour'}
+        subtitle={aEdit?.identity == null ? 'Add a piece of armour. AP stacks per location.' : 'Tap Save to commit, or Remove to drop from inventory.'}
         onClose={() => { if (!armourActionRef.current) setAEdit(null); }}
         onSave={saveArmour}
         saveLabel={armourAction === 'remove' ? 'Removing…' : armourAction === 'save' ? 'Saving…' : 'Save'}
         saveDisabled={armourAction !== null}
-        destructive={aEdit?.index != null && armourAction === null ? { label: 'Remove', onPress: dropArmour } : undefined}
+        destructive={aEdit?.identity != null && armourAction === null ? { label: 'Remove', onPress: dropArmour } : undefined}
       >
         {aEdit ? (
           <>

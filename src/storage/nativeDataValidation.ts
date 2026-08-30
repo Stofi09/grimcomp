@@ -1,5 +1,6 @@
 import {
   MAX_TRANSACTION_OPERATIONS,
+  SETTINGS_BACKUP_SCHEMA,
   STORAGE_TRANSACTION_JOURNAL_KEY,
   isValidStorageKey,
   isValidStorageKeySegment,
@@ -428,7 +429,7 @@ export function validateNativeSettingsImport(
 ):
   | { readonly ok: true; readonly dump: Record<string, unknown>; readonly keyCount: number }
   | { readonly ok: false; readonly message: string } {
-  if (!isRecord(raw) || raw.$schema !== 'grimcomp.v1') {
+  if (!isRecord(raw) || raw.$schema !== SETTINGS_BACKUP_SCHEMA) {
     return { ok: false, message: 'Expected a grimcomp.v1 export object.' };
   }
 

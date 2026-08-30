@@ -1,5 +1,9 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { MAX_JOURNAL_RAW_LENGTH } from '@grimcomp/core';
+import {
+  MAX_SETTINGS_BACKUP_FILE_BYTES,
+  SETTINGS_BACKUP_FILE_LIMIT_LABEL,
+  SETTINGS_BACKUP_SCHEMA,
+} from '@grimcomp/core';
 import { ScreenContainer } from './ScreenContainer';
 import { useContentPacks } from '@/content/useContentPacks';
 import { useContent, useContentStatus } from '@/content/useContent';
@@ -23,8 +27,8 @@ import { Alert } from '@/ui/alertStore';
 import { colors } from '@/theme';
 import './SettingsScreen.css';
 
-/** Bound memory use before File.text() and stay within one journal's hard cap. */
-export const MAX_SETTINGS_IMPORT_FILE_BYTES = MAX_JOURNAL_RAW_LENGTH;
+/** Bound memory use before File.text() with the shared portable-backup cap. */
+export const MAX_SETTINGS_IMPORT_FILE_BYTES = MAX_SETTINGS_BACKUP_FILE_BYTES;
 
 interface RowProps {
   title: string;
@@ -70,15 +74,14 @@ export const SettingsScreen: React.FC = () => {
     if (file.size <= MAX_SETTINGS_IMPORT_FILE_BYTES) return true;
     Alert.alert(
       'Import too large',
-      `${file.name} is larger than the ${(MAX_SETTINGS_IMPORT_FILE_BYTES / (1024 * 1024)).toFixed(0)} MiB import limit.`,
+      `${file.name} is larger than the ${SETTINGS_BACKUP_FILE_LIMIT_LABEL} import limit.`,
     );
     return false;
   };
 
-  // Build a portable JSON snapshot. Caller chooses: just the active character
-  // template + their live overlays (gc.<id>.*), or the whole roster + all
-  // overlays. We collect everything keyed under `gc.` to make import a
-  // straightforward `setItem` loop later.
+  // Build a portable JSON snapshot. Caller chooses just the active character
+  // and overlays, or the roster plus portable global state/content. Internal
+  // storage keys and platform-local creation progress are intentionally omitted.
   const openExport = async (scope: ExportScope) => {
     try {
       const json = await buildSettingsExport(scope, id, template.name, {
@@ -262,7 +265,7 @@ export const SettingsScreen: React.FC = () => {
       Alert.alert('Invalid JSON', `${file.name} is not valid JSON.\n${err instanceof Error ? err.message : ''}`);
       return;
     }
-    if (typeof raw !== 'object' || raw === null || (raw as Record<string, unknown>).$schema !== 'grimcomp.v1') {
+    if (typeof raw !== 'object' || raw === null || (raw as Record<string, unknown>).$schema !== SETTINGS_BACKUP_SCHEMA) {
       Alert.alert('Not a Grim Companion export', `Expected a "grimcomp.v1" export file.`);
       return;
     }

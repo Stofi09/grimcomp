@@ -30,5 +30,11 @@ export default defineConfig({
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     testTimeout: 5_000,
     hookTimeout: 5_000,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary', 'json'],
+      reportsDirectory: 'coverage',
+      exclude: ['src/test/**'],
+    },
   },
 });

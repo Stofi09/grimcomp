@@ -1,34 +1,61 @@
 name: rn-ci
 
-# Type-check the React Native (Expo) app on changes to its sources. The web app
-# has its own workflow (web-ci.yml); this guards the native side, which would
-# otherwise get no CI at all. The root tsconfig excludes web/, so this checks the
-# RN tree only.
+# Verify the React Native (Expo) app on changes to its sources or release/build
+# configuration. The web app has its own workflow (web-ci.yml); this workflow
+# keeps the native side type-safe, exercises focused storage, gameplay, and
+# accessibility regressions, audits the iOS release configuration, and proves
+# Metro can produce an iOS bundle. The root tsconfig excludes web/, so its
+# typecheck covers the RN tree.
 on:
   push:
     paths:
       - 'src/**'
       - 'packages/core/**'
+      - 'assets/**'
       - 'App.tsx'
+      - 'app.json'
+      - 'eas.json'
+      - '.easignore'
+      - 'babel.config.js'
+      - 'metro.config.js'
+      - 'scripts/audit-ios-config.js'
       - 'tsconfig.json'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
+      - 'web/package.json'
+      - 'web/pnpm-lock.yaml'
+      - 'web/src/storage/native*.test.ts'
+      - 'web/src/utils/nativeRoll.test.ts'
+      - 'web/src/components/nativeControls.test.ts'
       - '.github/workflows/rn-ci.yml'
   pull_request:
     paths:
       - 'src/**'
       - 'packages/core/**'
+      - 'assets/**'
       - 'App.tsx'
+      - 'app.json'
+      - 'eas.json'
+      - '.easignore'
+      - 'babel.config.js'
+      - 'metro.config.js'
+      - 'scripts/audit-ios-config.js'
       - 'tsconfig.json'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
+      - 'web/package.json'
+      - 'web/pnpm-lock.yaml'
+      - 'web/src/storage/native*.test.ts'
+      - 'web/src/utils/nativeRoll.test.ts'
+      - 'web/src/components/nativeControls.test.ts'
       - '.github/workflows/rn-ci.yml'
 
 jobs:
   typecheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       # Must precede setup-node: `cache: pnpm` needs pnpm already on PATH.
@@ -40,12 +67,24 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            web/pnpm-lock.yaml
       # --ignore-scripts skips sharp's native build: it exists only for
-      # `pnpm run icons` (scripts/generate-icons.js), and a typecheck never
-      # loads it. Root pnpm-workspace.yaml keeps `allowBuilds: sharp: true`
-      # so a local install still builds it.
+      # `pnpm run icons` (scripts/generate-icons.js), and none of the checks or
+      # the Expo export below load it. Root pnpm-workspace.yaml keeps
+      # `allowBuilds: sharp: true` so a local install still builds it.
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      # Native unit regressions use Vitest from web/'s isolated toolchain while
+      # importing platform-neutral root src/ modules. Install that harness
+      # separately; the focused command below does not duplicate the web suite.
+      - run: pnpm --dir web install --frozen-lockfile
       - run: pnpm run check:core-boundary
       - run: pnpm run tsc:core
       - run: pnpm run tsc
+      - run: pnpm run audit:ios
+      # Vitest's per-test timeout cannot interrupt a synchronous event-loop hang.
+      - run: timeout 2m pnpm --dir web run test:native
+      # Keep generated output outside the checkout so CI never dirties or masks
+      # a tracked dist/ path while still exercising Babel, Metro, and all assets.
+      - run: pnpm exec expo export --platform ios --output-dir '${{ runner.temp }}/grimcomp-ios-export'

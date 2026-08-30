@@ -1,4 +1,4 @@
-import type * as React from 'react';
+import * as React from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
@@ -29,6 +29,8 @@ export const FaithScreen: React.FC = () => {
   const caps = useCapabilities();
   const creation = useCreation();
   const [sin, setSin] = useStoredState(characterKey(id, 'sin'), 0);
+  const prayerActionRef = React.useRef(false);
+  const [prayerPending, setPrayerPending] = React.useState(false);
   // Mirror SkillsScreen's live overlay rather than freezing Pray at the
   // character-template value after the user purchases more advances.
   const [skillAdvances] = useStoredState<Record<string, number>>(
@@ -65,7 +67,8 @@ export const FaithScreen: React.FC = () => {
   // "— Goddess of Mercy" suffix bug, which was appended regardless of deity).
   const matched = deities.find(d => d.name === c.deity);
 
-  const pray = (prayer: Prayer) => {
+  const pray = async (prayer: Prayer) => {
+    if (prayerActionRef.current) return;
     const r = resolveTest({ target: prayTarget, modifier: condMod.total, label: `Pray ${prayer.name}` }, system.test);
     // Wrath of the Gods: on ANY Pray test whose units die ≤ current Sin Points
     // (WFRP 4e), regardless of pass/fail. Add the configured bonus per Sin to
@@ -76,10 +79,26 @@ export const FaithScreen: React.FC = () => {
     if (wrathTriggered) {
       const wRoll = Math.min(100, rollForTable(wrathTable) + faith.wrathBonusPerSin * sin);
       const wrath = rollOnTable(wrathTable, wRoll);
-      setSin(s => Math.max(0, s - 1));
       const effectLine = r.success
         ? `\n\nThe prayer is still answered: ${prayer.description}`
         : `\n\nThe prayer falters.`;
+      prayerActionRef.current = true;
+      setPrayerPending(true);
+      const durability = await (async () => {
+        try {
+          return await setSin(s => Math.max(0, s - 1)).completion;
+        } finally {
+          prayerActionRef.current = false;
+          setPrayerPending(false);
+        }
+      })();
+      if (!durability.ok) {
+        Alert.alert(
+          'Could not record Wrath',
+          `The prayer result was discarded because the Sin change could not be saved. ${durability.error.message}`,
+        );
+        return;
+      }
       Alert.alert(
         `${prayer.name} — Wrath of the Gods`,
         `${formatTestResult(r)}${effectLine}\n\nWrath (${wRoll}):\n${wrath}\n\n−1 Sin (now ${Math.max(0, sin - 1)}).`,
@@ -262,6 +281,7 @@ export const FaithScreen: React.FC = () => {
                   ariaLabel={blessing ? `Invoke ${p.name}` : `Pray ${p.name}`}
                   iconLeft={<Icon name={blessing ? 'sparkle' : 'dice'} size={13} color={colors.ink2} />}
                   onPress={() => (blessing ? invokeBlessing(p) : pray(p))}
+                  disabled={!blessing && prayerPending}
                 >{''}</Button>
               </Cell>
             </TableRow>

@@ -163,6 +163,8 @@ export const MagicScreen: React.FC = () => {
   // Each casting attempt may add the pool's SL to the cast SL. Cleared on
   // cast or miscast.
   const [pool, setPool] = useStoredState(characterKey(id, 'magic.pool'), 0);
+  const poolActionRef = React.useRef(false);
+  const [poolActionPending, setPoolActionPending] = React.useState(false);
   // Store only the character's additions/removals over the immutable template.
   // Template spells remain defaults and newly shipped defaults are not masked
   // by an older, fully copied spell list.
@@ -231,105 +233,155 @@ export const MagicScreen: React.FC = () => {
   const channelTarget = (channelCh?.current ?? 0) + channelAdvance;
   const castTarget = (castCh?.current ?? 0) + castAdvance;
 
-  const channel = () => {
-    const r = resolveTest({ target: channelTarget, modifier: condMod.total, label: 'Channelling' }, system.test);
+  const channel = async () => {
+    if (poolActionRef.current) return;
+    poolActionRef.current = true;
+    setPoolActionPending(true);
+    try {
+      const r = resolveTest({ target: channelTarget, modifier: condMod.total, label: 'Channelling' }, system.test);
 
-    if (miscastDouble(r.roll)) {
-      // A double while channelling is a Miscast. A successful (Critical) channel
-      // is a Minor Miscast that still banks its SL; a failed double is a fumble →
-      // Major Miscast and the pool is lost.
-      const mRoll = rollForTable(r.success ? miscastMinor : miscastMajor);
-      if (r.success) {
-        const slGain = Math.max(0, r.sl);
-        const newPool = pool + slGain;
-        setPool(newPool);
-        Alert.alert(
-          'Channelling — Minor Miscast',
-          `${formatTestResult(r)}\n\nMISCAST (${mRoll}):\n${rollOnTable(miscastMinor, mRoll)}\n\nPool still gained ${slGain} SL → ${newPool} total.`,
-        );
-      } else {
-        setPool(0);
-        Alert.alert(
-          'Channelling — Major Miscast',
-          `${formatTestResult(r)}\n\nMISCAST (${mRoll}):\n${rollOnTable(miscastMajor, mRoll)}\n\nChannelling pool lost.`,
-        );
+      if (miscastDouble(r.roll)) {
+        // A double while channelling is a Miscast. A successful (Critical) channel
+        // is a Minor Miscast that still banks its SL; a failed double is a fumble →
+        // Major Miscast and the pool is lost.
+        const mRoll = rollForTable(r.success ? miscastMinor : miscastMajor);
+        if (r.success) {
+          const slGain = Math.max(0, r.sl);
+          const newPool = pool + slGain;
+          const durability = await setPool(newPool).completion;
+          if (!durability.ok) {
+            Alert.alert('Could not save Channelling', `The roll was discarded because the pool change could not be saved. ${durability.error.message}`);
+            return;
+          }
+          Alert.alert(
+            'Channelling — Minor Miscast',
+            `${formatTestResult(r)}\n\nMISCAST (${mRoll}):\n${rollOnTable(miscastMinor, mRoll)}\n\nPool still gained ${slGain} SL → ${newPool} total.`,
+          );
+        } else {
+          const durability = await setPool(0).completion;
+          if (!durability.ok) {
+            Alert.alert('Could not save Channelling', `The roll was discarded because the pool change could not be saved. ${durability.error.message}`);
+            return;
+          }
+          Alert.alert(
+            'Channelling — Major Miscast',
+            `${formatTestResult(r)}\n\nMISCAST (${mRoll}):\n${rollOnTable(miscastMajor, mRoll)}\n\nChannelling pool lost.`,
+          );
+        }
+        return;
       }
-      return;
-    }
 
-    const slGain = Math.max(0, r.sl);
-    const newPool = pool + slGain;
-    if (r.success) setPool(newPool);
-    Alert.alert(
-      `Channelling — ${outcomeLabel(r.outcome)}`,
-      `${formatTestResult(r)}\n\n${
-        r.success
-          ? `Pool gained ${slGain} SL → ${newPool} total. Spend on your next cast.`
-          : 'No SL added. The Aethyr resists.'
-      }`,
-    );
+      const slGain = Math.max(0, r.sl);
+      const newPool = pool + slGain;
+      if (r.success) {
+        const durability = await setPool(newPool).completion;
+        if (!durability.ok) {
+          Alert.alert('Could not save Channelling', `The roll was discarded because the pool change could not be saved. ${durability.error.message}`);
+          return;
+        }
+      }
+      Alert.alert(
+        `Channelling — ${outcomeLabel(r.outcome)}`,
+        `${formatTestResult(r)}\n\n${
+          r.success
+            ? `Pool gained ${slGain} SL → ${newPool} total. Spend on your next cast.`
+            : 'No SL added. The Aethyr resists.'
+        }`,
+      );
+    } finally {
+      poolActionRef.current = false;
+      setPoolActionPending(false);
+    }
   };
 
-  const cast = (spell: Spell) => {
-    const r = resolveTest({ target: castTarget, modifier: condMod.total, label: `Cast ${spell.name}` }, system.test);
-    // Core-procedure automation: a passed casting test must also meet the CN
-    // after banked Channelling SL is added. Winds of Magic revises this
-    // procedure, which remains a manual supplement lookup in this app.
-    const oc = resolveCast(r.sl, pool, spell.cn, r.success);
-    const usedPool = pool;
-    setPool(0); // Channelled power is spent on the attempt regardless of outcome.
+  const cast = async (spell: Spell) => {
+    if (poolActionRef.current) return;
+    poolActionRef.current = true;
+    setPoolActionPending(true);
+    try {
+      const r = resolveTest({ target: castTarget, modifier: condMod.total, label: `Cast ${spell.name}` }, system.test);
+      // Core-procedure automation: a passed casting test must also meet the CN
+      // after banked Channelling SL is added. Winds of Magic revises this
+      // procedure, which remains a manual supplement lookup in this app.
+      const oc = resolveCast(r.sl, pool, spell.cn, r.success);
+      const usedPool = pool;
+      const durability = await setPool(0).completion;
+      if (!durability.ok) {
+        Alert.alert(
+          'Could not cast spell',
+          `The casting result was discarded because the Channelling pool could not be saved. ${durability.error.message}`,
+        );
+        return;
+      }
 
-    const source = spellSourceLabel(spell);
-    const status = spellRulesStatusLabel(spell);
-    const description = spell.rulesStatus === 'bibliographic' ? '' : spell.description;
-    const resolveLine = [
-      status ? `Rules status: ${status}` : '',
-      description,
-      spell.damage ? `Damage: ${spell.damage}` : '',
-      spell.rulesNote?.trim() ? `Rules note: ${spell.rulesNote.trim()}` : '',
-      source ? `Source: ${source}` : '',
-    ].filter(Boolean).join('\n');
-    const indexedResolution = `Casting threshold reached — resolve ${spell.name} from its source.`;
-    // Core Rulebook automation: surplus SL over the CN fuels Overcasting.
-    const overcastLine = oc.overcasts > 0
-      ? `\n\nCore Overcast: +${oc.surplus} SL over CN → up to ${oc.overcasts} effect${oc.overcasts === 1 ? '' : 's'} (each 2 SL: +1 Target, +1× Range, or +1× Duration).`
-      : oc.cast && oc.surplus > 0
-        ? `\n\nCore-procedure surplus: +${oc.surplus} SL (2 needed to Overcast).`
+      const source = spellSourceLabel(spell);
+      const status = spellRulesStatusLabel(spell);
+      const description = spell.rulesStatus === 'bibliographic' ? '' : spell.description;
+      const resolveLine = [
+        status ? `Rules status: ${status}` : '',
+        description,
+        spell.damage ? `Damage: ${spell.damage}` : '',
+        spell.rulesNote?.trim() ? `Rules note: ${spell.rulesNote.trim()}` : '',
+        source ? `Source: ${source}` : '',
+      ].filter(Boolean).join('\n');
+      const indexedResolution = `Casting threshold reached — resolve ${spell.name} from its source.`;
+      // Core Rulebook automation: surplus SL over the CN fuels Overcasting.
+      const overcastLine = oc.overcasts > 0
+        ? `\n\nCore Overcast: +${oc.surplus} SL over CN → up to ${oc.overcasts} effect${oc.overcasts === 1 ? '' : 's'} (each 2 SL: +1 Target, +1× Range, or +1× Duration).`
+        : oc.cast && oc.surplus > 0
+          ? `\n\nCore-procedure surplus: +${oc.surplus} SL (2 needed to Overcast).`
+          : '';
+
+      const procedureNote = windsOfMagicLoaded
+        ? `\n\nAutomation uses the Core Rulebook casting procedure. Resolve Winds of Magic's revised Channelling and Overcasting from the supplement.`
         : '';
 
-    const procedureNote = windsOfMagicLoaded
-      ? `\n\nAutomation uses the Core Rulebook casting procedure. Resolve Winds of Magic's revised Channelling and Overcasting from the supplement.`
-      : '';
+      let body = `${formatTestResult(r)}\n\nChannelling pool used: +${usedPool} SL\nTotal SL: ${oc.totalSl}  ·  CN ${spell.cn}\n\n`;
 
-    let body = `${formatTestResult(r)}\n\nChannelling pool used: +${usedPool} SL\nTotal SL: ${oc.totalSl}  ·  CN ${spell.cn}\n\n`;
-
-    // A double on the casting roll is a Miscast (WFRP 4e), whether or not the
-    // spell goes off — not merely a fumble (96–00).
-    if (miscastDouble(r.roll)) {
-      const mRoll = rollForTable(miscastMinor);
-      body += `MISCAST (${mRoll}):\n${rollOnTable(miscastMinor, mRoll)}`;
-      if (oc.cast) {
+      // A double on the casting roll is a Miscast (WFRP 4e), whether or not the
+      // spell goes off — not merely a fumble (96–00).
+      if (miscastDouble(r.roll)) {
+        const mRoll = rollForTable(miscastMinor);
+        body += `MISCAST (${mRoll}):\n${rollOnTable(miscastMinor, mRoll)}`;
+        if (oc.cast) {
+          body += spell.rulesStatus === 'bibliographic'
+            ? `\n\n${indexedResolution}\n${resolveLine}${overcastLine}`
+            : `\n\n…the spell still resolves: ${resolveLine}${overcastLine}`;
+        }
+      } else if (oc.cast) {
         body += spell.rulesStatus === 'bibliographic'
-          ? `\n\n${indexedResolution}\n${resolveLine}${overcastLine}`
-          : `\n\n…the spell still resolves: ${resolveLine}${overcastLine}`;
+          ? `→ ${indexedResolution}\n${resolveLine}${overcastLine}`
+          : `→ ${spell.name} resolves!\n${resolveLine}${overcastLine}`;
+      } else {
+        body += r.success
+          ? `→ Not enough SL — spell fizzles. The energy disperses harmlessly.`
+          : `→ Casting test failed — spell fizzles. The energy disperses harmlessly.`;
       }
-    } else if (oc.cast) {
-      body += spell.rulesStatus === 'bibliographic'
-        ? `→ ${indexedResolution}\n${resolveLine}${overcastLine}`
-        : `→ ${spell.name} resolves!\n${resolveLine}${overcastLine}`;
-    } else {
-      body += r.success
-        ? `→ Not enough SL — spell fizzles. The energy disperses harmlessly.`
-        : `→ Casting test failed — spell fizzles. The energy disperses harmlessly.`;
+
+      body += procedureNote;
+
+      const resolution = oc.cast
+        ? spell.rulesStatus === 'bibliographic' ? 'THRESHOLD' : 'CAST'
+        : 'FIZZLE';
+      const miscast = miscastDouble(r.roll) ? ' · MISCAST' : '';
+      Alert.alert(`${spell.name} — ${resolution}${miscast}`, body);
+    } finally {
+      poolActionRef.current = false;
+      setPoolActionPending(false);
     }
+  };
 
-    body += procedureNote;
-
-    const resolution = oc.cast
-      ? spell.rulesStatus === 'bibliographic' ? 'THRESHOLD' : 'CAST'
-      : 'FIZZLE';
-    const miscast = miscastDouble(r.roll) ? ' · MISCAST' : '';
-    Alert.alert(`${spell.name} — ${resolution}${miscast}`, body);
+  const releasePool = async () => {
+    if (poolActionRef.current || pool === 0) return;
+    poolActionRef.current = true;
+    setPoolActionPending(true);
+    try {
+      const durability = await setPool(0).completion;
+      if (!durability.ok) Alert.alert('Could not release pool', durability.error.message);
+    } finally {
+      poolActionRef.current = false;
+      setPoolActionPending(false);
+    }
   };
 
   return (
@@ -379,13 +431,14 @@ export const MagicScreen: React.FC = () => {
               variant="brass"
               iconLeft={<Icon name="dice" size={13} color="#2a2010" />}
               onPress={channel}
+              disabled={poolActionPending}
             >
               Channel
             </Button>
             <Button
               variant="ghost"
-              onPress={() => setPool(0)}
-              disabled={pool === 0}
+              onPress={releasePool}
+              disabled={pool === 0 || poolActionPending}
             >
               Release pool
             </Button>
@@ -443,6 +496,7 @@ export const MagicScreen: React.FC = () => {
                   ariaLabel={`Cast ${s.name}`}
                   iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
                   onPress={() => cast(s)}
+                  disabled={poolActionPending}
                 >{''}</Button>
               </Cell>
             </TableRow>

@@ -1,4 +1,4 @@
-import type * as React from 'react';
+import * as React from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { type XpKind } from '@/data/character';
 import { useXp } from '@/hooks/useXp';
@@ -33,12 +33,31 @@ const KIND_LABEL: Record<XpKind, string> = {
 
 export const XpScreen: React.FC = () => {
   const xp = useXp();
+  const awardActionRef = React.useRef(false);
+  const [awardPending, setAwardPending] = React.useState(false);
   // Quick-award amounts come from the content registry (xpRules.quickAwards).
   const quickGains = useXpRules().quickAwards;
 
-  const award = (amount: number) => {
-    const r = xp.gain(amount, 'Session reward');
-    Alert.alert('XP awarded', r.message);
+  const award = async (amount: number) => {
+    if (awardActionRef.current) return;
+    awardActionRef.current = true;
+    setAwardPending(true);
+    try {
+      const r = xp.gain(amount, 'Session reward');
+      if (!r.ok || !r.completion) {
+        Alert.alert('Could not award XP', r.message || 'The XP award was rejected.');
+        return;
+      }
+      const durability = await r.completion;
+      if (!durability.ok) {
+        Alert.alert('Could not award XP', durability.error.message);
+        return;
+      }
+      Alert.alert('XP awarded', r.message);
+    } finally {
+      awardActionRef.current = false;
+      setAwardPending(false);
+    }
   };
 
   return (
@@ -50,6 +69,7 @@ export const XpScreen: React.FC = () => {
           <Button
             variant="brass"
             iconLeft={<Icon name="plus" size={13} color="#2a2010" />}
+            disabled={awardPending}
             onPress={() => {
               Alert.alert(
                 'Award session XP',
@@ -61,7 +81,7 @@ export const XpScreen: React.FC = () => {
               );
             }}
           >
-            Award XP
+            {awardPending ? 'Awarding…' : 'Award XP'}
           </Button>
         }
       />

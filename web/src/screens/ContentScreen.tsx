@@ -73,10 +73,12 @@ function refWarnings(section: EditableSection, entry: Record<string, unknown>, r
 
 export const ContentScreen: React.FC = () => {
   const reg = useContent();
-  const { pack: edits, upsertEntry, deleteEntry, revertEntry } = useContentEdits();
+  const { pack: edits, upsertEntry, renameEntry, deleteEntry, revertEntry } = useContentEdits();
   const [sectionKey, setSectionKey] = useState<EditableSection>('careers');
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [shareText, setShareText] = useState<string | null>(null);
+  const contentActionRef = useRef(false);
+  const [contentAction, setContentAction] = useState<'save' | 'remove' | null>(null);
 
   const meta = SECTION_META.find(m => m.key === sectionKey) ?? SECTION_META[0];
 
@@ -108,12 +110,57 @@ export const ContentScreen: React.FC = () => {
   const openNew = () => setSheet({ mode: 'new', id: '', text: JSON.stringify(meta.template, null, 2) });
   const openEdit = (entry: Entry) => setSheet({ mode: 'edit', id: entry.id, text: JSON.stringify(entry, null, 2) });
 
-  const commit = (parsed: Entry, newId: string) => {
-    upsertEntry(sectionKey, parsed);
-    // A changed id on an edit is a rename: drop the entry under the old id so it
-    // doesn't linger as a duplicate (tombstones a core original; clears a custom one).
-    if (sheet?.mode === 'edit' && newId !== sheet.id) deleteEntry(sectionKey, sheet.id);
+  const commit = async (parsed: Entry, newId: string) => {
+    if (!sheet || contentActionRef.current) return;
+    const edit = sheet;
+    contentActionRef.current = true;
+    setContentAction('save');
+    const durability = await (async () => {
+      try {
+        // A changed id on an edit is a rename. Both the new entry and old-id
+        // tombstone belong to one storage update so neither can commit alone.
+        const ticket = edit.mode === 'edit' && newId !== edit.id
+          ? renameEntry(sectionKey, edit.id, parsed)
+          : upsertEntry(sectionKey, parsed);
+        return await ticket.completion;
+      } finally {
+        contentActionRef.current = false;
+        setContentAction(null);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not save entry', durability.error.message);
+      return;
+    }
     setSheet(null);
+  };
+
+  const removeEntry = async (
+    section: EditableSection,
+    id: string,
+    mode: 'delete' | 'revert',
+    closeSheet = false,
+  ) => {
+    if (contentActionRef.current) return;
+    contentActionRef.current = true;
+    setContentAction('remove');
+    const durability = await (async () => {
+      try {
+        const ticket = mode === 'delete' ? deleteEntry(section, id) : revertEntry(section, id);
+        return await ticket.completion;
+      } finally {
+        contentActionRef.current = false;
+        setContentAction(null);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert(
+        mode === 'delete' ? 'Could not delete entry' : 'Could not restore entry',
+        durability.error.message,
+      );
+      return;
+    }
+    if (closeSheet) setSheet(null);
   };
 
   const save = () => {
@@ -153,12 +200,12 @@ export const ContentScreen: React.FC = () => {
         `This entry points at content that doesn't exist:\n\n${warns.join('\n')}\n\nSave anyway?`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Save anyway', onPress: () => commit(parsed as Entry, newId) },
+          { text: 'Save anyway', onPress: () => { void commit(parsed as Entry, newId); } },
         ],
       );
       return;
     }
-    commit(parsed as Entry, newId);
+    void commit(parsed as Entry, newId);
   };
 
   const confirmDelete = (entry: Entry) => {
@@ -167,7 +214,11 @@ export const ContentScreen: React.FC = () => {
       `Delete "${entry.name ?? entry.id}"? It is hidden until you restore it — your other data is untouched.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteEntry(sectionKey, entry.id) },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => { void removeEntry(sectionKey, entry.id, 'delete'); },
+        },
       ],
     );
   };
@@ -178,7 +229,11 @@ export const ContentScreen: React.FC = () => {
       `Discard your edits to "${entry.name ?? entry.id}"? If it overrides a built-in entry the original returns; a brand-new entry is removed.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Discard', style: 'destructive', onPress: () => revertEntry(sectionKey, entry.id) },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: () => { void removeEntry(sectionKey, entry.id, 'revert'); },
+        },
       ],
     );
   };
@@ -319,7 +374,7 @@ export const ContentScreen: React.FC = () => {
               <Cell flex={1}><Pill variant="warn" size={10}>Deleted</Pill></Cell>
               <Cell flex={1.4} align="right">
                 <div className="cnt-row-actions">
-                  <Button variant="ghost" onPress={() => revertEntry(sectionKey, id)}>Restore</Button>
+                  <Button variant="ghost" onPress={() => { void removeEntry(sectionKey, id, 'revert'); }}>Restore</Button>
                 </div>
               </Cell>
             </TableRow>
@@ -331,17 +386,21 @@ export const ContentScreen: React.FC = () => {
         visible={!!sheet}
         title={sheet?.mode === 'new' ? `New ${meta.singular}` : `Edit ${sheetEditId}`}
         subtitle={`${meta.label} · raw JSON`}
-        onClose={() => setSheet(null)}
+        onClose={() => { if (!contentActionRef.current) setSheet(null); }}
         onSave={save}
-        saveLabel="Save"
-        destructive={sheet && sheet.mode === 'edit'
+        saveLabel={contentAction === 'remove' ? 'Removing…' : contentAction === 'save' ? 'Saving…' : 'Save'}
+        saveDisabled={contentAction !== null}
+        destructive={sheet && sheet.mode === 'edit' && contentAction === null
           ? {
               label: sheetIsCustom ? 'Revert to core' : 'Delete',
               onPress: () => {
                 if (!sheet) return;
-                if (sheetIsCustom) revertEntry(sectionKey, sheet.id);
-                else deleteEntry(sectionKey, sheet.id);
-                setSheet(null);
+                void removeEntry(
+                  sectionKey,
+                  sheet.id,
+                  sheetIsCustom ? 'revert' : 'delete',
+                  true,
+                );
               },
             }
           : undefined}

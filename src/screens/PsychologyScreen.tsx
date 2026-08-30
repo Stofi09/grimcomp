@@ -79,7 +79,7 @@ export const PsychologyScreen: React.FC = () => {
           <Bar value={corrThresh > 0 ? Math.min(1, vitals.corruption / corrThresh) : 0} variant="corr" style={{ marginTop: 10 }} />
           <View style={[layoutStyles.rowBetween, { marginTop: 10 }]}>
             <Text style={styles.body}>At threshold: roll a mutation test.</Text>
-            <Stepper value={vitals.corruption} min={0} max={99} onChange={vitals.setCorruption} />
+            <Stepper accessibilityLabel="Corruption points" value={vitals.corruption} min={0} max={99} onChange={vitals.setCorruption} />
           </View>
         </Card>
         <Card style={styles.cell}>

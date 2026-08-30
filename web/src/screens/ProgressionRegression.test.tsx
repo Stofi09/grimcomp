@@ -217,7 +217,7 @@ describe('progression regressions', () => {
     expect(advances.bs).toBe(10);
   });
 
-  it('uses purchased Channelling and Language advances in Magic targets', () => {
+  it('uses purchased Channelling and Language advances in Magic targets', async () => {
     selectCharacter('c2');
     localStorage.setItem('gc.c2.skills.adv', JSON.stringify({
       'Channelling (Fire)': 25,
@@ -230,15 +230,17 @@ describe('progression regressions', () => {
     expect(screen.getByText('Language (Magick) +25')).toBeTruthy();
     expect(screen.getByText(/Test Channelling \(target 83\)/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Cast Dart' }));
+    await settleStorage();
     expect(getCurrentAlert()?.message).toContain('Roll  10  vs  85');
   });
 
-  it('labels a passed casting test that misses the CN as a fizzle', () => {
+  it('labels a passed casting test that misses the CN as a fizzle', async () => {
     selectCharacter('c2');
     vi.spyOn(Math, 'random').mockReturnValue(0.78); // d100 → 79: succeeds, but only +1 SL
 
     renderScreen(<MagicScreen />);
     fireEvent.click(screen.getByRole('button', { name: 'Cast Firewall' }));
+    await settleStorage();
 
     expect(getCurrentAlert()?.title).toBe('Firewall — FIZZLE');
     expect(getCurrentAlert()?.message).toContain('Not enough SL — spell fizzles');

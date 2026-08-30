@@ -1,5 +1,9 @@
 import {
   MAX_TRANSACTION_OPERATIONS,
+  SETTINGS_BACKUP_FILE_LIMIT_LABEL,
+  SETTINGS_BACKUP_SCHEMA,
+  isPlatformPortableSettingsKey,
+  settingsBackupExceedsFileLimit,
 } from '@grimcomp/core';
 import { CHARACTER_TEMPLATES } from '../data/character';
 import { nativeStorage } from './runtime';
@@ -34,12 +38,13 @@ export function serializeNativeSettingsExportSnapshot(
   exportedAt = new Date().toISOString(),
 ): string {
   const dump: Record<string, unknown> = {
-    $schema: 'grimcomp.v1',
+    $schema: SETTINGS_BACKUP_SCHEMA,
     exportedAt,
     scope,
     character: scope === 'character' ? characterName : undefined,
   };
   for (const [key, raw] of snapshot) {
+    if (!isPlatformPortableSettingsKey(key)) continue;
     const parsed = decodeNativeStoredValueForExport(key, raw);
     if (scope === 'character' && key === 'gc.customChars') {
       if (isRecord(parsed) && Object.prototype.hasOwnProperty.call(parsed, characterId)) {
@@ -69,7 +74,13 @@ export function serializeNativeSettingsExportSnapshot(
       );
     }
   }
-  return JSON.stringify(dump, null, 2);
+  const serialized = JSON.stringify(dump, null, 2);
+  if (settingsBackupExceedsFileLimit(serialized)) {
+    throw new Error(
+      `Portable backup is larger than the ${SETTINGS_BACKUP_FILE_LIMIT_LABEL} import limit.`,
+    );
+  }
+  return serialized;
 }
 
 /** Reads one FIFO-consistent snapshot before assembling a grimcomp.v1 export. */
@@ -79,7 +90,7 @@ export async function buildNativeSettingsExport(
   characterName: string,
 ): Promise<string> {
   const snapshot = await nativeStorage.readRawSnapshot((key) => (
-    isPortableNativeDataKey(key) && (
+    isPortableNativeDataKey(key) && isPlatformPortableSettingsKey(key) && (
       scope === 'roster' ||
       key.startsWith(`gc.${characterId}.`) ||
       key === 'gc.activeCharId' ||

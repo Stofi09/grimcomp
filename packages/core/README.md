@@ -90,3 +90,12 @@ Journal decoding accepts only JSON text, rejects unknown fields, duplicate or
 reserved operation keys, invalid ids, unsupported versions, non-raw values, and
 markers above the defensive size limit. The persisted marker is never trusted as
 a typed object.
+
+## Portable settings-backup boundary
+
+`settingsBackup.ts` defines the small contract shared by the native and web
+Settings exporters: schema tag `grimcomp.v1`, a 960 KiB UTF-8 file cap sized to
+leave transaction-journal headroom, and the platform-local key filter. `gc.newchar.draft` and `gc.newchar.step` are excluded
+because web and native intentionally persist different runtime shapes for an
+unfinished wizard. Platform adapters remain responsible for validating every
+included key/value and for applying an accepted import transactionally.

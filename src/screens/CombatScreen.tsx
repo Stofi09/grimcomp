@@ -293,6 +293,7 @@ export const CombatScreen: React.FC = () => {
                     <Button
                       variant="ghost"
                       iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
+                      accessibilityLabel={`Attack with ${w.name}`}
                       onPress={() => attack(w)}
                     >{''}</Button>
                   </Cell>

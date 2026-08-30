@@ -32,6 +32,8 @@ export const MagicScreen: React.FC = () => {
   // Each casting attempt may add the pool's SL to the cast SL. Cleared on
   // cast or miscast.
   const [pool, setPool] = useStoredState(characterKey(id, 'magic.pool'), 0);
+  const poolActionRef = React.useRef(false);
+  const [poolActionPending, setPoolActionPending] = React.useState(false);
 
   // Content hooks must run before the early return below.
   const spells = useResolveSpells(c.knownSpells ?? []);
@@ -69,73 +71,123 @@ export const MagicScreen: React.FC = () => {
   const channelTarget = wp.current + (channelSkill?.adv ?? 0);
   const castTarget = intCh.current + (langSkill?.adv ?? 0);
 
-  const channel = () => {
-    const r = resolveTest({ target: channelTarget, modifier: condMod.total, label: 'Channelling' });
-    const isDouble = r.roll >= 11 && r.roll <= 99 && Math.floor(r.roll / 10) === (r.roll % 10);
+  const channel = async () => {
+    if (poolActionRef.current) return;
+    poolActionRef.current = true;
+    setPoolActionPending(true);
+    try {
+      const r = resolveTest({ target: channelTarget, modifier: condMod.total, label: 'Channelling' });
+      const isDouble = r.roll >= 11 && r.roll <= 99 && Math.floor(r.roll / 10) === (r.roll % 10);
 
-    if (isDouble) {
-      // A double while channelling is a Miscast. A successful (Critical) channel
-      // is a Minor Miscast that still banks its SL; a failed double is a fumble →
-      // Major Miscast and the pool is lost.
-      const mRoll = rollD100();
-      if (r.success) {
-        const slGain = Math.max(0, r.sl);
-        const newPool = pool + slGain;
-        setPool(newPool);
-        Alert.alert(
-          'Channelling — Minor Miscast',
-          `${formatTestResult(r)}\n\nMISCAST (${mRoll}):\n${rollOnTable(miscastMinor, mRoll)}\n\nPool still gained ${slGain} SL → ${newPool} total.`,
-        );
-      } else {
-        setPool(0);
-        Alert.alert(
-          'Channelling — Major Miscast',
-          `${formatTestResult(r)}\n\nMISCAST (${mRoll}):\n${rollOnTable(miscastMajor, mRoll)}\n\nChannelling pool lost.`,
-        );
+      if (isDouble) {
+        // A double while channelling is a Miscast. A successful (Critical) channel
+        // is a Minor Miscast that still banks its SL; a failed double is a fumble →
+        // Major Miscast and the pool is lost.
+        const mRoll = rollD100();
+        if (r.success) {
+          const slGain = Math.max(0, r.sl);
+          const newPool = pool + slGain;
+          const durability = await setPool(newPool);
+          if (!durability.ok) {
+            Alert.alert('Could not save Channelling', `The roll was discarded because the pool change could not be saved. ${durability.error.message}`);
+            return;
+          }
+          Alert.alert(
+            'Channelling — Minor Miscast',
+            `${formatTestResult(r)}\n\nMISCAST (${mRoll}):\n${rollOnTable(miscastMinor, mRoll)}\n\nPool still gained ${slGain} SL → ${newPool} total.`,
+          );
+        } else {
+          const durability = await setPool(0);
+          if (!durability.ok) {
+            Alert.alert('Could not save Channelling', `The roll was discarded because the pool change could not be saved. ${durability.error.message}`);
+            return;
+          }
+          Alert.alert(
+            'Channelling — Major Miscast',
+            `${formatTestResult(r)}\n\nMISCAST (${mRoll}):\n${rollOnTable(miscastMajor, mRoll)}\n\nChannelling pool lost.`,
+          );
+        }
+        return;
       }
-      return;
-    }
 
-    const slGain = Math.max(0, r.sl);
-    const newPool = pool + slGain;
-    if (r.success) setPool(newPool);
-    Alert.alert(
-      `Channelling — ${outcomeLabel(r.outcome)}`,
-      `${formatTestResult(r)}\n\n${
-        r.success
-          ? `Pool gained ${slGain} SL → ${newPool} total. Spend on your next cast.`
-          : 'No SL added. The Aethyr resists.'
-      }`,
-    );
+      const slGain = Math.max(0, r.sl);
+      const newPool = pool + slGain;
+      if (r.success) {
+        const durability = await setPool(newPool);
+        if (!durability.ok) {
+          Alert.alert('Could not save Channelling', `The roll was discarded because the pool change could not be saved. ${durability.error.message}`);
+          return;
+        }
+      }
+      Alert.alert(
+        `Channelling — ${outcomeLabel(r.outcome)}`,
+        `${formatTestResult(r)}\n\n${
+          r.success
+            ? `Pool gained ${slGain} SL → ${newPool} total. Spend on your next cast.`
+            : 'No SL added. The Aethyr resists.'
+        }`,
+      );
+    } finally {
+      poolActionRef.current = false;
+      setPoolActionPending(false);
+    }
   };
 
-  const cast = (spell: Spell) => {
-    const r = resolveTest({ target: castTarget, modifier: condMod.total, label: `Cast ${spell.name}` });
-    // Total SL = test SL + channelling pool.
-    const totalSl = r.sl + pool;
-    const reachedCN = totalSl >= spell.cn;
-    const usedPool = pool;
-    setPool(0); // Pool spends regardless of success.
-
-    // A double on the casting roll is a Miscast (WFRP 4e), whether or not the
-    // spell goes off — not merely a fumble (96–00).
-    const isDouble = r.roll >= 11 && r.roll <= 99 && Math.floor(r.roll / 10) === (r.roll % 10);
-
-    let body = `${formatTestResult(r)}\n\nChannelling pool used: +${usedPool} SL\nTotal SL: ${totalSl}\nNeeded: ${spell.cn}\n\n`;
-
-    if (isDouble) {
-      const mRoll = rollD100();
-      body += `MISCAST (${mRoll}):\n${rollOnTable(miscastMinor, mRoll)}`;
-      if (reachedCN) {
-        body += `\n\n…the spell still resolves: ${spell.description}${spell.damage ? `\nDamage: ${spell.damage}` : ''}`;
+  const cast = async (spell: Spell) => {
+    if (poolActionRef.current) return;
+    poolActionRef.current = true;
+    setPoolActionPending(true);
+    try {
+      const r = resolveTest({ target: castTarget, modifier: condMod.total, label: `Cast ${spell.name}` });
+      // Total SL = test SL + channelling pool.
+      const totalSl = r.sl + pool;
+      const reachedCN = totalSl >= spell.cn;
+      const usedPool = pool;
+      const durability = await setPool(0); // Pool spends regardless of success.
+      if (!durability.ok) {
+        Alert.alert(
+          'Could not cast spell',
+          `The casting result was discarded because the Channelling pool could not be saved. ${durability.error.message}`,
+        );
+        return;
       }
-    } else if (reachedCN) {
-      body += `→ ${spell.name} resolves!\n${spell.description}${spell.damage ? `\nDamage: ${spell.damage}` : ''}`;
-    } else {
-      body += `→ Not enough SL — spell fizzles. The energy disperses harmlessly.`;
-    }
 
-    Alert.alert(`${spell.name} — ${outcomeLabel(r.outcome)}`, body);
+      // A double on the casting roll is a Miscast (WFRP 4e), whether or not the
+      // spell goes off — not merely a fumble (96–00).
+      const isDouble = r.roll >= 11 && r.roll <= 99 && Math.floor(r.roll / 10) === (r.roll % 10);
+
+      let body = `${formatTestResult(r)}\n\nChannelling pool used: +${usedPool} SL\nTotal SL: ${totalSl}\nNeeded: ${spell.cn}\n\n`;
+
+      if (isDouble) {
+        const mRoll = rollD100();
+        body += `MISCAST (${mRoll}):\n${rollOnTable(miscastMinor, mRoll)}`;
+        if (reachedCN) {
+          body += `\n\n…the spell still resolves: ${spell.description}${spell.damage ? `\nDamage: ${spell.damage}` : ''}`;
+        }
+      } else if (reachedCN) {
+        body += `→ ${spell.name} resolves!\n${spell.description}${spell.damage ? `\nDamage: ${spell.damage}` : ''}`;
+      } else {
+        body += `→ Not enough SL — spell fizzles. The energy disperses harmlessly.`;
+      }
+
+      Alert.alert(`${spell.name} — ${outcomeLabel(r.outcome)}`, body);
+    } finally {
+      poolActionRef.current = false;
+      setPoolActionPending(false);
+    }
+  };
+
+  const releasePool = async () => {
+    if (poolActionRef.current || pool === 0) return;
+    poolActionRef.current = true;
+    setPoolActionPending(true);
+    try {
+      const durability = await setPool(0);
+      if (!durability.ok) Alert.alert('Could not release pool', durability.error.message);
+    } finally {
+      poolActionRef.current = false;
+      setPoolActionPending(false);
+    }
   };
 
   return (
@@ -171,13 +223,14 @@ export const MagicScreen: React.FC = () => {
               variant="brass"
               iconLeft={<Icon name="dice" size={13} color="#2a2010" />}
               onPress={channel}
+              disabled={poolActionPending}
             >
               Channel
             </Button>
             <Button
               variant="ghost"
-              onPress={() => setPool(0)}
-              disabled={pool === 0}
+              onPress={releasePool}
+              disabled={pool === 0 || poolActionPending}
             >
               Release pool
             </Button>
@@ -215,7 +268,9 @@ export const MagicScreen: React.FC = () => {
                 <Button
                   variant="ghost"
                   iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
+                  accessibilityLabel={`Cast ${s.name}`}
                   onPress={() => cast(s)}
+                  disabled={poolActionPending}
                 >{''}</Button>
               </Cell>
             </TableRow>

@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, Text, View, StyleSheet, ViewStyle, TextStyle, StyleProp } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fontFamilies, shadows } from '@/theme';
+import { CONTROL_HIT_SLOP, getButtonAccessibilityLabel } from './controlAccessibility';
 
 export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'brass';
 
@@ -13,6 +14,8 @@ interface ButtonProps {
   large?: boolean;
   disabled?: boolean;
   onPress?: () => void;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
 }
@@ -40,6 +43,8 @@ export const Button: React.FC<ButtonProps> = ({
   large,
   disabled,
   onPress,
+  accessibilityLabel,
+  accessibilityHint,
   style,
   textStyle,
 }) => {
@@ -48,10 +53,22 @@ export const Button: React.FC<ButtonProps> = ({
   const disabledStyle = disabled
     ? { backgroundColor: '#c8b89d', borderColor: '#8c7c64', opacity: 0.85 }
     : null;
+  const visibleText = React.Children.toArray(children)
+    .filter((child): child is string | number => (
+      typeof child === 'string' || typeof child === 'number'
+    ))
+    .join(' ');
+  const resolvedAccessibilityLabel = getButtonAccessibilityLabel(accessibilityLabel, visibleText);
   return (
     <Pressable
-      onPress={disabled ? undefined : onPress}
-      hitSlop={4}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={resolvedAccessibilityLabel}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      hitSlop={CONTROL_HIT_SLOP}
       style={({ pressed }) => [
         styles.base,
         { backgroundColor: showGradient ? 'transparent' : v.bg, borderColor: v.border },
@@ -70,7 +87,11 @@ export const Button: React.FC<ButtonProps> = ({
           style={[StyleSheet.absoluteFillObject, { borderRadius: 3 }]}
         />
       ) : null}
-      {iconLeft ? <View>{iconLeft}</View> : null}
+      {iconLeft ? (
+        <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {iconLeft}
+        </View>
+      ) : null}
       <Text
         style={[
           styles.text,
@@ -81,7 +102,11 @@ export const Button: React.FC<ButtonProps> = ({
       >
         {children}
       </Text>
-      {iconRight ? <View>{iconRight}</View> : null}
+      {iconRight ? (
+        <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {iconRight}
+        </View>
+      ) : null}
     </Pressable>
   );
 };
