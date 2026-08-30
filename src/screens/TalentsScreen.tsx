@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { useTalents } from '@/hooks/useTalents';
 import { useXp } from '@/hooks/useXp';
+import { runStoredTransaction } from '@/hooks/useStoredState';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
@@ -11,6 +12,7 @@ import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { colors, fontFamilies } from '@/theme';
 import { layoutStyles } from '@/components/primitives';
+import { useProgressionActionGuard } from './useProgressionActionGuard';
 
 // "Buy another rank" cost: 100 × the new rank number. WFRP 4e core p.49.
 const talentCost = (currentTimes: number) => 100 * (currentTimes + 1);
@@ -18,17 +20,35 @@ const talentCost = (currentTimes: number) => 100 * (currentTimes + 1);
 export const TalentsScreen: React.FC = () => {
   const { list, buyAnother } = useTalents();
   const xp = useXp();
+  const beginProgressionAction = useProgressionActionGuard();
 
-  const buy = (name: string, currentTimes: number) => {
-    const cost = talentCost(currentTimes);
-    const reason = `${name} ×${currentTimes + 1}`;
-    const r = xp.spend(cost, reason, 'talent');
-    if (!r.ok) {
-      Alert.alert('Not enough XP', r.message);
-      return;
+  const buy = async (name: string, currentTimes: number) => {
+    const action = beginProgressionAction(`talent:${name.toLocaleLowerCase()}`);
+    if (!action) return;
+
+    try {
+      const cost = talentCost(currentTimes);
+      const reason = `${name} ×${currentTimes + 1}`;
+      let r = { ok: false, message: 'Storage is not ready for this purchase.' };
+      const durability = await runStoredTransaction(() => {
+        r = xp.spend(cost, reason, 'talent');
+        if (r.ok) buyAnother(name);
+      });
+      if (!r.ok) {
+        Alert.alert(
+          durability.ok ? 'Not enough XP' : 'Could not save purchase',
+          durability.ok ? r.message : durability.error.message,
+        );
+        return;
+      }
+      if (!durability.ok) {
+        Alert.alert('Could not save purchase', durability.error.message);
+        return;
+      }
+      Alert.alert('Bought talent', r.message);
+    } finally {
+      action.release();
     }
-    buyAnother(name);
-    Alert.alert('Bought talent', r.message);
   };
 
   return (

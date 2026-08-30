@@ -3,7 +3,11 @@
 // `add`s to this; useCharacter reads from it; RosterScreen lists from it.
 
 import { useCallback } from 'react';
-import { useStoredState } from './useStoredState';
+import {
+  runStoredTransaction,
+  storedKeys,
+  useStoredState,
+} from './useStoredState';
 import {
   CHARACTER_TEMPLATES,
   DEFAULT_CHARACTER_ID,
@@ -20,7 +24,11 @@ export function useRoster() {
   // Built-ins live in code; custom live in AsyncStorage. Custom wins if the
   // same id ever collides (we mint unique ids on creation so this shouldn't
   // happen in practice).
-  const all: Record<string, Character> = { ...CHARACTER_TEMPLATES, ...custom };
+  const all = Object.assign(
+    Object.create(null) as Record<string, Character>,
+    CHARACTER_TEMPLATES,
+    custom,
+  );
   const list: Character[] = Object.values(all);
 
   /** Add a freshly-created character. Returns the (possibly remapped) id. */
@@ -29,14 +37,22 @@ export function useRoster() {
     return c.id;
   }, [setCustom]);
 
-  /** Delete a custom character. Built-ins (c1–c4) can't be deleted. */
+  /** Delete a custom character and every per-character overlay. Built-ins
+      (c1–c4) can't be deleted. When invoked inside another stored transaction,
+      this joins that transaction so an active-id fallback can be atomic too. */
   const remove = useCallback((id: string) => {
-    setCustom(prev => {
-      if (!(id in prev)) return prev;
-      const { [id]: _drop, ...rest } = prev;
-      return rest;
+    if (!(id in custom)) return null;
+    return runStoredTransaction((transaction) => {
+      for (const key of storedKeys(key => key.startsWith(`gc.${id}.`))) {
+        transaction.remove(key);
+      }
+      void setCustom(prev => {
+        if (!(id in prev)) return prev;
+        const { [id]: _drop, ...rest } = prev;
+        return rest;
+      });
     });
-  }, [setCustom]);
+  }, [custom, setCustom]);
 
   const get = useCallback((id: string): Character => {
     return all[id] ?? CHARACTER_TEMPLATES[DEFAULT_CHARACTER_ID];

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert, TextInput } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { Hero } from '@/components/Hero';
@@ -8,7 +8,7 @@ import { Button } from '@/components/Button';
 import { Icon, type IconName } from '@/components/Icon';
 import { Avatar } from '@/components/Avatar';
 import { Pill } from '@/components/Pill';
-import { useStoredState } from '@/hooks/useStoredState';
+import { runStoredTransaction, useStoredState } from '@/hooks/useStoredState';
 import { useRoster } from '@/hooks/useRoster';
 import { useCharacter } from '@/hooks/useCharacter';
 import { CHARACTER_TEMPLATES, computeMaxWounds, type Character, type CharacteristicKey } from '@/data/character';
@@ -196,6 +196,8 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
   // half-finished character.
   const [step, setStep] = useStoredState('gc.newchar.step', 0);
   const [draft, setDraft] = useStoredState<Draft>('gc.newchar.draft', emptyDraft);
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
 
   const arch = ARCHETYPES.find(a => a.key === draft.archetypeKey) ?? ARCHETYPES[0];
   const srcTpl = CHARACTER_TEMPLATES[arch.source];
@@ -217,7 +219,8 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
     return true;
   })();
 
-  const finish = () => {
+  const finish = async () => {
+    if (savingRef.current) return;
     if (!draft.name.trim()) {
       Alert.alert('Name required', 'Please give your character a name first.');
       return;
@@ -236,11 +239,30 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
     }
     const id = nextId();
     const c = buildCharacter(draft, id, race, skillDefs, talentDefs, content.allSpells, content.allPrayers);
-    add(c);
-    setActive(id);
-    // Reset draft so the wizard is fresh next time.
-    setDraft(emptyDraft);
-    setStep(0);
+    savingRef.current = true;
+    setSaving(true);
+    const result = await (async () => {
+      try {
+        return await runStoredTransaction(() => {
+          add(c);
+          setActive(id);
+          // Reset draft so the wizard is fresh next time. These four logical
+          // changes share one recoverable journal and cannot publish partially.
+          setDraft(emptyDraft);
+          setStep(0);
+        });
+      } finally {
+        savingRef.current = false;
+        setSaving(false);
+      }
+    })();
+    if (!result.ok) {
+      Alert.alert(
+        'Character not created',
+        `Nothing was changed because the character could not be saved. ${result.error.message}`,
+      );
+      return;
+    }
     Alert.alert(
       'Character created',
       `${c.name} is ready. Switched to them as the active character.`,
@@ -474,10 +496,11 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
         ) : (
           <Button
             variant="primary"
-            onPress={finish}
+            onPress={() => { void finish(); }}
+            disabled={saving}
             iconLeft={<Icon name="check" size={13} color={colors.ivory} />}
           >
-            Finish & switch
+            {saving ? 'Saving…' : 'Finish & switch'}
           </Button>
         )}
       </View>

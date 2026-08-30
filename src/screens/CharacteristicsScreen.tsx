@@ -4,6 +4,7 @@ import { ScreenContainer } from './ScreenContainer';
 import { type CharacteristicKey } from '@/data/character';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useXp } from '@/hooks/useXp';
+import { runStoredTransaction } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useXpCosts } from '@/content/useContent';
 import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
@@ -17,6 +18,7 @@ import { Icon } from '@/components/Icon';
 import { Table, TableRow, Cell } from '@/components/Table';
 import { colors, fontFamilies } from '@/theme';
 import { tabular, layoutStyles } from '@/components/primitives';
+import { useProgressionActionGuard } from './useProgressionActionGuard';
 
 // Per-advance (+1) XP cost from the WFRP 4e table (core p.48–49), keyed by how
 // many advances have already been bought.
@@ -36,6 +38,7 @@ export const CharacteristicsScreen: React.FC = () => {
   const xp = useXp();
   const { modifier: condMod } = useConditions();
   const xpCosts = useXpCosts();
+  const beginProgressionAction = useProgressionActionGuard();
 
   const test = (key: CharacteristicKey) => {
     const c = list.find(x => x.key === key)!;
@@ -54,19 +57,36 @@ export const CharacteristicsScreen: React.FC = () => {
   const cost = stepCost(advNow);
   const highlightIdx = xpCosts.findIndex(b => b.cost === perAdvance(advNow));
 
-  const buy = (key: CharacteristicKey) => {
-    const c = list.find(x => x.key === key)!;
-    const cur = get(key);
-    const next = cur + 5;
-    const cost = stepCost(cur);
-    const reason = `${c.name} +${cur} → +${next}`;
-    const r = xp.spend(cost, reason, 'char');
-    if (!r.ok) {
-      Alert.alert('Not enough XP', r.message);
-      return;
+  const buy = async (key: CharacteristicKey) => {
+    const action = beginProgressionAction(`characteristic:${key}`);
+    if (!action) return;
+
+    try {
+      const c = list.find(x => x.key === key)!;
+      const cur = get(key);
+      const next = cur + 5;
+      const cost = stepCost(cur);
+      const reason = `${c.name} +${cur} → +${next}`;
+      let r = { ok: false, message: 'Storage is not ready for this purchase.' };
+      const durability = await runStoredTransaction(() => {
+        r = xp.spend(cost, reason, 'char');
+        if (r.ok) adjust(key, +5);
+      });
+      if (!r.ok) {
+        Alert.alert(
+          durability.ok ? 'Not enough XP' : 'Could not save purchase',
+          durability.ok ? r.message : durability.error.message,
+        );
+        return;
+      }
+      if (!durability.ok) {
+        Alert.alert('Could not save purchase', durability.error.message);
+        return;
+      }
+      Alert.alert('Bought advance', r.message);
+    } finally {
+      action.release();
     }
-    adjust(key, +5);
-    Alert.alert('Bought advance', r.message);
   };
 
   const pickOther = () => {

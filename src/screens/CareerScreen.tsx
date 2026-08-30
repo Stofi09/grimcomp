@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { useCareer } from '@/hooks/useCareer';
 import { useXp } from '@/hooks/useXp';
-import { useStoredState } from '@/hooks/useStoredState';
+import { runStoredTransaction, useStoredState } from '@/hooks/useStoredState';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -14,6 +14,7 @@ import { Icon } from '@/components/Icon';
 import { Table, TableRow, Cell } from '@/components/Table';
 import { colors, fontFamilies } from '@/theme';
 import { tabular, layoutStyles } from '@/components/primitives';
+import { useProgressionActionGuard } from './useProgressionActionGuard';
 
 // Per-character career-rank requirements. Sigmund's are modelled in detail
 // (Roadwarden → Mounted Sergeant from the WFRP4e core book); other characters
@@ -41,6 +42,7 @@ export const CareerScreen: React.FC = () => {
   const { id, template: c } = useCharacter();
   const career = useCareer();
   const xp = useXp();
+  const beginProgressionAction = useProgressionActionGuard();
 
   // Live skill advances per character.
   const [skillAdv] = useStoredState<Record<string, number>>(
@@ -62,21 +64,38 @@ export const CareerScreen: React.FC = () => {
     done: i < career.level - 1 || t.times > 1,
   }));
 
-  const tryAdvance = () => {
+  const tryAdvance = async () => {
     if (!ok) return;
     if (!career.canAdvance) {
       Alert.alert('Top of career', `${c.name} is already at the highest rank.`);
       return;
     }
-    const nextRank = career.ranks[career.level]; // 0-indexed; career.level is the *current* rank
-    const reason = `${nextRank.name} (rank ${career.level + 1})`;
-    const r = xp.spend(ADVANCE_COST, reason, 'career');
-    if (!r.ok) {
-      Alert.alert('Not enough XP', r.message);
-      return;
+    const action = beginProgressionAction(`career:${id}`);
+    if (!action) return;
+
+    try {
+      const nextRank = career.ranks[career.level]; // 0-indexed; career.level is the *current* rank
+      const reason = `${nextRank.name} (rank ${career.level + 1})`;
+      let r = { ok: false, message: 'Storage is not ready for this advance.' };
+      const durability = await runStoredTransaction(() => {
+        r = xp.spend(ADVANCE_COST, reason, 'career');
+        if (r.ok) career.advance();
+      });
+      if (!r.ok) {
+        Alert.alert(
+          durability.ok ? 'Not enough XP' : 'Could not save advance',
+          durability.ok ? r.message : durability.error.message,
+        );
+        return;
+      }
+      if (!durability.ok) {
+        Alert.alert('Could not save advance', durability.error.message);
+        return;
+      }
+      Alert.alert('Advanced!', `You are now a ${nextRank.name} (${nextRank.status}).`);
+    } finally {
+      action.release();
     }
-    career.advance();
-    Alert.alert('Advanced!', `You are now a ${nextRank.name} (${nextRank.status}).`);
   };
 
   const nextRankName = career.ranks[Math.min(career.ranks.length - 1, career.level)]?.name ?? '';

@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { useCharacter } from '@/hooks/useCharacter';
 import { useRoster } from '@/hooks/useRoster';
+import { runStoredTransaction } from '@/hooks/useStoredState';
+import { DEFAULT_CHARACTER_ID } from '@/data/character';
 import type { ScreenId } from '@/data/nav';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -19,9 +21,34 @@ interface Props { onNav: (id: ScreenId) => void; }
 export const RosterScreen: React.FC<Props> = ({ onNav }) => {
   const { id: activeId, setActive } = useCharacter();
   const { list, remove, custom } = useRoster();
+  const deletingIdsRef = useRef(new Set<string>());
+  const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(() => new Set());
   const switchTo = (id: string) => {
     setActive(id);
     onNav('overview');
+  };
+
+  const deleteCharacter = async (id: string) => {
+    if (deletingIdsRef.current.has(id)) return;
+    deletingIdsRef.current.add(id);
+    setDeletingIds(new Set(deletingIdsRef.current));
+    const result = await (async () => {
+      try {
+        return await runStoredTransaction(() => {
+          remove(id);
+          if (id === activeId) setActive(DEFAULT_CHARACTER_ID);
+        });
+      } finally {
+        deletingIdsRef.current.delete(id);
+        setDeletingIds(new Set(deletingIdsRef.current));
+      }
+    })();
+    if (!result.ok) {
+      Alert.alert(
+        'Character not deleted',
+        `Nothing was changed because the character could not be deleted. ${result.error.message}`,
+      );
+    }
   };
   return (
   <ScreenContainer>
@@ -48,8 +75,7 @@ export const RosterScreen: React.FC<Props> = ({ onNav }) => {
               [
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Delete', style: 'destructive', onPress: () => {
-                  remove(c.id);
-                  if (isActive) setActive('c1');
+                  void deleteCharacter(c.id);
                 }},
               ],
             )
@@ -60,6 +86,7 @@ export const RosterScreen: React.FC<Props> = ({ onNav }) => {
           style={styles.cellWrap}
           onPress={() => switchTo(c.id)}
           onLongPress={onLong}
+          disabled={deletingIds.has(c.id)}
           delayLongPress={500}
         >
           <Card

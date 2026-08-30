@@ -7,11 +7,25 @@ import {
   type StorageTransactionResult,
 } from '@grimcomp/core';
 import type { NativeRawAsyncKeyValue } from './asyncStorageBackend';
+import { CHARACTER_TEMPLATES } from '../data/character';
 import {
+  NATIVE_STORAGE_VERSION,
   NATIVE_STORAGE_VERSION_KEY,
   runNativeStorageMigrations,
   type NativeStorageMigrationTable,
 } from './migrations';
+import {
+  NATIVE_RECOVERY_RESET_INTENT_KEY,
+  NATIVE_RECOVERY_RESET_INTENT_RAW,
+  NATIVE_RECOVERY_RESET_WITNESS_KEY,
+  NATIVE_RECOVERY_RESET_WITNESS_RAW,
+} from './nativeRecoveryKeys';
+import { validateNativeStoredValue } from './nativeDataValidation';
+
+export {
+  NATIVE_RECOVERY_RESET_INTENT_KEY,
+  NATIVE_RECOVERY_RESET_WITNESS_KEY,
+} from './nativeRecoveryKeys';
 
 type Setter<T> = T | ((previous: T) => T);
 
@@ -33,7 +47,12 @@ interface ActiveBatch {
   readonly transaction: StoredTransaction;
   readonly promise: Promise<NativeDurabilityResult>;
   fail(result: NativeDurabilityResult): void;
+  holdUntil(value: PromiseLike<unknown>): void;
 }
+
+type RecoveryResetProtocolResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly message: string };
 
 export interface StoredTransaction {
   read<T>(key: string, seed: T): T;
@@ -53,7 +72,7 @@ export type NativeDurabilityResult =
     };
 
 export interface NativeStorageError {
-  readonly code: 'not_ready' | 'invalid_key' | 'serialization_failed' | 'transaction_failed' | 'initialization_failed';
+  readonly code: 'not_ready' | 'invalid_key' | 'serialization_failed' | 'invalid_data' | 'transaction_failed' | 'initialization_failed';
   readonly message: string;
   readonly key?: string;
 }
@@ -75,6 +94,12 @@ const UNCHANGED: NativeDurabilityResult = {
   ok: true,
   outcome: 'unchanged',
   transactionId: null,
+};
+
+const RECOVERY_RESET_COMMITTED: NativeDurabilityResult = {
+  ok: true,
+  outcome: 'committed',
+  transactionId: 'native-recovery-reset-v1',
 };
 
 function boundedMessage(value: unknown): string {
@@ -108,19 +133,52 @@ function decodeRaw(raw: string | null): Pick<CacheEntry, 'parsed' | 'validJson'>
   }
 }
 
+function cloneJsonValue<T>(value: T): T {
+  if ((typeof value !== 'object' && typeof value !== 'function') || value === null) return value;
+  const raw = JSON.stringify(value);
+  if (raw === undefined) throw new Error('Value cannot be represented as JSON.');
+  return JSON.parse(raw) as T;
+}
+
+function isNativeInternalKey(key: string): boolean {
+  return (
+    key === STORAGE_TRANSACTION_JOURNAL_KEY
+    || key === NATIVE_STORAGE_VERSION_KEY
+    || key === NATIVE_RECOVERY_RESET_INTENT_KEY
+    || key === NATIVE_RECOVERY_RESET_WITNESS_KEY
+  );
+}
+
 function isNativeDataKey(key: string): boolean {
   return (
     key.startsWith('gc.') &&
     isValidStorageKey(key) &&
-    key !== STORAGE_TRANSACTION_JOURNAL_KEY &&
-    key !== NATIVE_STORAGE_VERSION_KEY
+    !isNativeInternalKey(key)
   );
 }
 
-function isThenable(value: unknown): boolean {
+function isThenable(value: unknown): value is PromiseLike<unknown> {
   if ((typeof value !== 'object' && typeof value !== 'function') || value === null) return false;
   try { return typeof (value as { then?: unknown }).then === 'function'; }
   catch { return true; }
+}
+
+function observeThenableSettlement(
+  value: PromiseLike<unknown>,
+  onSettled: () => void,
+): void {
+  try {
+    // An async callback has already started when its return value becomes
+    // visible. Consume any eventual rejection after rejecting the batch so it
+    // cannot surface as an unhandled process error.
+    void Promise.resolve(value).then(
+      onSettled,
+      onSettled,
+    );
+  } catch {
+    // Hostile thenables must remain contained by the synchronous boundary.
+    onSettled();
+  }
 }
 
 /**
@@ -137,6 +195,8 @@ export class NativeStorageStore {
   private localError: NativeStorageError | null = null;
   private localPending = 0;
   private maintenancePending = 0;
+  private recoveryResetPending = false;
+  private callbackBarrierPending = 0;
   private localDirty = false;
   private namespaceHydrated = false;
   private activeBatch: ActiveBatch | null = null;
@@ -162,9 +222,35 @@ export class NativeStorageStore {
     return this.initializePromise;
   }
 
+  /** Retry recovery from authoritative storage after a settled blocked state. */
+  retryInitialization(): Promise<NativeStorageStatus> {
+    const kernel = this.coordinator.getStatus();
+    if (
+      this.localPending > 0
+      || this.maintenancePending > 0
+      || this.callbackBarrierPending > 0
+      || kernel.pending > 0
+    ) return Promise.resolve(this.getStatus());
+
+    this.cache.clear();
+    this.namespaceHydrated = false;
+    this.localDirty = false;
+    this.localError = null;
+    this.bootError = null;
+    this.bootPhase = 'booting';
+    this.initializePromise = null;
+    this.emitStatus();
+    return this.initialize();
+  }
+
   private async initializeOnce(): Promise<NativeStorageStatus> {
     this.bootPhase = 'booting';
     this.emitStatus();
+
+    const reset = await this.completePendingRecoveryReset();
+    if (!reset.ok) {
+      return this.blockInitialization(`Recovery reset could not finish: ${reset.message}`);
+    }
 
     let recovery;
     try {
@@ -191,9 +277,20 @@ export class NativeStorageStore {
     try {
       const keys = await this.backend.getAllKeys();
       for (const key of keys) {
-        if (!key.startsWith('gc.') || key === STORAGE_TRANSACTION_JOURNAL_KEY) continue;
+        if (!key.startsWith('gc.') || isNativeInternalKey(key)) continue;
         const raw = await this.backend.getItem(key);
         const decoded = decodeRaw(raw);
+        if (raw !== null && !decoded.validJson) {
+          return this.blockInitialization(`Stored value ${key} is not valid JSON. Export or reset it before gameplay resumes.`);
+        }
+        if (raw !== null) {
+          const validation = validateNativeStoredValue(key, decoded.parsed);
+          if (!validation.ok) {
+            return this.blockInitialization(
+              `Stored value ${key} is incompatible with this native build: ${validation.message} Export or reset it before gameplay resumes.`,
+            );
+          }
+        }
         this.cache.set(key, {
           raw,
           ...decoded,
@@ -201,6 +298,26 @@ export class NativeStorageStore {
         });
       }
       this.namespaceHydrated = true;
+
+      const activeEntry = this.cache.get('gc.activeCharId');
+      const activeId = activeEntry?.raw !== null && activeEntry?.validJson
+        ? activeEntry?.parsed
+        : undefined;
+      if (typeof activeId === 'string') {
+        const customEntry = this.cache.get('gc.customChars');
+        const custom = customEntry?.raw !== null && customEntry?.validJson
+          && typeof customEntry?.parsed === 'object' && customEntry.parsed !== null
+          ? customEntry.parsed as Record<string, unknown>
+          : Object.create(null) as Record<string, unknown>;
+        if (
+          !Object.prototype.hasOwnProperty.call(CHARACTER_TEMPLATES, activeId)
+          && !Object.prototype.hasOwnProperty.call(custom, activeId)
+        ) {
+          return this.blockInitialization(
+            `Stored value gc.activeCharId names ${JSON.stringify(activeId)}, which does not exist in the native roster. Export or reset it before gameplay resumes.`,
+          );
+        }
+      }
     } catch (error) {
       return this.blockInitialization(`Could not hydrate native storage: ${boundedMessage(error)}`);
     }
@@ -227,13 +344,21 @@ export class NativeStorageStore {
     // applied. That is a transient mutual-exclusion state, not a recovery
     // failure: new writes should continue joining its FIFO queue and the React
     // tree must stay mounted. An idle+blocked kernel is the durable fault state.
-    const kernelFaultBlocked = kernel.blocked && kernel.phase === 'idle';
-    const blocked = this.bootPhase === 'blocked' || kernelFaultBlocked || this.localDirty;
+    const kernelFaultBlocked = kernel.initialized && kernel.blocked && kernel.phase === 'idle';
+    const blocked = (
+      this.bootPhase === 'blocked'
+      || kernelFaultBlocked
+      || this.localDirty
+      || this.callbackBarrierPending > 0
+    );
     return {
       phase: blocked ? 'blocked' : this.bootPhase,
-      ready: this.bootPhase === 'ready' && kernel.initialized && !blocked,
-      pending: Math.max(this.localPending, kernel.pending) + this.maintenancePending,
-      dirty: this.localDirty || this.localPending > 0 || kernel.dirty,
+      ready: this.bootPhase === 'ready' && kernel.initialized && !blocked && !this.recoveryResetPending,
+      pending: Math.max(this.localPending, kernel.pending)
+        + this.maintenancePending
+        + this.callbackBarrierPending
+        + (this.recoveryResetPending ? 1 : 0),
+      dirty: this.localDirty || this.localPending > 0 || kernel.dirty || this.recoveryResetPending,
       blocked,
       initialized: this.bootPhase === 'ready' && kernel.initialized,
       transactionId: kernel.transactionId,
@@ -290,6 +415,7 @@ export class NativeStorageStore {
   }
 
   isHydrated(key: string): boolean {
+    if (isNativeInternalKey(key)) return false;
     return this.cache.has(key) || (this.namespaceHydrated && key.startsWith('gc.'));
   }
 
@@ -302,7 +428,7 @@ export class NativeStorageStore {
   knownKeys(predicate: (key: string) => boolean = () => true): readonly string[] {
     const keys: string[] = [];
     for (const [key, entry] of this.cache) {
-      if (entry.raw != null && predicate(key)) keys.push(key);
+      if (entry.raw != null && isNativeDataKey(key) && predicate(key)) keys.push(key);
     }
     return keys;
   }
@@ -313,6 +439,7 @@ export class NativeStorageStore {
    * the newer optimistic value when it eventually resolves.
    */
   async hydrate<T>(key: string, seed: T): Promise<T> {
+    if (isNativeInternalKey(key)) return seed;
     const current = this.cache.get(key);
     if (current) return this.read(key, seed);
     const revision = 0;
@@ -330,6 +457,24 @@ export class NativeStorageStore {
     }
     if ((this.cache.get(key)?.revision ?? 0) !== revision) return this.read(key, seed);
     const decoded = decodeRaw(raw);
+    let invalidReason: string | null = null;
+    if (raw !== null) {
+      if (!decoded.validJson) invalidReason = `its stored value is not valid JSON.`;
+      else {
+        const validation = validateNativeStoredValue(key, decoded.parsed);
+        if (!validation.ok) invalidReason = validation.message;
+      }
+    }
+    if (invalidReason !== null) {
+      this.localDirty = true;
+      this.localError = {
+        code: 'invalid_data',
+        message: `Could not hydrate ${key}: ${invalidReason}`,
+        key,
+      };
+      this.emitStatus();
+      return seed;
+    }
     this.cache.set(key, { raw, ...decoded, revision });
     this.emitKey(key);
     return this.read(key, seed);
@@ -355,6 +500,7 @@ export class NativeStorageStore {
       try {
         const returned: unknown = work(this.activeBatch.transaction);
         if (isThenable(returned) && returned !== this.activeBatch.promise) {
+          this.activeBatch.holdUntil(returned);
           this.activeBatch.fail(nativeFailure(
             'transaction_failed',
             'Stored transaction callbacks must be synchronous.',
@@ -380,13 +526,22 @@ export class NativeStorageStore {
 
     const drafts = new Map<string, DraftEntry>();
     let workFailure: NativeDurabilityResult | null = null;
+    let transactionActive = true;
+
+    const assertTransactionActive = (): void => {
+      if (!transactionActive) {
+        throw new Error('This stored transaction is no longer active.');
+      }
+    };
 
     const getDraft = (key: string): DraftEntry => {
       const existing = drafts.get(key);
       if (existing) return existing;
       const cached = this.cache.get(key);
       const raw = cached?.raw ?? null;
-      const decoded = cached ?? { ...decodeRaw(raw), revision: 0, raw };
+      // Reparse the raw snapshot so a mutating functional updater cannot alias
+      // and silently modify the committed cache before durability succeeds.
+      const decoded = decodeRaw(raw);
       const draft: DraftEntry = {
         beforeRaw: raw,
         afterRaw: raw,
@@ -405,18 +560,53 @@ export class NativeStorageStore {
 
     const transaction: StoredTransaction = {
       read: <T,>(key: string, seed: T): T => {
+        assertTransactionActive();
         if (!requireKey(key)) return seed;
         const draft = getDraft(key);
-        return draft.afterRaw != null && draft.validJson ? draft.parsed as T : seed;
+        if (draft.afterRaw != null && draft.validJson) return draft.parsed as T;
+        try {
+          return cloneJsonValue(seed);
+        } catch (error) {
+          workFailure = nativeFailure(
+            'serialization_failed',
+            `Could not isolate the seed for ${key}: ${boundedMessage(error)}`,
+            'rejected',
+            key,
+          );
+          return seed;
+        }
       },
       update: <T,>(key: string, seed: T, next: Setter<T>): T => {
+        assertTransactionActive();
         if (!requireKey(key)) return seed;
         const draft = getDraft(key);
-        const previous = draft.afterRaw != null && draft.validJson ? draft.parsed as T : seed;
+        let previous: T;
+        try {
+          previous = draft.afterRaw != null && draft.validJson
+            ? draft.parsed as T
+            : cloneJsonValue(seed);
+        } catch (error) {
+          workFailure = nativeFailure(
+            'serialization_failed',
+            `Could not isolate the seed for ${key}: ${boundedMessage(error)}`,
+            'rejected',
+            key,
+          );
+          return seed;
+        }
         const resolved = typeof next === 'function'
           ? (next as (value: T) => T)(previous)
           : next;
-        if (Object.is(previous, resolved)) return previous;
+        if (isThenable(resolved)) {
+          this.activeBatch?.holdUntil(resolved);
+          workFailure = nativeFailure(
+            'transaction_failed',
+            `Functional updater for ${key} must return synchronously.`,
+            'rejected',
+            key,
+          );
+          return previous;
+        }
         let raw: string | undefined;
         try {
           raw = JSON.stringify(resolved);
@@ -434,20 +624,51 @@ export class NativeStorageStore {
           return previous;
         }
         const decoded = decodeRaw(raw);
+        const validation = validateNativeStoredValue(key, decoded.parsed);
+        if (!validation.ok) {
+          workFailure = nativeFailure(
+            'invalid_data',
+            `Refused incompatible value for ${key}: ${validation.message}`,
+            'rejected',
+            key,
+          );
+          return previous;
+        }
         draft.afterRaw = raw;
         draft.parsed = decoded.parsed;
         draft.validJson = decoded.validJson;
         return resolved;
       },
       setRaw: (key: string, raw: string): void => {
+        assertTransactionActive();
         if (!requireKey(key)) return;
-        const draft = getDraft(key);
         const decoded = decodeRaw(raw);
+        if (!decoded.validJson) {
+          workFailure = nativeFailure(
+            'serialization_failed',
+            `${key} must be set to a valid serialized JSON value.`,
+            'rejected',
+            key,
+          );
+          return;
+        }
+        const validation = validateNativeStoredValue(key, decoded.parsed);
+        if (!validation.ok) {
+          workFailure = nativeFailure(
+            'invalid_data',
+            `Refused incompatible value for ${key}: ${validation.message}`,
+            'rejected',
+            key,
+          );
+          return;
+        }
+        const draft = getDraft(key);
         draft.afterRaw = raw;
         draft.parsed = decoded.parsed;
         draft.validJson = decoded.validJson;
       },
       remove: (key: string): void => {
+        assertTransactionActive();
         if (!requireKey(key)) return;
         const draft = getDraft(key);
         draft.afterRaw = null;
@@ -456,17 +677,38 @@ export class NativeStorageStore {
       },
     };
 
-    this.activeBatch = {
+    let heldThenables = 0;
+    let callbackReturned = false;
+    const batch: ActiveBatch = {
       transaction,
       promise: batchPromise,
       fail: (result) => { workFailure = result; },
+      holdUntil: (value) => {
+        heldThenables += 1;
+        this.callbackBarrierPending += 1;
+        this.localError = {
+          code: 'transaction_failed',
+          message: 'Stored transaction callbacks and functional updaters must be synchronous.',
+        };
+        this.emitStatus();
+        observeThenableSettlement(value, () => {
+          heldThenables = Math.max(0, heldThenables - 1);
+          this.callbackBarrierPending = Math.max(0, this.callbackBarrierPending - 1);
+          if (callbackReturned && heldThenables === 0 && this.activeBatch === batch) {
+            this.activeBatch = null;
+          }
+          this.emitStatus();
+        });
+      },
     };
+    this.activeBatch = batch;
     try {
       const returned: unknown = work(transaction);
       // A concise callback may return a nested setter's durability Promise;
       // that is this exact outer Promise and is still synchronous. A distinct
       // thenable means the callback itself is async and cannot be atomic.
       if (isThenable(returned) && returned !== batchPromise) {
+        batch.holdUntil(returned);
         workFailure = nativeFailure(
           'transaction_failed',
           'Stored transaction callbacks must be synchronous.',
@@ -475,7 +717,9 @@ export class NativeStorageStore {
     } catch (error) {
       workFailure = nativeFailure('transaction_failed', `Stored transaction failed: ${boundedMessage(error)}`);
     } finally {
-      this.activeBatch = null;
+      transactionActive = false;
+      callbackReturned = true;
+      if (heldThenables === 0 && this.activeBatch === batch) this.activeBatch = null;
     }
     if (workFailure) {
       resolveBatch(workFailure);
@@ -506,10 +750,6 @@ export class NativeStorageStore {
         revision,
       });
     }
-    // Notify only after every key reflects the new logical state. Subscribers
-    // can safely read another key from the same transaction during re-render.
-    for (const [key] of changed) this.emitKey(key);
-
     let durability: Promise<StorageTransactionResult>;
     try {
       const mutations = changed.map(([key, draft]) => ({
@@ -521,7 +761,12 @@ export class NativeStorageStore {
     } catch (error) {
       durability = Promise.reject(error);
     }
-    void this.trackDurability(durability, changed, revisions).then(resolveBatch);
+    const tracked = this.trackDurability(durability, changed, revisions);
+    void tracked.then(resolveBatch);
+    // Register durability before notifying. A synchronous listener can now
+    // enqueue a dependent write or snapshot only behind this transaction.
+    // Every cache entry is still installed before any listener fires.
+    for (const [key] of changed) this.emitKey(key);
     return batchPromise;
   }
 
@@ -535,35 +780,58 @@ export class NativeStorageStore {
     let tracked!: Promise<NativeDurabilityResult>;
     tracked = durability.then(async (result): Promise<NativeDurabilityResult> => {
       if (!result.ok) {
-        // Reconcile only values that have not received a newer local update.
-        // The raw read is authoritative for rejected, rolled-back, and
-        // indeterminate outcomes alike.
+        const refreshed = new Map<string, CacheEntry>();
+        const readFailures = new Map<string, unknown>();
+        // Read every still-current key first. A failed logical transaction is
+        // reconciled into the cache as one publication, never key by key.
         for (const [key] of changed) {
           if (this.cache.get(key)?.revision !== revisions.get(key)) continue;
           try {
             const raw = await this.backend.getItem(key);
-            // A later optimistic update may have advanced this key while the
-            // authoritative read was in flight. Never publish the stale read
-            // over that newer revision; its own durability task will reconcile
-            // the key if necessary.
-            if (this.cache.get(key)?.revision !== revisions.get(key)) continue;
             const decoded = decodeRaw(raw);
-            this.cache.set(key, {
+            let invalidReason: string | null = null;
+            if (raw !== null) {
+              if (!decoded.validJson) invalidReason = `${key} is not valid JSON.`;
+              else {
+                const validation = validateNativeStoredValue(key, decoded.parsed);
+                if (!validation.ok) invalidReason = validation.message;
+              }
+            }
+            if (invalidReason !== null) {
+              throw new Error(invalidReason);
+            }
+            refreshed.set(key, {
               raw,
               ...decoded,
               revision: (revisions.get(key) ?? 0) + 1,
             });
-            this.emitKey(key);
           } catch (error) {
-            if (this.cache.get(key)?.revision !== revisions.get(key)) continue;
-            this.localDirty = true;
-            this.localError = {
-              code: 'transaction_failed',
-              message: `Persistence failed and ${key} could not be reconciled: ${boundedMessage(error)}`,
-              key,
-            };
+            readFailures.set(key, error);
           }
         }
+
+        const requiredFailure = [...readFailures].find(([key]) => (
+          this.cache.get(key)?.revision === revisions.get(key)
+        ));
+        if (requiredFailure) {
+          const [key, error] = requiredFailure;
+          this.localDirty = true;
+          this.localError = {
+            code: 'transaction_failed',
+            message: `Persistence failed and ${key} could not be reconciled: ${boundedMessage(error)}`,
+            key,
+          };
+          return result;
+        }
+
+        const publish: Array<[string, CacheEntry]> = [];
+        for (const [key, entry] of refreshed) {
+          // A later optimistic update may have advanced this key while the
+          // authoritative reads were in flight. Never publish a stale read.
+          if (this.cache.get(key)?.revision === revisions.get(key)) publish.push([key, entry]);
+        }
+        for (const [key, entry] of publish) this.cache.set(key, entry);
+        for (const [key] of publish) this.emitKey(key);
       }
       return result;
     }).catch((error): NativeDurabilityResult => {
@@ -588,7 +856,7 @@ export class NativeStorageStore {
     // commit while an earlier failed transaction is still reconciling its
     // optimistic cache, so waiting for only the latest Promise is insufficient.
     const tasks = [...this.durabilityTasks];
-    if (tasks.length === 0) return this.durabilityTail;
+    if (tasks.length === 0) return Promise.resolve(UNCHANGED);
     return Promise.all(tasks).then((results) => (
       results.find((result) => !result.ok) ?? results[results.length - 1] ?? UNCHANGED
     ));
@@ -614,7 +882,7 @@ export class NativeStorageStore {
       const result = new Map<string, string>();
       const keys = await this.backend.getAllKeys();
       for (const key of keys) {
-        if (!predicate(key) || key === STORAGE_TRANSACTION_JOURNAL_KEY) continue;
+        if (!predicate(key) || isNativeInternalKey(key)) continue;
         const raw = await this.backend.getItem(key);
         if (raw != null) result.set(key, raw);
       }
@@ -640,11 +908,223 @@ export class NativeStorageStore {
           ? 'Native storage is not in a clean state.'
           : durability.error.message);
       }
-      return this.backend.getAllKeys();
+      return (await this.backend.getAllKeys()).filter(key => !isNativeInternalKey(key));
     }).finally(() => {
       this.maintenancePending = Math.max(0, this.maintenancePending - 1);
       this.emitStatus();
     });
+  }
+
+  /**
+   * Raw, explicitly diagnostic snapshot available while normal hydration is
+   * blocked. The journal is intentionally included and no recovery is
+   * attempted: this is a forensic export, not a gameplay snapshot.
+   */
+  async readRecoverySnapshot(): Promise<ReadonlyMap<string, string>> {
+    this.maintenancePending += 1;
+    this.emitStatus();
+    return this.enqueueIo(async () => {
+      const result = new Map<string, string>();
+      for (const key of await this.backend.getAllKeys()) {
+        if (!key.startsWith('gc.') && key !== NATIVE_RECOVERY_RESET_WITNESS_KEY) continue;
+        const raw = await this.backend.getItem(key);
+        if (raw !== null) result.set(key, raw);
+      }
+      return result;
+    }).finally(() => {
+      this.maintenancePending = Math.max(0, this.maintenancePending - 1);
+      this.emitStatus();
+    });
+  }
+
+  /**
+   * Finish an explicit recovery reset before the ordinary journal is examined.
+   * Every destructive step is idempotent and the intent is removed last, so a
+   * process death at any point resumes here on the next launch.
+   */
+  private async completePendingRecoveryReset(): Promise<RecoveryResetProtocolResult> {
+    let intentRaw: string | null;
+    let witnessRaw: string | null;
+    try {
+      intentRaw = await this.backend.getItem(NATIVE_RECOVERY_RESET_INTENT_KEY);
+      witnessRaw = await this.backend.getItem(NATIVE_RECOVERY_RESET_WITNESS_KEY);
+    } catch (error) {
+      return { ok: false, message: `Could not inspect the durable reset authorization: ${boundedMessage(error)}` };
+    }
+    if (intentRaw === null && witnessRaw === null) return { ok: true };
+    if (witnessRaw !== NATIVE_RECOVERY_RESET_WITNESS_RAW) {
+      return {
+        ok: false,
+        message: 'The recovery-reset intent has no valid confirmation witness. Confirm Reset local data again to replace it safely.',
+      };
+    }
+    if (intentRaw !== null && intentRaw !== NATIVE_RECOVERY_RESET_INTENT_RAW) {
+      return {
+        ok: false,
+        message: 'The durable reset intent is malformed. Use the confirmed recovery reset to replace it safely.',
+      };
+    }
+
+    const currentVersion = this.migrationOptions.currentVersion ?? NATIVE_STORAGE_VERSION;
+    if (!Number.isSafeInteger(currentVersion) || currentVersion < 1) {
+      return { ok: false, message: 'This build has an invalid native storage version.' };
+    }
+    const currentVersionRaw = JSON.stringify(currentVersion);
+
+    try {
+      if (intentRaw === null) {
+        let installError: unknown;
+        try {
+          await this.backend.setItem(
+            NATIVE_RECOVERY_RESET_INTENT_KEY,
+            NATIVE_RECOVERY_RESET_INTENT_RAW,
+          );
+        } catch (error) {
+          installError = error;
+        }
+        if (await this.backend.getItem(NATIVE_RECOVERY_RESET_INTENT_KEY) !== NATIVE_RECOVERY_RESET_INTENT_RAW) {
+          throw new Error(
+            `The durable reset intent could not be verified${installError === undefined ? '.' : `: ${boundedMessage(installError)}`}`,
+          );
+        }
+      }
+
+      const keys = new Set(await this.backend.getAllKeys());
+      for (const key of keys) {
+        if (!key.startsWith('gc.') || key === NATIVE_RECOVERY_RESET_INTENT_KEY) continue;
+        await this.backend.removeItem(key);
+        if (await this.backend.getItem(key) !== null) {
+          throw new Error(`Removal of ${key} could not be verified.`);
+        }
+      }
+
+      const remaining = (await this.backend.getAllKeys()).filter(key => (
+        key.startsWith('gc.')
+        && key !== NATIVE_RECOVERY_RESET_INTENT_KEY
+      ));
+      if (remaining.length > 0) {
+        throw new Error(`New or unremoved application key ${remaining[0]} prevented a verified reset.`);
+      }
+
+      try { await this.backend.setItem(NATIVE_STORAGE_VERSION_KEY, currentVersionRaw); }
+      catch { /* exact read-back below decides whether the write committed */ }
+      if (await this.backend.getItem(NATIVE_STORAGE_VERSION_KEY) !== currentVersionRaw) {
+        throw new Error('The current native storage version could not be verified.');
+      }
+
+      try { await this.backend.removeItem(NATIVE_RECOVERY_RESET_INTENT_KEY); }
+      catch { /* exact read-back below decides whether the removal committed */ }
+      if (await this.backend.getItem(NATIVE_RECOVERY_RESET_INTENT_KEY) !== null) {
+        throw new Error('The completed reset intent could not be cleared.');
+      }
+      // The non-portable confirmation witness is the authorization root and
+      // is deliberately cleared last. If termination happens first, startup
+      // reinstalls the intent and resumes every idempotent step.
+      try { await this.backend.removeItem(NATIVE_RECOVERY_RESET_WITNESS_KEY); }
+      catch { /* exact read-back below decides whether the removal committed */ }
+      if (await this.backend.getItem(NATIVE_RECOVERY_RESET_WITNESS_KEY) !== null) {
+        throw new Error('The completed reset witness could not be cleared.');
+      }
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        message: `${boundedMessage(error)} Any surviving confirmation witness will resume the reset on restart.`,
+      };
+    }
+  }
+
+  /** Remove all native app data, including an unrecoverable journal, and reinitialize. */
+  async resetDataForRecovery(): Promise<NativeDurabilityResult> {
+    if (this.recoveryResetPending) {
+      return nativeFailure('not_ready', 'A native recovery reset is already in progress.', 'blocked');
+    }
+    // Close the write gate before waiting for preceding durability. Late UI
+    // callbacks cannot queue data behind the destructive sweep.
+    this.recoveryResetPending = true;
+    // Let every already-started write finish reconciliation first. The reset is
+    // allowed to proceed after a failed durability result, but never races its
+    // authoritative repair reads.
+    const precedingDurability = this.flush();
+    this.maintenancePending += 1;
+    this.emitStatus();
+    await precedingDurability;
+    const reset = await this.enqueueIo(async (): Promise<RecoveryResetProtocolResult> => {
+      let witnessInstallError: unknown;
+      try {
+        await this.backend.setItem(
+          NATIVE_RECOVERY_RESET_WITNESS_KEY,
+          NATIVE_RECOVERY_RESET_WITNESS_RAW,
+        );
+      } catch (error) {
+        witnessInstallError = error;
+      }
+      let witnessRaw: string | null;
+      try {
+        witnessRaw = await this.backend.getItem(NATIVE_RECOVERY_RESET_WITNESS_KEY);
+      } catch (error) {
+        return {
+          ok: false,
+          message: `The reset confirmation witness could not be verified: ${boundedMessage(error)}`,
+        };
+      }
+      if (witnessRaw !== NATIVE_RECOVERY_RESET_WITNESS_RAW) {
+        return {
+          ok: false,
+          message: `The reset confirmation witness could not be installed. No reset was started${witnessInstallError === undefined ? '.' : `: ${boundedMessage(witnessInstallError)}`}`,
+        };
+      }
+
+      let intentInstallError: unknown;
+      try {
+        await this.backend.setItem(
+          NATIVE_RECOVERY_RESET_INTENT_KEY,
+          NATIVE_RECOVERY_RESET_INTENT_RAW,
+        );
+      } catch (error) {
+        intentInstallError = error;
+      }
+      let intentRaw: string | null;
+      try {
+        intentRaw = await this.backend.getItem(NATIVE_RECOVERY_RESET_INTENT_KEY);
+      } catch (error) {
+        return {
+          ok: false,
+          message: `The durable reset intent could not be verified: ${boundedMessage(error)} Reload to resume the confirmed reset if it was installed.`,
+        };
+      }
+      if (intentRaw !== NATIVE_RECOVERY_RESET_INTENT_RAW) {
+        return {
+          ok: false,
+          message: `The durable reset intent could not be installed${intentInstallError === undefined ? '.' : `: ${boundedMessage(intentInstallError)}`} The surviving witness will retry on restart.`,
+        };
+      }
+      return this.completePendingRecoveryReset();
+    }).catch((error): RecoveryResetProtocolResult => ({
+      ok: false,
+      message: `Recovery reset failed unexpectedly: ${boundedMessage(error)}`,
+    })).finally(() => {
+      this.maintenancePending = Math.max(0, this.maintenancePending - 1);
+      this.emitStatus();
+    });
+
+    if (!reset.ok) {
+      this.recoveryResetPending = false;
+      this.emitStatus();
+      return nativeFailure('transaction_failed', reset.message, 'blocked');
+    }
+
+    this.recoveryResetPending = false;
+    this.emitStatus();
+    const status = await this.retryInitialization();
+    if (!status.ready || status.blocked) {
+      return nativeFailure(
+        'initialization_failed',
+        `Recovery reset completed, but storage did not reinitialize: ${status.lastError?.message ?? 'storage is not ready'}`,
+        'blocked',
+      );
+    }
+    return RECOVERY_RESET_COMMITTED;
   }
 
   /** Test-only: clears process memory, never the durable backend. */
@@ -653,6 +1133,7 @@ export class NativeStorageStore {
     this.keyListeners.clear();
     this.localError = null;
     this.localDirty = false;
+    this.recoveryResetPending = false;
     this.namespaceHydrated = false;
   }
 }

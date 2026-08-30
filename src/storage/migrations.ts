@@ -5,6 +5,10 @@ import {
   type StorageTransactionCoordinator,
 } from '@grimcomp/core';
 import type { NativeRawAsyncKeyValue } from './asyncStorageBackend';
+import {
+  NATIVE_RECOVERY_RESET_INTENT_KEY,
+  NATIVE_RECOVERY_RESET_WITNESS_KEY,
+} from './nativeRecoveryKeys';
 
 export const NATIVE_STORAGE_VERSION_KEY = 'gc.storageVersion' as const;
 export const NATIVE_STORAGE_VERSION = 1 as const;
@@ -43,7 +47,9 @@ function describeError(value: unknown): string {
 function decodeVersion(raw: string): number | null {
   try {
     const parsed: unknown = JSON.parse(raw);
-    return Number.isSafeInteger(parsed) && (parsed as number) >= 1
+    return Number.isSafeInteger(parsed)
+      && (parsed as number) >= 1
+      && raw === JSON.stringify(parsed)
       ? parsed as number
       : null;
   } catch {
@@ -157,8 +163,16 @@ export async function runNativeStorageMigrations(
         }
         mutations.push(operationArray[index] as StorageMutation);
       }
-      if (mutations.some((mutation) => mutation?.key === NATIVE_STORAGE_VERSION_KEY)) {
-        return { ok: false, message: `Storage migration ${version}→${version + 1} tried to write the reserved version marker.` };
+      const reservedMutation = mutations.find((mutation) => (
+        mutation?.key === NATIVE_STORAGE_VERSION_KEY
+        || mutation?.key === NATIVE_RECOVERY_RESET_INTENT_KEY
+        || mutation?.key === NATIVE_RECOVERY_RESET_WITNESS_KEY
+      ));
+      if (reservedMutation) {
+        return {
+          ok: false,
+          message: `Storage migration ${version}→${version + 1} tried to write reserved internal key ${JSON.stringify(reservedMutation.key)}.`,
+        };
       }
     } catch (error) {
       return { ok: false, message: `Storage migration ${version}→${version + 1} returned unreadable operations: ${describeError(error)}` };

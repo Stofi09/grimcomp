@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { type Skill } from '@/data/character';
-import { useStoredState } from '@/hooks/useStoredState';
+import { runStoredTransaction, useStoredState } from '@/hooks/useStoredState';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useXp } from '@/hooks/useXp';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
@@ -17,6 +17,7 @@ import { Stepper } from '@/components/Stepper';
 import { Icon } from '@/components/Icon';
 import { Table, TableRow, Cell } from '@/components/Table';
 import { colors, fontFamilies } from '@/theme';
+import { useProgressionActionGuard } from './useProgressionActionGuard';
 
 // Per-advance (+1) Skill XP cost (WFRP 4e core p.48). Skills are CHEAPER than
 // characteristics and follow their own curve, keyed to advances already bought.
@@ -33,6 +34,7 @@ export const SkillsScreen: React.FC = () => {
   const { list: chars } = useCharacteristics();
   const xp = useXp();
   const { modifier: condMod } = useConditions();
+  const beginProgressionAction = useProgressionActionGuard();
   const charLabel = Object.fromEntries(c.characteristics.map(x => [x.key, x.short])) as Record<string, string>;
   const charBase = Object.fromEntries(chars.map(x => [x.key, x.current])) as Record<string, number>;
 
@@ -43,26 +45,52 @@ export const SkillsScreen: React.FC = () => {
 
   // Stepper change handler that runs through the XP economy. Each +5 click
   // costs the next bracket; each −5 refunds the bracket the user is leaving.
-  const onAdvChange = (skill: Skill, current: number, next: number) => {
-    const bracket = skill.career ? careerBracket : otherBracket;
-    if (next > current) {
-      const cost = bracket(current);
-      const reason = `${skill.name} +${current} → +${next}`;
-      const r = xp.spend(cost, reason, 'skill');
-      if (!r.ok) {
-        Alert.alert('Not enough XP', r.message);
-        return;
+  const onAdvChange = async (skill: Skill, current: number, next: number) => {
+    if (next === current) return;
+    const action = beginProgressionAction(`skill:${skill.name}`);
+    if (!action) return;
+
+    try {
+      const bracket = skill.career ? careerBracket : otherBracket;
+      if (next > current) {
+        const cost = bracket(current);
+        const reason = `${skill.name} +${current} → +${next}`;
+        let r = { ok: false, message: 'Storage is not ready for this purchase.' };
+        const durability = await runStoredTransaction(() => {
+          r = xp.spend(cost, reason, 'skill');
+          if (r.ok) setAdvances(prev => ({ ...prev, [skill.name]: next }));
+        });
+        if (!r.ok) {
+          Alert.alert(
+            durability.ok ? 'Not enough XP' : 'Could not save purchase',
+            durability.ok ? r.message : durability.error.message,
+          );
+          return;
+        }
+        if (!durability.ok) {
+          Alert.alert('Could not save purchase', durability.error.message);
+        }
+      } else if (next < current) {
+        // Refund the bracket the user is leaving (the last +5 they bought).
+        const refund = bracket(next);
+        let r = { ok: false, message: 'Storage is not ready for this refund.' };
+        const durability = await runStoredTransaction(() => {
+          r = xp.refund(refund, `${skill.name} +${next} → +${current}`, 'skill');
+          if (r.ok) setAdvances(prev => ({ ...prev, [skill.name]: next }));
+        });
+        if (!r.ok) {
+          Alert.alert(
+            durability.ok ? 'Cannot refund' : 'Could not save refund',
+            durability.ok ? r.message : durability.error.message,
+          );
+          return;
+        }
+        if (!durability.ok) {
+          Alert.alert('Could not save refund', durability.error.message);
+        }
       }
-      setAdvances(prev => ({ ...prev, [skill.name]: next }));
-    } else if (next < current) {
-      // Refund the bracket the user is leaving (the last +5 they bought).
-      const refund = bracket(next);
-      const reason = `${skill.name} +${current} → +${next}`;
-      xp.refund(refund, `${skill.name} +${next} → +${current}`, 'skill');
-      setAdvances(prev => ({ ...prev, [skill.name]: next }));
-      // Best-effort feedback for the refund.
-      // (Skip an alert to keep stepper feel snappy.)
-      void reason;
+    } finally {
+      action.release();
     }
   };
 

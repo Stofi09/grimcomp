@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { ScreenContainer } from './ScreenContainer';
 import { type Weapon, type Armour } from '@/data/character';
@@ -118,50 +118,112 @@ export const CombatScreen: React.FC = () => {
   // Edit-sheet state for both weapons + armour.
   const [wEdit, setWEdit] = useState<{ index: number | null; draft: Weapon } | null>(null);
   const [aEdit, setAEdit] = useState<{ index: number | null; draft: Armour } | null>(null);
+  const weaponActionRef = useRef(false);
+  const armourActionRef = useRef(false);
+  const [weaponAction, setWeaponAction] = useState<'save' | 'remove' | null>(null);
+  const [armourAction, setArmourAction] = useState<'save' | 'remove' | null>(null);
 
   const openNewWeapon = () => setWEdit({ index: null, draft: blankWeapon() });
   const openEditWeapon = (i: number) => setWEdit({ index: i, draft: { ...weapons.items[i] } });
   const openNewArmour = () => setAEdit({ index: null, draft: blankArmour() });
   const openEditArmour = (i: number) => setAEdit({ index: i, draft: { ...armour.items[i] } });
 
-  const saveWeapon = () => {
-    if (!wEdit) return;
-    if (!wEdit.draft.name.trim()) {
+  const saveWeapon = async () => {
+    if (!wEdit || weaponActionRef.current) return;
+    const edit = wEdit;
+    if (!edit.draft.name.trim()) {
       Alert.alert('Name required', 'Give the weapon a name.');
       return;
     }
-    if (wEdit.index == null) weapons.add(wEdit.draft);
-    else weapons.update(wEdit.index, wEdit.draft);
+    weaponActionRef.current = true;
+    setWeaponAction('save');
+    const durability = await (async () => {
+      try {
+        return await (edit.index == null
+          ? weapons.add(edit.draft)
+          : weapons.update(edit.index, edit.draft));
+      } finally {
+        weaponActionRef.current = false;
+        setWeaponAction(null);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not save weapon', durability.error.message);
+      return;
+    }
     setWEdit(null);
   };
 
-  const dropWeapon = () => {
-    if (!wEdit || wEdit.index == null) return;
-    const name = wEdit.draft.name;
-    weapons.remove(wEdit.index);
+  const dropWeapon = async () => {
+    if (!wEdit || wEdit.index == null || weaponActionRef.current) return;
+    const edit = wEdit;
+    const name = edit.draft.name;
+    weaponActionRef.current = true;
+    setWeaponAction('remove');
+    const durability = await (async () => {
+      try {
+        return await weapons.remove(edit.index!);
+      } finally {
+        weaponActionRef.current = false;
+        setWeaponAction(null);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not drop weapon', durability.error.message);
+      return;
+    }
     setWEdit(null);
     Alert.alert('Dropped', `${name} removed from inventory.`);
   };
 
-  const saveArmour = () => {
-    if (!aEdit) return;
-    if (!aEdit.draft.name.trim()) {
+  const saveArmour = async () => {
+    if (!aEdit || armourActionRef.current) return;
+    const edit = aEdit;
+    if (!edit.draft.name.trim()) {
       Alert.alert('Name required', 'Give the armour a name.');
       return;
     }
-    if (aEdit.draft.locs.length === 0) {
+    if (edit.draft.locs.length === 0) {
       Alert.alert('Pick locations', 'Armour must cover at least one location.');
       return;
     }
-    if (aEdit.index == null) armour.add(aEdit.draft);
-    else armour.update(aEdit.index, aEdit.draft);
+    armourActionRef.current = true;
+    setArmourAction('save');
+    const durability = await (async () => {
+      try {
+        return await (edit.index == null
+          ? armour.add(edit.draft)
+          : armour.update(edit.index, edit.draft));
+      } finally {
+        armourActionRef.current = false;
+        setArmourAction(null);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not save armour', durability.error.message);
+      return;
+    }
     setAEdit(null);
   };
 
-  const dropArmour = () => {
-    if (!aEdit || aEdit.index == null) return;
-    const name = aEdit.draft.name;
-    armour.remove(aEdit.index);
+  const dropArmour = async () => {
+    if (!aEdit || aEdit.index == null || armourActionRef.current) return;
+    const edit = aEdit;
+    const name = edit.draft.name;
+    armourActionRef.current = true;
+    setArmourAction('remove');
+    const durability = await (async () => {
+      try {
+        return await armour.remove(edit.index!);
+      } finally {
+        armourActionRef.current = false;
+        setArmourAction(null);
+      }
+    })();
+    if (!durability.ok) {
+      Alert.alert('Could not remove armour', durability.error.message);
+      return;
+    }
     setAEdit(null);
     Alert.alert('Removed', `${name} removed from inventory.`);
   };
@@ -297,9 +359,11 @@ export const CombatScreen: React.FC = () => {
         visible={!!wEdit}
         title={wEdit?.index == null ? 'New weapon' : 'Edit weapon'}
         subtitle={wEdit?.index == null ? 'Add a weapon to this character\'s inventory.' : 'Tap Save to commit, or Drop to remove from inventory.'}
-        onClose={() => setWEdit(null)}
+        onClose={() => { if (!weaponActionRef.current) setWEdit(null); }}
         onSave={saveWeapon}
-        destructive={wEdit?.index != null ? { label: 'Drop', onPress: dropWeapon } : undefined}
+        saveLabel={weaponAction === 'remove' ? 'Removing…' : weaponAction === 'save' ? 'Saving…' : 'Save'}
+        saveDisabled={weaponAction !== null}
+        destructive={wEdit?.index != null && weaponAction === null ? { label: 'Drop', onPress: dropWeapon } : undefined}
       >
         {wEdit ? (
           <>
@@ -356,9 +420,11 @@ export const CombatScreen: React.FC = () => {
         visible={!!aEdit}
         title={aEdit?.index == null ? 'New armour' : 'Edit armour'}
         subtitle={aEdit?.index == null ? 'Add a piece of armour. AP stacks per location.' : 'Tap Save to commit, or Remove to drop from inventory.'}
-        onClose={() => setAEdit(null)}
+        onClose={() => { if (!armourActionRef.current) setAEdit(null); }}
         onSave={saveArmour}
-        destructive={aEdit?.index != null ? { label: 'Remove', onPress: dropArmour } : undefined}
+        saveLabel={armourAction === 'remove' ? 'Removing…' : armourAction === 'save' ? 'Saving…' : 'Save'}
+        saveDisabled={armourAction !== null}
+        destructive={aEdit?.index != null && armourAction === null ? { label: 'Remove', onPress: dropArmour } : undefined}
       >
         {aEdit ? (
           <>

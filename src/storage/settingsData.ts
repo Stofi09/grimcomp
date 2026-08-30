@@ -1,11 +1,16 @@
 import {
   MAX_TRANSACTION_OPERATIONS,
-  STORAGE_TRANSACTION_JOURNAL_KEY,
-  isValidStorageKey,
 } from '@grimcomp/core';
+import { CHARACTER_TEMPLATES } from '../data/character';
 import { nativeStorage } from './runtime';
 import type { NativeDurabilityResult } from './nativeStore';
-import { NATIVE_STORAGE_VERSION_KEY } from './migrations';
+import {
+  decodeNativeStoredValueForExport,
+  isPortableNativeDataKey,
+  validateNativeSettingsImport,
+} from './nativeDataValidation';
+
+export { validateNativeSettingsImport } from './nativeDataValidation';
 
 export type ExportScope = 'character' | 'roster';
 
@@ -20,85 +25,68 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isPortableDataKey(key: string): boolean {
-  return (
-    key.startsWith('gc.') &&
-    key !== STORAGE_TRANSACTION_JOURNAL_KEY &&
-    key !== NATIVE_STORAGE_VERSION_KEY &&
-    isValidStorageKey(key)
-  );
+/** Assemble and validate a storage-internals-free native export snapshot. */
+export function serializeNativeSettingsExportSnapshot(
+  scope: ExportScope,
+  characterId: string,
+  characterName: string,
+  snapshot: ReadonlyMap<string, string>,
+  exportedAt = new Date().toISOString(),
+): string {
+  const dump: Record<string, unknown> = {
+    $schema: 'grimcomp.v1',
+    exportedAt,
+    scope,
+    character: scope === 'character' ? characterName : undefined,
+  };
+  for (const [key, raw] of snapshot) {
+    const parsed = decodeNativeStoredValueForExport(key, raw);
+    if (scope === 'character' && key === 'gc.customChars') {
+      if (isRecord(parsed) && Object.prototype.hasOwnProperty.call(parsed, characterId)) {
+        dump[key] = { [characterId]: parsed[characterId] };
+      }
+    } else {
+      dump[key] = parsed;
+    }
+  }
+  if (scope === 'character') {
+    const lockedActiveId = dump['gc.activeCharId'];
+    if (lockedActiveId !== undefined && lockedActiveId !== characterId) {
+      throw new Error(
+        `The active character changed to ${JSON.stringify(lockedActiveId)} before the export snapshot was read; retry the export.`,
+      );
+    }
+    // A fresh/legacy store may rely on the in-memory fallback and have no
+    // persisted pointer. Keep a single-character export self-contained.
+    dump['gc.activeCharId'] = characterId;
+    const customCharacters = isRecord(dump['gc.customChars']) ? dump['gc.customChars'] : {};
+    if (
+      !Object.prototype.hasOwnProperty.call(CHARACTER_TEMPLATES, characterId)
+      && !Object.prototype.hasOwnProperty.call(customCharacters, characterId)
+    ) {
+      throw new Error(
+        `Character ${JSON.stringify(characterId)} does not exist in the export snapshot; select a valid roster character and retry.`,
+      );
+    }
+  }
+  return JSON.stringify(dump, null, 2);
 }
 
-/** Reads a FIFO-consistent, storage-internals-free grimcomp.v1 snapshot. */
+/** Reads one FIFO-consistent snapshot before assembling a grimcomp.v1 export. */
 export async function buildNativeSettingsExport(
   scope: ExportScope,
   characterId: string,
   characterName: string,
 ): Promise<string> {
   const snapshot = await nativeStorage.readRawSnapshot((key) => (
-    isPortableDataKey(key) && (
+    isPortableNativeDataKey(key) && (
       scope === 'roster' ||
       key.startsWith(`gc.${characterId}.`) ||
       key === 'gc.activeCharId' ||
       key === 'gc.customChars'
     )
   ));
-  const dump: Record<string, unknown> = {
-    $schema: 'grimcomp.v1',
-    exportedAt: new Date().toISOString(),
-    scope,
-    character: scope === 'character' ? characterName : undefined,
-  };
-  for (const [key, raw] of snapshot) {
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      if (scope === 'character' && key === 'gc.customChars') {
-        if (isRecord(parsed) && Object.prototype.hasOwnProperty.call(parsed, characterId)) {
-          dump[key] = { [characterId]: parsed[characterId] };
-        }
-      } else {
-        dump[key] = parsed;
-      }
-    } catch {
-      // Preserve corrupt legacy values for a full diagnostic export, but never
-      // expose the entire roster through a single-character export.
-      if (scope === 'roster' || key !== 'gc.customChars') dump[key] = raw;
-    }
-  }
-  return JSON.stringify(dump, null, 2);
-}
-
-export function validateNativeSettingsImport(raw: unknown):
-  | { readonly ok: true; readonly dump: Record<string, unknown>; readonly keyCount: number }
-  | { readonly ok: false; readonly message: string } {
-  if (!isRecord(raw) || raw.$schema !== 'grimcomp.v1') {
-    return { ok: false, message: 'Expected a grimcomp.v1 export object.' };
-  }
-  const keys = Object.keys(raw).filter((key) => key.startsWith('gc.'));
-  if (keys.length === 0) return { ok: false, message: 'The export contains no Grim Companion data keys.' };
-  if (keys.length > MAX_TRANSACTION_OPERATIONS) {
-    return { ok: false, message: `The export contains more than ${MAX_TRANSACTION_OPERATIONS} data keys.` };
-  }
-  for (const key of keys) {
-    if (!isPortableDataKey(key)) {
-      return { ok: false, message: `The export contains an invalid or internal storage key: ${JSON.stringify(key)}.` };
-    }
-    try {
-      if (JSON.stringify(raw[key]) === undefined) {
-        return { ok: false, message: `The value for ${key} is not JSON-serializable.` };
-      }
-    } catch {
-      return { ok: false, message: `The value for ${key} is not JSON-serializable.` };
-    }
-    if (key === 'gc.customChars') {
-      const customCharacters = raw[key];
-      if (!isRecord(customCharacters)) return { ok: false, message: 'gc.customChars must be a character map.' };
-      if (Object.keys(customCharacters).some((id) => FORBIDDEN_RECORD_KEYS.has(id))) {
-        return { ok: false, message: 'gc.customChars contains a forbidden character id.' };
-      }
-    }
-  }
-  return { ok: true, dump: raw, keyCount: keys.length };
+  return serializeNativeSettingsExportSnapshot(scope, characterId, characterName, snapshot);
 }
 
 function safeCharacterMap(value: unknown): Record<string, unknown> {
@@ -139,14 +127,29 @@ export async function applyNativeSettingsImport(
       written: 0,
     };
   }
-  const keys = Object.keys(dump).filter(isPortableDataKey);
+  const keys = Object.keys(dump).filter(isPortableNativeDataKey);
   const result = await nativeStorage.runTransaction((transaction) => {
+    const incomingCustom = keys.includes('gc.customChars')
+      ? safeCharacterMap(dump['gc.customChars'])
+      : {};
+    const mergedCustom = Object.assign(
+      Object.create(null) as Record<string, unknown>,
+      safeCharacterMap(transaction.read<Record<string, unknown>>('gc.customChars', {})),
+      incomingCustom,
+    );
+    const activeId = keys.includes('gc.activeCharId') ? dump['gc.activeCharId'] : undefined;
+    if (
+      typeof activeId === 'string'
+      && !Object.prototype.hasOwnProperty.call(CHARACTER_TEMPLATES, activeId)
+      && !Object.prototype.hasOwnProperty.call(mergedCustom, activeId)
+    ) {
+      throw new Error(
+        `Imported active character ${JSON.stringify(activeId)} does not exist in the post-import roster.`,
+      );
+    }
     for (const key of keys) {
       if (key === 'gc.customChars') {
-        transaction.update<Record<string, unknown>>(key, {}, (existing) => ({
-          ...safeCharacterMap(existing),
-          ...safeCharacterMap(dump[key]),
-        }));
+        transaction.setRaw(key, JSON.stringify(mergedCustom));
       } else {
         const serialized = JSON.stringify(dump[key]);
         if (serialized === undefined) throw new Error(`${key} is not JSON-serializable.`);
@@ -161,7 +164,7 @@ export async function applyNativeSettingsImport(
 export async function resetNativeStorageData(): Promise<SettingsImportSummary> {
   // knownKeys is complete after the startup preload and has no await gap:
   // the removal transaction is enqueued before a later UI write can interleave.
-  const keys = nativeStorage.knownKeys(isPortableDataKey);
+  const keys = nativeStorage.knownKeys(isPortableNativeDataKey);
   if (keys.length > MAX_TRANSACTION_OPERATIONS) {
     return {
       written: 0,
@@ -180,4 +183,23 @@ export async function resetNativeStorageData(): Promise<SettingsImportSummary> {
     for (const key of keys) transaction.remove(key);
   });
   return { result, written: result.ok ? keys.length : 0 };
+}
+
+/**
+ * Lossless diagnostic-only export for the blocked recovery shell. Values and
+ * the journal stay as exact raw strings; this schema is intentionally not
+ * accepted by the normal grimcomp.v1 importer.
+ */
+export async function buildNativeRecoveryDiagnosticExport(): Promise<string> {
+  const snapshot = await nativeStorage.readRecoverySnapshot();
+  return JSON.stringify({
+    $schema: 'grimcomp.storage-diagnostic.v1',
+    exportedAt: new Date().toISOString(),
+    platform: 'native',
+    raw: Object.fromEntries(snapshot),
+  }, null, 2);
+}
+
+export function resetNativeStorageForRecovery(): Promise<NativeDurabilityResult> {
+  return nativeStorage.resetDataForRecovery();
 }

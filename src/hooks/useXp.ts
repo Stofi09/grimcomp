@@ -80,12 +80,21 @@ export function useXp() {
 
   const refund = useCallback((amount: number, reason: string, kind: XpKind = 'skill'): XpResult => {
     if (amount <= 0) return { ok: false, message: 'Amount must be positive.' };
+    let result: XpResult = { ok: false, message: '' };
     setState(prev => {
       const idx = prev.log.findIndex(e => e.kind === kind && e.amount === -amount && e.reason === reason);
-      const log = idx >= 0 ? [...prev.log.slice(0, idx), ...prev.log.slice(idx + 1)] : prev.log;
+      // A template-granted advance has no matching XP-log purchase. Refusing
+      // that reversal prevents the refund control from minting XP or selling a
+      // rank that the character never bought.
+      if (idx < 0) {
+        result = { ok: false, message: 'No matching purchase to refund.' };
+        return prev;
+      }
+      const log = [...prev.log.slice(0, idx), ...prev.log.slice(idx + 1)];
+      result = { ok: true, message: `Refunded ${amount} XP.` };
       return { current: prev.current + amount, spent: Math.max(0, prev.spent - amount), log };
     });
-    return { ok: true, message: `Refunded ${amount} XP.` };
+    return result;
   }, [setState]);
 
   return { ...state, total: state.current + state.spent, spend, gain, refund };

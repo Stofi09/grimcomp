@@ -18,6 +18,11 @@ import {
   resetNativeStorageData,
   validateNativeSettingsImport,
 } from '@/storage/settingsData';
+import {
+  knownNativeImportSizeError,
+  nativeImportTextSizeError,
+  parseNativeImportContentLength,
+} from '@/storage/nativeImportLimits';
 import { useNativeStorageStatus } from '@/storage/useNativeStorage';
 import { colors, fontFamilies } from '@/theme';
 
@@ -56,6 +61,30 @@ export const SettingsScreen: React.FC = () => {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
 
+  const readImportAsset = async (asset: DocumentPicker.DocumentPickerAsset): Promise<string | null> => {
+    const assetError = knownNativeImportSizeError(asset.name, asset.size);
+    if (assetError) {
+      Alert.alert('Import too large', assetError);
+      return null;
+    }
+    const response = await fetch(asset.uri);
+    const responseError = knownNativeImportSizeError(
+      asset.name,
+      parseNativeImportContentLength(response.headers.get('content-length')),
+    );
+    if (responseError) {
+      Alert.alert('Import too large', responseError);
+      return null;
+    }
+    const text = await response.text();
+    const textError = nativeImportTextSizeError(asset.name, text);
+    if (textError) {
+      Alert.alert('Import too large', textError);
+      return null;
+    }
+    return text;
+  };
+
   const openExport = async (scope: 'character' | 'roster') => {
     try {
       const json = await buildNativeSettingsExport(scope, id, template.name);
@@ -72,15 +101,15 @@ export const SettingsScreen: React.FC = () => {
         message: exportSheet.json,
         title: exportSheet.scope === 'character' ? `${template.name} — Grim Companion export` : 'Grim Companion — full export',
       });
-    } catch {
-      /* user dismissed */
+    } catch (error) {
+      Alert.alert('Share failed', error instanceof Error ? error.message : String(error));
     }
   };
 
   const wipeAll = () => {
     Alert.alert(
       'Wipe all local data?',
-      'This deletes every character\'s wounds, XP, skill advances, conditions, talents, criticals, notes, and the active-character pointer. Built-in templates remain. There is no undo.',
+      'This permanently deletes custom characters, every character overlay (wounds, XP, advances, conditions, talents, criticals, and equipment), notes, imported content packs, creation drafts, app settings, and the active-character pointer. Only templates bundled with the app remain. There is no undo.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -129,8 +158,8 @@ export const SettingsScreen: React.FC = () => {
       const res = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
       if (res.canceled) return;
       const asset = res.assets[0];
-      const fileRes = await fetch(asset.uri);
-      const text = await fileRes.text();
+      const text = await readImportAsset(asset);
+      if (text === null) return;
       await handleImport(text, asset.name);
     } catch (e) {
       Alert.alert('Import failed', e instanceof Error ? e.message : String(e));
@@ -138,6 +167,11 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const submitPaste = async () => {
+    const sizeError = nativeImportTextSizeError('Pasted JSON', pasteText);
+    if (sizeError) {
+      Alert.alert('Import too large', sizeError);
+      return;
+    }
     if (await handleImport(pasteText, 'pasted JSON')) {
       setPasteOpen(false);
       setPasteText('');
@@ -149,9 +183,12 @@ export const SettingsScreen: React.FC = () => {
       const res = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
       if (res.canceled) return;
       const asset = res.assets[0];
-      const fileRes = await fetch(asset.uri);
-      const raw: unknown = JSON.parse(await fileRes.text());
-      const validated = validateNativeSettingsImport(raw);
+      const text = await readImportAsset(asset);
+      if (text === null) return;
+      const raw: unknown = JSON.parse(text);
+      const validated = validateNativeSettingsImport(raw, {
+        availableCharacterIds: new Set(Object.keys(all)),
+      });
       if (!validated.ok) {
         Alert.alert('Not a Grim Companion export', validated.message);
         return;

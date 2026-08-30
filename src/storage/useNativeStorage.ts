@@ -23,3 +23,7 @@ export function useNativeStorageStatus(): NativeStorageStatus {
 export function useWaitForStoredDurability() {
   return useCallback(() => nativeStorage.flush(), []);
 }
+
+export function useRetryNativeStorage() {
+  return useCallback(() => nativeStorage.retryInitialization(), []);
+}
