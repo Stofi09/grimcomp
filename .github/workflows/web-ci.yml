@@ -8,11 +8,14 @@ name: web-ci
 #
 # web/ is its own pnpm workspace root (web/pnpm-workspace.yaml sets
 # `packages: []`), so installing with cwd=web is isolated from the root Expo app.
+# The suite also imports root native modules (src/**) and the content audit
+# script (scripts/**). Their TypeScript config extends `expo/tsconfig.base`, so
+# the root workspace must be installed too, and changes there trigger this job.
 on:
   push:
-    paths: ['web/**', 'packages/core/**', '.github/workflows/web-ci.yml']
+    paths: ['web/**', 'packages/core/**', 'src/**', 'scripts/**', 'tsconfig.json', 'package.json', 'pnpm-lock.yaml', '.github/workflows/web-ci.yml']
   pull_request:
-    paths: ['web/**', 'packages/core/**', '.github/workflows/web-ci.yml']
+    paths: ['web/**', 'packages/core/**', 'src/**', 'scripts/**', 'tsconfig.json', 'package.json', 'pnpm-lock.yaml', '.github/workflows/web-ci.yml']
 
 jobs:
   build-test:
@@ -32,8 +35,15 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            web/pnpm-lock.yaml
       - run: pnpm run check:no-scratch
+      # Root install for the native modules the web suite imports. The web
+      # build never bundles them. --ignore-scripts skips sharp's native build,
+      # which only `pnpm run icons` uses.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+        working-directory: .
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check:core-boundary
       - run: pnpm run tsc:core

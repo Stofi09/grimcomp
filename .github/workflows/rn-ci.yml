@@ -25,10 +25,14 @@ on:
       - 'pnpm-workspace.yaml'
       - 'web/package.json'
       - 'web/pnpm-lock.yaml'
+      - 'web/public/content/**'
       - 'web/src/storage/native*.test.ts'
-      - 'web/src/utils/nativeRoll.test.ts'
+      - 'web/src/utils/native*.test.ts'
+      - 'web/src/content/native*.test.ts'
       - 'web/src/components/nativeControls.test.ts'
       - 'web/src/account/native*.test.*'
+      - 'web/src/test/nativeHost.ts'
+      - 'web/vite.config.ts'
       - '.github/workflows/rn-ci.yml'
   pull_request:
     paths:
@@ -48,10 +52,14 @@ on:
       - 'pnpm-workspace.yaml'
       - 'web/package.json'
       - 'web/pnpm-lock.yaml'
+      - 'web/public/content/**'
       - 'web/src/storage/native*.test.ts'
-      - 'web/src/utils/nativeRoll.test.ts'
+      - 'web/src/utils/native*.test.ts'
+      - 'web/src/content/native*.test.ts'
       - 'web/src/components/nativeControls.test.ts'
       - 'web/src/account/native*.test.*'
+      - 'web/src/test/nativeHost.ts'
+      - 'web/vite.config.ts'
       - '.github/workflows/rn-ci.yml'
 
 jobs:
