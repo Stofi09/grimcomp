@@ -4,18 +4,7 @@ import {
   waitForStorageIdle,
 } from '@/hooks/useStoredState';
 import { runStorageMigrations } from '@/storage/migrations';
-
-function installTestWebLocks(): void {
-  if (typeof navigator === 'undefined' || navigator.locks) return;
-  const locks = {
-    request: async <T>(
-      _name: string,
-      _options: LockOptions,
-      callback: () => Promise<T>,
-    ): Promise<T> => callback(),
-  } as unknown as LockManager;
-  Object.defineProperty(navigator, 'locks', { configurable: true, value: locks });
-}
+import { installTestWebLocks } from './webLocks';
 
 /** Initialize the storage singleton for component/hook tests that bypass main. */
 export async function prepareStorageTest(): Promise<void> {

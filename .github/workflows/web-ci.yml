@@ -31,9 +31,10 @@ jobs:
       - uses: pnpm/action-setup@v4
       # node-version must stay >= 22.13: pnpm 11.5 loads node:sqlite, so it
       # crashes on Node 20 during setup-node's own `pnpm store path` probe.
+      # 24 matches the server and deployment jobs (and the release builder).
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           cache-dependency-path: |
             pnpm-lock.yaml

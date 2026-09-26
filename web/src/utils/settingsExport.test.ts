@@ -21,6 +21,10 @@ import {
 } from './settingsExport';
 import { MAX_STORED_CONTENT_PACKS } from '@/content/storedContentPacks';
 import { validateNativeSettingsImport } from '../../../src/storage/nativeDataValidation';
+import { installTestWebLocks } from '@/test/webLocks';
+
+// Exports and imports run under the browser storage lock.
+installTestWebLocks();
 
 interface FaultBackend extends StorageBackend {
   readonly store: Map<string, string>;
