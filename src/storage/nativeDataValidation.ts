@@ -5,7 +5,6 @@ import {
   isValidStorageKey,
   isValidStorageKeySegment,
 } from '@grimcomp/core';
-import { validatePack } from '../content/validate';
 import { NATIVE_STORAGE_VERSION_KEY } from './migrations';
 import { NATIVE_RECOVERY_RESET_INTENT_KEY } from './nativeRecoveryKeys';
 
@@ -258,16 +257,24 @@ function validateCustomCharacters(value: unknown, where: string): void {
   }
 }
 
+/**
+ * Only the list envelope that storage and the pack list manage directly is a
+ * storage-shape concern: `{ enabled: boolean, pack: { id: string } }` entries
+ * with unique ids. Pack contents are deliberately not validated here. The pack
+ * validator tightens over time, and a pack an older build accepted must not
+ * make the whole store unrecoverable. The content layer re-validates every pack
+ * with the current rules and quarantines rejects without loading them
+ * (src/content/storedPacks.ts); new pack imports are validated strictly before
+ * they are written.
+ */
 function validateStoredPacks(value: unknown, where: string): void {
   const seen = new Set<string>();
   validateRecordArray(value, where, (stored, entryWhere) => {
     if (typeof stored.enabled !== 'boolean') fail(`${entryWhere}.enabled`, 'must be a boolean.');
-    const validation = validatePack(stored.pack);
-    if (!validation.pack || validation.errors.length > 0) {
-      fail(`${entryWhere}.pack`, `is not a valid native content pack: ${validation.errors[0] ?? 'unknown validation error'}`);
-    }
-    if (seen.has(validation.pack.id)) fail(where, `contains duplicate pack id ${JSON.stringify(validation.pack.id)}.`);
-    seen.add(validation.pack.id);
+    const pack = requireRecord(stored.pack, `${entryWhere}.pack`);
+    const id = requireString(pack.id, `${entryWhere}.pack.id`);
+    if (seen.has(id)) fail(where, `contains duplicate pack id ${JSON.stringify(id)}.`);
+    seen.add(id);
   });
 }
 

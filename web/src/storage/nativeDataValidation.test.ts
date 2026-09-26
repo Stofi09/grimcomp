@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CHARACTER_TEMPLATES } from '../../../src/data/character';
+import { countQuarantinedPacks, partitionStoredPacks } from '../../../src/content/storedPacks';
 import { NATIVE_RECOVERY_RESET_INTENT_KEY } from '../../../src/storage/nativeRecoveryKeys';
 import {
   decodeNativeStoredValueForExport,
@@ -76,7 +77,7 @@ describe('native persisted-data validation', () => {
     expect(validateNativeStoredValue('gc.activeCharId', 'toString')).toMatchObject({ ok: false });
   });
 
-  it('rejects stored content packs with unsafe nested race data', () => {
+  it('keeps stored content packs with unsafe nested race data out of the registry instead of blocking storage', () => {
     const baseRace = {
       id: 'race.test',
       name: 'Test',
@@ -100,14 +101,27 @@ describe('native persisted-data validation', () => {
       },
     }];
 
-    expect(validateNativeStoredValue('gc.content.packs', pack({
-      ...baseRace,
-      charModifiers: { ws: {} },
-    }))).toMatchObject({ ok: false });
-    expect(validateNativeStoredValue('gc.content.packs', pack({
-      ...baseRace,
-      skills: [42],
-    }))).toMatchObject({ ok: false });
+    for (const unsafe of [
+      pack({ ...baseRace, charModifiers: { ws: {} } }),
+      pack({ ...baseRace, skills: [42] }),
+    ]) {
+      // Storage keeps the list openable; the content layer never loads the pack.
+      expect(validateNativeStoredValue('gc.content.packs', unsafe)).toEqual({ ok: true });
+      const partition = partitionStoredPacks(unsafe);
+      expect(partition.active).toEqual([]);
+      expect(partition.quarantined).toEqual([expect.objectContaining({ id: 'pack.test', quarantined: true })]);
+    }
+    expect(partitionStoredPacks(pack(baseRace)).active.map(loaded => loaded.id)).toEqual(['pack.test']);
+  });
+
+  it.each([
+    ['a non-array list', { 'pack.test': { enabled: true } }],
+    ['a non-boolean enabled flag', [{ enabled: 1, pack: { id: 'pack.test' } }]],
+    ['a missing pack object', [{ enabled: true, pack: null }]],
+    ['a non-string pack id', [{ enabled: true, pack: { id: 7 } }]],
+    ['duplicate pack ids', [{ enabled: true, pack: { id: 'pack.test' } }, { enabled: false, pack: { id: 'pack.test' } }]],
+  ])('rejects a stored pack-list envelope with %s', (_label, value) => {
+    expect(validateNativeStoredValue('gc.content.packs', value)).toMatchObject({ ok: false });
   });
 
   it('classifies every destructive Settings-wipe category as portable data', () => {
@@ -141,6 +155,22 @@ describe('native Settings import validation', () => {
     });
 
     expect(result).toMatchObject({ ok: true, keyCount: 4 });
+  });
+
+  it('restores a backup whose stored pack the current validator rejects, reporting it as quarantined', () => {
+    const legacyPack = {
+      $schema: 'grimcomp.content.v1', id: 'homebrew.legacy', name: 'Legacy homebrew', version: '0.9',
+      prayers: [{
+        id: 'prayer.legacy', name: 'Legacy Blessing', deity: 'Sigmar', range: 'Touch', target: '1',
+        duration: '1 hour', description: 'Saved by an older build.', type: 'Blessing',
+      }],
+    };
+    const packs = [{ enabled: true, pack: legacyPack }];
+    const result = validateNativeSettingsImport({ $schema: 'grimcomp.v1', scope: 'roster', 'gc.content.packs': packs });
+
+    expect(result).toMatchObject({ ok: true, keyCount: 1 });
+    expect(countQuarantinedPacks(packs)).toBe(1);
+    expect(countQuarantinedPacks(undefined)).toBe(0);
   });
 
   it('rejects valid JSON with a web-only draft shape before import can write anything', () => {

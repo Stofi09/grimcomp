@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Alert, Share, Pressable, TextInput } from 'reac
 import * as DocumentPicker from 'expo-document-picker';
 import { ScreenContainer } from './ScreenContainer';
 import { useContentPacks } from '@/content/useContentPacks';
+import { countQuarantinedPacks } from '@/content/storedPacks';
 import { validatePack } from '@/content/validate';
 import { Hero } from '@/components/Hero';
 import { Card } from '@/components/Card';
@@ -56,7 +57,13 @@ export const SettingsScreen: React.FC = () => {
   const [xpRule, setXpRule] = useXpRule();
   const { id, template } = useCharacter();
   const { all } = useRoster();
-  const { packs: userPacks, add: addPack, remove: removePack, setEnabled } = useContentPacks();
+  const {
+    packs: userPacks,
+    quarantined: quarantinedPacks,
+    add: addPack,
+    remove: removePack,
+    setEnabled,
+  } = useContentPacks();
   const storageStatus = useNativeStorageStatus();
   const [exportSheet, setExportSheet] = useState<{ scope: 'character' | 'roster'; json: string } | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
@@ -197,9 +204,13 @@ export const SettingsScreen: React.FC = () => {
       const who = typeof validated.dump.character === 'string'
         ? validated.dump.character
         : validated.dump.scope === 'roster' ? 'the full roster' : 'this export';
+      const quarantinedOnImport = countQuarantinedPacks(validated.dump['gc.content.packs']);
+      const quarantineNote = quarantinedOnImport === 0
+        ? ''
+        : ` ${quarantinedOnImport === 1 ? '1 content pack' : `${quarantinedOnImport} content packs`} in this file fail this version's content checks and will stay quarantined (kept, not loaded).`;
       Alert.alert(
         'Import data?',
-        `This atomically replaces ${validated.keyCount} matching data keys for ${who}. Existing custom characters are merged.`,
+        `This atomically replaces ${validated.keyCount} matching data keys for ${who}. Existing custom characters are merged.${quarantineNote}`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -356,34 +367,63 @@ export const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
+        {quarantinedPacks.length > 0 ? (
+          <View style={[styles.row, styles.packDivider]} accessibilityRole="alert">
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.title, styles.warningTitle]}>
+                {quarantinedPacks.length === 1
+                  ? '1 stored pack is quarantined'
+                  : `${quarantinedPacks.length} stored packs are quarantined`}
+              </Text>
+              <Text style={styles.body}>
+                {'Saved by an earlier version, these packs fail this version\'s content checks, so they are not loaded. '
+                  + 'They are kept unchanged: import a corrected pack with the same id to replace one, or remove it.'}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
         {userPacks.length === 0 ? (
           <View style={[styles.row, styles.packDivider]}>
             <Text style={styles.body}>No imported packs.</Text>
           </View>
         ) : (
           userPacks.map(p => (
-            <View key={p.pack.id} style={[styles.row, styles.packDivider]}>
+            <View key={`pack:${p.id}`} style={[styles.row, styles.packDivider]}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.title}>{p.pack.name}</Text>
-                <Text style={styles.body}>{p.pack.id} · v{p.pack.version}</Text>
+                <Text style={styles.title}>{p.name}</Text>
+                <Text style={styles.body}>{p.version ? `${p.id} · v${p.version}` : p.id}</Text>
+                {p.quarantined ? (
+                  <Text style={styles.quarantineReason} numberOfLines={3}>
+                    Not loaded: {p.errors[0]}
+                  </Text>
+                ) : null}
               </View>
-              <Pressable
-                onPress={() => setEnabled(p.pack.id, !p.enabled)}
-                hitSlop={4}
-                style={({ pressed }) => [
-                  styles.pillBtn,
-                  p.enabled && styles.pillBtnOn,
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <Text style={[styles.pillBtnText, p.enabled && styles.pillBtnTextOn]}>
-                  {p.enabled ? 'Enabled' : 'Disabled'}
-                </Text>
-              </Pressable>
+              {p.quarantined ? (
+                <Pill variant="warn" size={10}>Quarantined</Pill>
+              ) : (
+                <Pressable
+                  onPress={() => setEnabled(p.id, !p.enabled)}
+                  hitSlop={4}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: p.enabled }}
+                  accessibilityLabel={`Load ${p.name}`}
+                  style={({ pressed }) => [
+                    styles.pillBtn,
+                    p.enabled && styles.pillBtnOn,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Text style={[styles.pillBtnText, p.enabled && styles.pillBtnTextOn]}>
+                    {p.enabled ? 'Enabled' : 'Disabled'}
+                  </Text>
+                </Pressable>
+              )}
               <Button
                 variant="ghost"
                 textStyle={{ color: colors.empire }}
-                onPress={() => removePack(p.pack.id)}
+                accessibilityLabel={`Remove ${p.name}`}
+                onPress={() => removePack(p.id)}
               >
                 Remove
               </Button>
@@ -500,6 +540,14 @@ const styles = StyleSheet.create({
   packDivider: {
     borderTopWidth: 1,
     borderTopColor: colors.divider,
+  },
+  warningTitle: { color: colors.warning },
+  quarantineReason: {
+    fontSize: 11,
+    color: colors.empire,
+    marginTop: 4,
+    fontFamily: fontFamilies.body,
+    lineHeight: 16,
   },
   pasteInput: {
     minHeight: 240,

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore }
 import { ActivityIndicator, Alert, AppState, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
+import { countQuarantinedPacks } from '../content/storedPacks';
 import { useCharacter } from '../hooks/useCharacter';
 import { useRoster } from '../hooks/useRoster';
 import { useNativeStorageStatus } from '../storage/useNativeStorage';
@@ -122,7 +123,11 @@ export const AccountPanel: React.FC = () => {
           account.assertSession(version);
           const { result, written } = await applyNativeSettingsImport(validated.dump);
           if (!result.ok) throw new Error(`Restore was not confirmed: ${result.error.message}`);
-          if (mounted.current) setMessage(`Backup restored. ${written} saved values were applied to this device.`);
+          const quarantined = countQuarantinedPacks(validated.dump['gc.content.packs']);
+          const quarantineNote = quarantined === 0
+            ? ''
+            : ` ${quarantined === 1 ? '1 content pack fails' : `${quarantined} content packs fail`} this version's content checks and stays quarantined; see Content packs below.`;
+          if (mounted.current) setMessage(`Backup restored. ${written} saved values were applied to this device.${quarantineNote}`);
         }); } },
       ],
     );

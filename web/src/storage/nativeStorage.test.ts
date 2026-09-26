@@ -21,6 +21,13 @@ import {
   runNativeStorageMigrations,
 } from '../../../src/storage/migrations';
 import { CHARACTER_TEMPLATES } from '../../../src/data/character';
+import type { ContentPack } from '../../../src/content/types';
+import {
+  partitionStoredPacks,
+  removeStoredPack,
+  upsertStoredPack,
+  type StoredPackEntry,
+} from '../../../src/content/storedPacks';
 import {
   advanceNativeCriticalHealingDay,
   clearNativeSceneEndConditions,
@@ -151,6 +158,32 @@ class FakeNativeBackend implements RawAsyncKeyValue {
     return { entered, release };
   }
 }
+
+/**
+ * Every section below passed the pre-hardening native validator (e86d3fc), so
+ * an older build could import and persist this pack. The current validator
+ * rejects each of them: capitalized prayer type, textual talent max, fractional
+ * CN, textual source page, and free-form references.
+ */
+const LEGACY_ACCEPTED_PACK = {
+  $schema: 'grimcomp.content.v1',
+  id: 'homebrew.legacy',
+  name: 'Legacy homebrew',
+  version: '0.9',
+  spells: [{
+    id: 'spell.legacy-dart', name: 'Legacy Dart', lore: 'Petty', cn: 2.5, range: 'Willpower yards',
+    target: '1', duration: 'Instant', description: 'A pre-hardening homebrew spell.', sourcePage: 'p. 240',
+  }],
+  prayers: [{
+    id: 'prayer.legacy-blessing', name: 'Legacy Blessing', deity: 'Sigmar', range: 'Touch',
+    target: '1', duration: '1 hour', description: 'A pre-hardening homebrew blessing.', type: 'Blessing',
+  }],
+  talents: [{
+    id: 'tal.legacy-hardy', name: 'Legacy Hardy', description: 'A pre-hardening homebrew talent.',
+    max: 'Toughness Bonus',
+  }],
+  references: [{ id: 'ref.legacy-note', title: 'House rule', text: 'Free-form note from before references were validated.' }],
+};
 
 function coordinatorFor(backend: FakeNativeBackend) {
   let id = 0;
@@ -646,6 +679,89 @@ describe('NativeStorageStore', () => {
 
     expect((await store.initialize()).ready).toBe(true);
     expect(store.read('gc.future.overlay', null)).toEqual(future);
+  });
+
+  it('opens a store whose content pack an older build accepted but the current validator rejects', async () => {
+    const backend = new FakeNativeBackend();
+    const stored = JSON.stringify([{ enabled: true, pack: LEGACY_ACCEPTED_PACK }]);
+    backend.values.set(NATIVE_STORAGE_VERSION_KEY, '1');
+    backend.values.set('gc.content.packs', stored);
+    const store = new NativeStorageStore(backend, coordinatorFor(backend));
+
+    await expect(store.initialize()).resolves.toMatchObject({ ready: true, blocked: false, lastError: null });
+    expect(backend.values.get('gc.content.packs')).toBe(stored);
+
+    // The pack is kept but quarantined: reported for Settings, never loaded.
+    const partition = partitionStoredPacks(store.read('gc.content.packs', []));
+    expect(partition.active).toEqual([]);
+    expect(partition.quarantined).toEqual([expect.objectContaining({
+      id: 'homebrew.legacy',
+      name: 'Legacy homebrew',
+      version: '0.9',
+      enabled: true,
+      quarantined: true,
+      errors: expect.arrayContaining([expect.stringContaining('sourcePage')]),
+    })]);
+  });
+
+  it('journals pack-list writes around a quarantined pack without rewriting it', async () => {
+    const backend = new FakeNativeBackend();
+    const legacyEntry = { enabled: true, pack: LEGACY_ACCEPTED_PACK };
+    const storedRaw = JSON.stringify([legacyEntry]);
+    backend.values.set(NATIVE_STORAGE_VERSION_KEY, '1');
+    backend.values.set('gc.content.packs', storedRaw);
+    const store = new NativeStorageStore(backend, coordinatorFor(backend));
+    expect((await store.initialize()).ready).toBe(true);
+    backend.journalWrites.length = 0;
+
+    const current: ContentPack = {
+      $schema: 'grimcomp.content.v1', id: 'homebrew.current', name: 'Current homebrew', version: '1.0.0',
+      talents: [{ id: 'tal.current', name: 'Current Talent', description: 'Passes today\'s validator.', max: 2 }],
+    };
+    await expect(store.update<StoredPackEntry[]>(
+      'gc.content.packs', [], previous => upsertStoredPack(previous, current),
+    )).resolves.toMatchObject({ ok: true, outcome: 'committed' });
+
+    // One journaled CAS write whose before-image is the exact legacy bytes.
+    expect(backend.journalWrites).toHaveLength(1);
+    const journal = JSON.parse(backend.journalWrites[0]) as {
+      operations: Array<{ key: string; before: string | null; after: string | null }>;
+    };
+    expect(journal.operations).toEqual([
+      expect.objectContaining({ key: 'gc.content.packs', before: storedRaw }),
+    ]);
+    const persisted = JSON.parse(backend.values.get('gc.content.packs') ?? 'null') as unknown[];
+    expect(persisted).toEqual([legacyEntry, { enabled: true, pack: current }]);
+    const afterAdd = partitionStoredPacks(store.read('gc.content.packs', []));
+    expect(afterAdd.active.map(pack => pack.id)).toEqual(['homebrew.current']);
+    expect(afterAdd.quarantined.map(pack => pack.id)).toEqual(['homebrew.legacy']);
+
+    await expect(store.update<StoredPackEntry[]>(
+      'gc.content.packs', [], previous => removeStoredPack(previous, 'homebrew.legacy'),
+    )).resolves.toMatchObject({ ok: true, outcome: 'committed' });
+    expect(JSON.parse(backend.values.get('gc.content.packs') ?? 'null')).toEqual([{ enabled: true, pack: current }]);
+    expect(partitionStoredPacks(store.read('gc.content.packs', [])).quarantined).toEqual([]);
+  });
+
+  it.each([
+    ['a non-boolean enabled flag', [{ enabled: 'yes', pack: { id: 'pack.a' } }]],
+    ['a pack without a string id', [{ enabled: true, pack: { name: 'No id' } }]],
+    ['a non-object pack', [{ enabled: true, pack: 'pack.a' }]],
+    ['duplicate pack ids', [{ enabled: true, pack: { id: 'pack.a' } }, { enabled: false, pack: { id: 'pack.a' } }]],
+    ['a non-array list', { 'pack.a': { enabled: true } }],
+  ])('still blocks startup on a pack-list envelope with %s', async (_label, value) => {
+    const backend = new FakeNativeBackend();
+    const raw = JSON.stringify(value);
+    backend.values.set(NATIVE_STORAGE_VERSION_KEY, '1');
+    backend.values.set('gc.content.packs', raw);
+    const store = new NativeStorageStore(backend, coordinatorFor(backend));
+
+    await expect(store.initialize()).resolves.toMatchObject({
+      ready: false,
+      blocked: true,
+      lastError: { code: 'initialization_failed', message: expect.stringContaining('gc.content.packs') },
+    });
+    expect(backend.values.get('gc.content.packs')).toBe(raw);
   });
 
   it('blocks an incompatible late hydration instead of silently returning its seed', async () => {
