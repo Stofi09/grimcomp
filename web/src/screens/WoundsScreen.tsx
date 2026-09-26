@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { ScreenContainer } from './ScreenContainer';
-import { type Critical } from '@/data/character';
+import { type Critical, type Trapping } from '@/data/character';
 import { runStoredTransaction, useStoredState } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
@@ -11,6 +11,7 @@ import { useContent, useHitLocations, useCriticals, useConditionList, useSystemR
 import { critFromTable } from '@/content/tables';
 import type { HitLocationRow, HitLocationKey, CriticalDef, CriticalTableDef } from '@/content/types';
 import { advanceCriticalHealingDay, clearSceneEndConditions } from '@/utils/recovery';
+import { addCriticalConditions, criticalFromDefinition, criticalEffectNotice } from '@/utils/criticalEffects';
 import { Alert } from '@/ui/alertStore';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -39,10 +40,10 @@ const newCritical = (
   const table = band ? tableFor(band.key) : undefined;
   const critRoll = Math.floor(Math.random() * 100) + 1;
   const row = critFromTable(table, critRoll);
-  if (row) return { loc: label, roll: critRoll, name: row.name, effect: row.effect, days: row.days };
+  if (row) return criticalFromDefinition(row, label, critRoll);
   const tpl = prefabs[Math.floor(Math.random() * prefabs.length)]
     ?? { name: 'Critical Wound', effect: 'A serious injury — the GM describes its effect.', days: 10 };
-  return { loc: label, roll: locRoll, name: tpl.name, effect: tpl.effect, days: tpl.days };
+  return criticalFromDefinition(tpl, label, locRoll);
 };
 
 const sameCritical = (left: Critical, right: Critical): boolean => (
@@ -56,7 +57,7 @@ const sameCritical = (left: Critical, right: Critical): boolean => (
 export const WoundsScreen: React.FC = () => {
   const { id, template: c } = useCharacter();
   const [wounds, setWounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
-  const { conds, cycle, names } = useConditions();
+  const { conds, setConds, cycle, names } = useConditions();
   const vitals = useVitals();
 
   const content = useContent();
@@ -76,6 +77,11 @@ export const WoundsScreen: React.FC = () => {
   // separate: criticals heal by day; only explicitly flagged conditions clear
   // at the end of a scene.
   const crits = useCharacterCollection<Critical>('criticals', c.criticals);
+  const trappings = useCharacterCollection<Trapping>('trappings', c.trappings);
+  const isDraught = (item: Trapping) => item.name.trim().toLowerCase() === 'healing draught';
+  const draughtCount = trappings.items.filter(isDraught).length;
+  const recoveryRef = useRef(false);
+  const [recovering, setRecovering] = useState(false);
   const [, setCondMap] = useStoredState<Record<string, number>>(
     characterKey(id, 'conditions'),
     Object.fromEntries(names.map(t => [t, 0])),
@@ -220,7 +226,10 @@ export const WoundsScreen: React.FC = () => {
     try {
       const fresh = newCritical(hitLocations, prefabCriticals, k => content.criticalTableFor(k));
       if (!caps.combatHitLocations) fresh.loc = '';
-      const durability = await crits.add(fresh).completion;
+      const durability = await runStoredTransaction(() => {
+        crits.add({ ...fresh, conditionsApplied: true });
+        if (fresh.conditions) setConds(current => addCriticalConditions(current, fresh.conditions));
+      }).completion;
       if (!durability.ok) {
         Alert.alert('Could not add critical', durability.error.message);
         return;
@@ -228,8 +237,35 @@ export const WoundsScreen: React.FC = () => {
       const locLine = caps.combatHitLocations ? `Location: ${fresh.loc}\n` : '';
       Alert.alert(
         `Critical: ${fresh.name}`,
-        `${locLine}Roll: ${fresh.roll}\n\n${fresh.effect}\n\nHeals in ${fresh.days} day${fresh.days === 1 ? '' : 's'}.`,
+        `${locLine}Roll: ${fresh.roll}\n\n${fresh.effect}\n\n${criticalEffectNotice(fresh)}\n\nHeals in ${fresh.days} day${fresh.days === 1 ? '' : 's'}.`,
       );
+    } finally {
+      criticalActionRef.current = false;
+      setCriticalActionPending(false);
+    }
+  };
+
+  const conditionsFor = (critical: Critical) => critical.conditions ?? [
+    ...content.criticalTables.flatMap(table => table.rows), ...prefabCriticals,
+  ].find(def => def.name === critical.name && def.effect === critical.effect)?.conditions;
+
+  const applySavedCriticalConditions = async (index: number) => {
+    const critical = crits.items[index];
+    const identity = crits.identify(index);
+    if (!critical || !identity || critical.conditionsApplied || criticalActionRef.current) return;
+    const effects = conditionsFor(critical);
+    if (!effects) return;
+    criticalActionRef.current = true;
+    setCriticalActionPending(true);
+    let found = false;
+    try {
+      const durability = await runStoredTransaction(() => {
+        const mutation = crits.updateIdentified(identity, { ...critical, conditions: effects, conditionsApplied: true });
+        found = mutation.found;
+        if (found) setConds(current => addCriticalConditions(current, effects));
+      }).completion;
+      if (!durability.ok) Alert.alert('Could not apply conditions', durability.error.message);
+      else if (!found) Alert.alert('Critical changed', 'Review the current wound and retry.');
     } finally {
       criticalActionRef.current = false;
       setCriticalActionPending(false);
@@ -272,21 +308,53 @@ export const WoundsScreen: React.FC = () => {
   };
 
   const rest = async () => {
-    const durability = await setWounds(w => Math.min(woundsMax, w + restAmount)).completion;
-    if (!durability.ok) {
-      Alert.alert('Could not save rest', durability.error.message);
-      return;
+    if (recoveryRef.current || wounds >= woundsMax) return;
+    recoveryRef.current = true;
+    setRecovering(true);
+    let recovered = 0;
+    try {
+      const durability = await setWounds(w => {
+        recovered = Math.max(0, Math.min(restAmount, woundsMax - w));
+        return w + recovered;
+      }).completion;
+      if (!durability.ok) Alert.alert('Could not save rest', durability.error.message);
+      else Alert.alert('Rest', `Recovered ${recovered} wounds (${formulas.restRecovery}).`);
+    } finally {
+      recoveryRef.current = false;
+      setRecovering(false);
     }
-    Alert.alert('Rest', `Recovered ${restAmount} wounds (${formulas.restRecovery}).`);
   };
 
   const useHealingDraught = async () => {
-    const durability = await setWounds(w => Math.min(woundsMax, w + 4)).completion;
-    if (!durability.ok) {
-      Alert.alert('Could not use draught', durability.error.message);
-      return;
+    if (recoveryRef.current || wounds >= woundsMax || draughtCount === 0) return;
+    recoveryRef.current = true;
+    setRecovering(true);
+    let consumed = false;
+    let recovered = 0;
+    try {
+      const durability = await runStoredTransaction(() => {
+        // Read both current values inside the transaction so a stale screen
+        // cannot consume the last bottle twice or waste it at full health.
+        setWounds(w => {
+          if (w >= woundsMax) return w;
+          trappings.replace(items => {
+            const index = items.findIndex(isDraught);
+            if (index < 0) return items;
+            consumed = true;
+            return items.filter((_, i) => i !== index);
+          });
+          if (!consumed) return w;
+          recovered = Math.min(4, woundsMax - w);
+          return w + recovered;
+        });
+      }).completion;
+      if (!durability.ok) Alert.alert('Could not use draught', durability.error.message);
+      else if (!consumed) Alert.alert('Recovery changed', 'No draught was used. Check your wounds and inventory.');
+      else Alert.alert('Healing Draught', `Recovered ${recovered} wounds. Consumed 1 Healing Draught.`);
+    } finally {
+      recoveryRef.current = false;
+      setRecovering(false);
     }
-    Alert.alert('Healing Draught', 'Recovered 4 wounds.');
   };
 
   const woundsLabel = useMemo(
@@ -327,6 +395,7 @@ export const WoundsScreen: React.FC = () => {
               iconLeft={<Icon name="heart" size={13} color={colors.ink} />}
               style={{ alignSelf: 'stretch' }}
               onPress={rest}
+              disabled={recovering || wounds >= woundsMax}
             >
               Rest (recover {restAmount})
             </Button>
@@ -334,9 +403,11 @@ export const WoundsScreen: React.FC = () => {
               iconLeft={<Icon name="dice" size={13} color={colors.ink} />}
               style={{ alignSelf: 'stretch' }}
               onPress={useHealingDraught}
+              disabled={recovering || wounds >= woundsMax || draughtCount === 0}
             >
-              Use healing draught
+              Use healing draught ({draughtCount} owned)
             </Button>
+            {draughtCount === 0 && <span className="wnd-effect-note">Add a Healing Draught in Trappings when you acquire one. Each inventory entry is one dose.</span>}
             <Button
               iconLeft={<Icon name="sword" size={13} color={colors.ink} />}
               style={{ alignSelf: 'stretch' }}
@@ -418,7 +489,15 @@ export const WoundsScreen: React.FC = () => {
               {caps.combatHitLocations ? <Cell flex={1}>{cr.loc}</Cell> : null}
               <Cell num flex={0.7} textStyle={{ fontFamily: 'var(--font-mono)' }}>{cr.roll}</Cell>
               <Cell flex={2} textStyle={{ fontFamily: 'var(--font-body)', fontWeight: 600 }}>{cr.name}</Cell>
-              <Cell flex={3} textStyle={{ color: colors.ink3 }}>{cr.effect}</Cell>
+              <Cell flex={3} textStyle={{ color: colors.ink3 }}>
+                <div>{cr.effect}
+                  {cr.conditionsApplied ? <p className="wnd-effect-note">{criticalEffectNotice(cr)}</p>
+                    : conditionsFor(cr) ? <>
+                      <p className="wnd-effect-note">Existing wound: apply once if these conditions have not already been added manually.</p>
+                      <Button disabled={criticalActionPending} onPress={() => applySavedCriticalConditions(i)}>Apply conditions</Button>
+                    </> : <p className="wnd-effect-note">Resolve these effects manually.</p>}
+                </div>
+              </Cell>
               <Cell num flex={1} textStyle={{ fontFamily: 'var(--font-mono)' }}>{cr.days}</Cell>
               <Cell flex={0.5} align="right">
                 <Button

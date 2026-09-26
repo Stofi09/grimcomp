@@ -235,17 +235,23 @@ const buildCharacter = (
     // Archetypes contribute only their novice spell/prayer identity. Their
     // equipment belongs to higher-rank demo characters and is not a safe
     // starting loadout, so every fresh character receives the same basic kit.
-    weapons = [{ name: 'Hand Weapon', group: 'Basic', enc: 1, reach: 'Average', dmg: 'SB+4', qual: [] }];
+    weapons = [
+      { name: 'Hand Weapon', group: 'Basic', enc: 1, reach: 'Average', dmg: 'SB+4', qual: [] },
+      { name: 'Dagger', group: 'Basic', enc: 0, reach: 'Short', dmg: 'SB+2', qual: [] },
+    ];
     armour = [];
-    trappings = [{ name: 'Clothing', enc: 0 }, { name: 'Dagger', enc: 0 }, { name: 'Backpack', enc: 0 }];
+    trappings = [{ name: 'Clothing', enc: 0 }, { name: 'Backpack', enc: 0 }];
     knownSpells = (kitTpl.knownSpells ?? []).filter(id => spells.find(s => s.id === id)?.lore === creation.pettyLore);
     knownPrayers = (kitTpl.knownPrayers ?? []).filter(id => prayers.find(p => p.id === id)?.deity === creation.anyDeity);
     spellLore = caps.isCaster ? creation.pettyLore : undefined;
     deity = kitTpl.deity;
   } else {
-    weapons = [{ name: 'Hand Weapon', group: 'Basic', enc: 1, reach: 'Average', dmg: 'SB+4', qual: [] }];
+    weapons = [
+      { name: 'Hand Weapon', group: 'Basic', enc: 1, reach: 'Average', dmg: 'SB+4', qual: [] },
+      { name: 'Dagger', group: 'Basic', enc: 0, reach: 'Short', dmg: 'SB+2', qual: [] },
+    ];
     armour = [];
-    trappings = [{ name: 'Clothing', enc: 0 }, { name: 'Dagger', enc: 0 }, { name: 'Backpack', enc: 0 }];
+    trappings = [{ name: 'Clothing', enc: 0 }, { name: 'Backpack', enc: 0 }];
     // Casters start with the Petty spells; the Anointed with deity-agnostic Blessings.
     knownSpells = caps.isCaster ? spells.filter(s => s.lore === creation.pettyLore).map(s => s.id) : [];
     knownPrayers = caps.isAnointed ? prayers.filter(p => p.deity === creation.anyDeity).map(p => p.id) : [];
@@ -871,6 +877,33 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
                 <span className="nc-stat-name">{c.name}</span>
               </div>
             ))}
+          </div>
+          <div className="nc-review-package">
+            <section aria-label="Starting skills">
+              <h3>Starting skills</h3>
+              <ul>{preview.skills.map(skill => {
+                const characteristic = preview.characteristics.find(c => c.key === skill.char);
+                const total = (characteristic ? characteristic.init + characteristic.adv : 0) + skill.adv;
+                return <li key={skill.name}><strong>{skill.name}</strong> · +{skill.adv} advances · total {total}{skill.career ? ' · career' : ' · species'}</li>;
+              })}</ul>
+            </section>
+            <section aria-label="Starting talents">
+              <h3>Starting talents</h3>
+              <ul>{preview.talents.map(talent => <li key={`${talent.name}-${talent.specialization ?? ''}`}>
+                <strong>{talent.name}{talent.specialization ? ` (${talent.specialization})` : ''} ×{talent.times}</strong>
+                <p>{talent.desc}</p>
+              </li>)}</ul>
+            </section>
+            <section aria-label="Starting equipment">
+              <h3>Starting equipment</h3>
+              <ul>
+                {preview.weapons.map(w => <li key={w.name}><strong>{w.name}</strong> · {w.group} · damage {w.dmg} · {w.reach ?? w.range} · enc. {w.enc}</li>)}
+                {preview.armour.map(a => <li key={a.name}>{a.name} · AP {a.ap} · {a.locs.join(', ')} · enc. {a.enc}</li>)}
+                {preview.trappings.map((item, i) => <li key={`${item.name}-${i}`}>{item.name} · enc. {item.enc}</li>)}
+              </ul>
+              {preview.armour.length === 0 && <p>No armour.</p>}
+              <p>Starting money is rolled when you finish, based on {preview.status} status.</p>
+            </section>
           </div>
         </Card>
       ) : null}

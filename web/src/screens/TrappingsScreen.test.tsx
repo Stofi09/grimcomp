@@ -10,6 +10,8 @@ import { _resetStoredCache } from '@/hooks/useStoredState';
 import { browserStorageCore } from '@/storage/browserStorage';
 import { closeCurrentAlert, getCurrentAlert } from '@/ui/alertStore';
 import { TrappingsScreen } from './TrappingsScreen';
+import type { ContentPack } from '@/content/types';
+import itemsPack from '../../public/content/core-items.json';
 import {
   cleanupStorageTest,
   prepareStorageTest,
@@ -22,9 +24,9 @@ function drainAlerts(): void {
   while (getCurrentAlert() !== null) closeCurrentAlert();
 }
 
-function renderTrappings(): void {
+function renderTrappings(registry = new ContentRegistry([])): void {
   render(
-    <ContentContext.Provider value={new ContentRegistry([])}>
+    <ContentContext.Provider value={registry}>
       <TrappingsScreen />
     </ContentContext.Provider>,
   );
@@ -49,6 +51,31 @@ afterEach(async () => {
 });
 
 describe('TrappingsScreen wealth', () => {
+  it.each([false, true])('equips a legacy dagger atomically (write failure: %s)', async (fail) => {
+    const inventory = [{ name: 'Dagger', enc: 0 }, { name: 'Lantern', enc: 1 }];
+    localStorage.setItem('gc.c1.trappings', JSON.stringify(inventory));
+    localStorage.setItem('gc.c1.weapons', '[]');
+    _resetStoredCache();
+    const write = Storage.prototype.setItem;
+    let failed = false;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function(this: Storage, key, value) {
+      if (fail && !failed && key === 'gc.c1.weapons') { failed = true; throw new Error('disk full'); }
+      write.call(this, key, value);
+    });
+    renderTrappings(new ContentRegistry([itemsPack] as unknown as ContentPack[]));
+    fireEvent.click(screen.getByRole('button', { name: 'Dagger 0' }));
+    const equip = screen.getByRole('button', { name: 'Equip as weapon' });
+    fireEvent.click(equip);
+    fireEvent.click(equip);
+    await settleStorage();
+    expect(JSON.parse(localStorage.getItem('gc.c1.trappings')!)).toEqual(fail ? inventory : [inventory[1]]);
+    const weapons = JSON.parse(localStorage.getItem('gc.c1.weapons')!);
+    if (fail) expect(weapons).toEqual([]);
+    else {
+      expect(weapons).toHaveLength(1);
+      expect(weapons[0]).toMatchObject({ name: 'Dagger', group: 'Basic', dmg: 'SB+2', qual: [], enc: 0 });
+    }
+  });
   it('edits and persists the active character\'s configured denominations', async () => {
     renderTrappings();
 

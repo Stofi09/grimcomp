@@ -35,6 +35,41 @@ afterEach(async () => {
 });
 
 describe('ReferenceScreen recent history', () => {
+  it('browses custom rule categories and roll tables, including saved custom-category history', async () => {
+    const expanded = new ContentRegistry([{
+      $schema: 'grimcomp.content.v2', id: 'expanded', name: 'Expanded rules', version: '1',
+      references: [
+        { id: 'alchemy', name: 'Alchemy', category: 'Arcane practice', description: 'Alchemy details.' },
+        { id: 'all', name: 'All entry', category: 'All', description: 'Custom All details.' },
+      ],
+      tables: [{ id: 'omen', name: 'Omens', rows: [{ min: 1, max: 100, effect: 'Read the stars.' }] }],
+    }]);
+    render(
+      <ContentContext.Provider value={expanded}>
+        <ReferenceScreen />
+      </ContentContext.Provider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Arcane practice reference' }));
+    expect(screen.getByRole('button', { name: 'Arcane practice' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getAllByRole('option')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('option', { name: /Alchemy/ }));
+    expect(screen.getByText('Alchemy details.')).toBeTruthy();
+    await act(async () => { await waitForStorageIdle(); });
+    const stored = JSON.parse(localStorage.getItem('gc.reference.recent') || '[]');
+    expect(stored[0]).toMatchObject({ name: 'Alchemy', category: 'Arcane practice' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Roll Tables' }));
+    expect(screen.getAllByRole('option')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('option', { name: /Omens/ }));
+    expect(screen.getByText('1–100: Read the stars.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+    expect(screen.getAllByRole('option')).toHaveLength(1);
+    expect(screen.getByRole('option', { name: /All entry/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'All categories' }));
+    expect(screen.getAllByRole('option')).toHaveLength(3);
+  });
+
   it('records entries the user actually opens', async () => {
     render(
       <ContentContext.Provider value={registry}>

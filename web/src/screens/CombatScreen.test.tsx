@@ -72,6 +72,62 @@ afterEach(async () => {
 });
 
 describe('CombatScreen weapon distance', () => {
+  it('remembers opposed defence and difficulty after navigation and records the overall outcome', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.51);
+    renderCombatScreen();
+    fireEvent.click(screen.getAllByRole('button', { name: /Roll attack with/ })[0]);
+    fireEvent.change(screen.getByLabelText('Difficulty modifier'), { target: { value: '20' } });
+    fireEvent.change(screen.getByLabelText("Defender's defence (0 = unopposed)"), { target: { value: '90' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Roll attack', exact: true }));
+    await settleStorage();
+    const entry = JSON.parse(localStorage.getItem('gc.c1.rollHistory')!)[0];
+    expect(entry.result.success).toBe(true);
+    expect(entry.attack).toMatchObject({ landed: false, defender: { target: 90, roll: 52, sl: 4 } });
+    cleanup();
+    drainAlerts();
+    renderCombatScreen();
+    fireEvent.click(screen.getAllByRole('button', { name: /Roll attack with/ })[0]);
+    expect((screen.getByLabelText('Difficulty modifier') as HTMLInputElement).value).toBe('20');
+    expect((screen.getByLabelText("Defender's defence (0 = unopposed)") as HTMLInputElement).value).toBe('90');
+    fireEvent.click(screen.getByRole('button', { name: 'Reset attack settings' }));
+    expect((screen.getByLabelText("Defender's defence (0 = unopposed)") as HTMLInputElement).value).toBe('0');
+  });
+
+  it('applies a critical’s immediate conditions in the same transaction as damage', async () => {
+    seedHitState();
+    localStorage.setItem('gc.c1.conditions', JSON.stringify({ Bleeding: 1 }));
+    _resetStoredCache();
+    vi.spyOn(Math, 'random').mockReturnValue(0.54);
+    renderCombatScreen();
+    openLethalHit();
+    fireEvent.click(screen.getByRole('button', { name: /Body — AP/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await settleStorage();
+    expect(JSON.parse(localStorage.getItem('gc.c1.conditions')!)).toMatchObject({ Bleeding: 1, Stunned: 1, Prone: 1 });
+    expect(JSON.parse(localStorage.getItem('gc.c1.criticals')!)[0]).toMatchObject({ name: 'Winded and Reeling', conditionsApplied: true });
+  });
+  it('records an attack with its difficulty and Advantage without spending wounds', async () => {
+    localStorage.setItem('gc.c1.advantage', JSON.stringify(1));
+    localStorage.setItem('gc.c1.conditions', JSON.stringify({ Fatigued: 1 }));
+    localStorage.setItem('gc.c1.weapons', JSON.stringify([
+      { name: 'QA Sword', group: 'Basic', enc: 1, reach: 'Average', dmg: 'SB+4', qual: [] },
+    ]));
+    _resetStoredCache();
+    vi.spyOn(Math, 'random').mockReturnValue(0.26);
+    renderCombatScreen();
+    fireEvent.click(screen.getByRole('button', { name: 'Roll attack with QA Sword' }));
+    fireEvent.change(screen.getByLabelText('Difficulty modifier'), { target: { value: '-20' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Roll attack', exact: true }));
+    await settleStorage();
+    const saved = JSON.parse(localStorage.getItem('gc.c1.rollHistory')!);
+    expect(saved).toHaveLength(1);
+    expect(saved[0].result).toMatchObject({ baseTarget: 53, modifier: -20, effectiveTarget: 33, roll: 27 });
+    expect(saved[0].detail).toContain('Difficulty modifier: -20');
+    expect(saved[0].detail).toContain('Hit location');
+    expect(localStorage.getItem('gc.c1.wounds')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('gc.c1.advantage')!)).toBe(1);
+  });
+
   it('uses and durably persists Range for a ranged weapon even when legacy data also has Reach', async () => {
     localStorage.setItem('gc.c1.weapons', JSON.stringify([{
       name: 'QA Longbow',
@@ -87,7 +143,7 @@ describe('CombatScreen weapon distance', () => {
     renderCombatScreen();
 
     const weapon = screen.getByRole('button', { name: 'QA Longbow' });
-    const row = weapon.closest('.tbl-row');
+    const row = weapon.closest('article');
     expect(row?.textContent).toContain('120');
     expect(row?.textContent).not.toContain('Average');
 

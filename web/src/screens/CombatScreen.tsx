@@ -1,3 +1,7 @@
+import { useRecordTest } from '@/hooks/useRecordTest';
+import { addCriticalConditions, criticalFromDefinition, criticalEffectNotice } from '@/utils/criticalEffects';
+import type { AttackHistory } from '@/utils/rollHistory';
+import { useDerived } from '@/hooks/useDerived';
 import { useMemo, useRef, useState } from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { type Weapon, type Armour, type Critical } from '@/data/character';
@@ -27,7 +31,6 @@ import { Card, CardHead } from '@/components/Card';
 import { Pill } from '@/components/Pill';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
-import { Table, TableRow, Cell } from '@/components/Table';
 import { Stepper } from '@/components/Stepper';
 import { HitLocationFigure } from '@/components/HitLocationFigure';
 import { EditSheet } from '@/components/EditSheet';
@@ -111,7 +114,9 @@ export const CombatScreen: React.FC = () => {
   const { id, template: c } = useCharacter();
   const content = useContent();
   const { list: charList } = useCharacteristics();
-  const { modifier: condMod } = useConditions();
+  const { modifier: condMod, conds, setConds } = useConditions();
+  const { maxWounds } = useDerived();
+  const recordTest = useRecordTest();
   const system = useSystemRules();
   const combat = system.combat;
   const caps = useCapabilities();
@@ -153,8 +158,9 @@ export const CombatScreen: React.FC = () => {
   // Attack sheet: pick opposed-vs-unopposed before rolling. `defence` 0 = a
   // straight (unopposed) test; > 0 rolls the defender and resolves an Opposed
   // Test (WFRP 4e melee).
-  const [atk, setAtk] = useState<{ weapon: Weapon; defence: number } | null>(null);
-  const openAttack = (w: Weapon) => setAtk({ weapon: w, defence: 0 });
+  const [atk, setAtk] = useState<{ weapon: Weapon; defence: number; difficulty: number } | null>(null);
+  const [attackSettings, setAttackSettings] = useStoredState(characterKey(id, 'combat.attackSettings'), { defence: 0, difficulty: 0 });
+  const openAttack = (w: Weapon) => setAtk({ weapon: w, ...attackSettings });
 
   const fmtSL = (n: number) => `${n >= 0 ? '+' : ''}${n} SL`;
 
@@ -163,7 +169,7 @@ export const CombatScreen: React.FC = () => {
     const w = atk.weapon;
     const target = targetForWeapon(w);
     const advBonus = advantageBonus(advantage);
-    const r = resolveTest({ target, modifier: condMod.total + advBonus, label: w.name }, system.test);
+    const r = resolveTest({ target, modifier: condMod.total + advBonus + atk.difficulty, label: w.name }, system.test);
 
     // Opposed melee (defence > 0): higher SL wins even if both tests fail, and
     // the winner's net opposed SL feeds damage. Unopposed attacks still require
@@ -172,8 +178,10 @@ export const CombatScreen: React.FC = () => {
     let opposedLine = '';
     let landed: boolean;
     let dmgSl: number;
+    let defender: AttackHistory['defender'];
     if (opposed) {
       const dr = resolveTest({ target: atk.defence, label: 'Defender' }, system.test);
+      defender = { target: atk.defence, roll: dr.roll, sl: dr.sl };
       const attack = resolveAttackOutcome(r.success, r.sl, dr.sl);
       const res = attack.opposed!;
       landed = attack.landed;
@@ -211,11 +219,18 @@ export const CombatScreen: React.FC = () => {
       : '';
     const advLine = advBonus > 0 ? `\n\nAdvantage: +${advBonus} to hit (${advantage} × 10).` : '';
 
+    const difficultyLine = `\n\nDifficulty modifier: ${atk.difficulty >= 0 ? '+' : ''}${atk.difficulty}`;
+    const settingsTicket = setAttackSettings({ defence: atk.defence, difficulty: atk.difficulty });
+    void settingsTicket.completion.then(result => {
+      if (!result.ok) Alert.alert('Attack settings not saved', result.error.message);
+    });
+    recordTest(r, advLine + opposedLine + locLine + dmgLine + qualLine + condLine + difficultyLine,
+      `${w.name} — ${landed ? 'HIT' : 'NO HIT'}`, { landed, ...(defender ? { defender } : {}), ...(dmg ? { damage: dmg.total } : {}) });
     setAtk(null);
     const canGain = landed && !!dmg && dmg.total > 0;
     Alert.alert(
       `${w.name} — ${opposed ? (landed ? 'HIT' : 'NO HIT') : outcomeLabel(r.outcome)}`,
-      formatTestResult(r) + advLine + opposedLine + locLine + dmgLine + qualLine + condLine,
+      formatTestResult(r) + advLine + opposedLine + locLine + dmgLine + qualLine + condLine + difficultyLine,
       canGain
         ? [{
             text: 'Gain +1 Advantage',
@@ -269,12 +284,12 @@ export const CombatScreen: React.FC = () => {
         const critRoll = Math.floor(Math.random() * 100) + 1;
         const row = critFromTable(table, critRoll);
         if (row) {
-          freshCritical = { loc: caps.combatHitLocations ? locLabel : '', roll: critRoll, name: row.name, effect: row.effect, days: row.days };
+          freshCritical = criticalFromDefinition(row, caps.combatHitLocations ? locLabel : '', critRoll);
           critLine = `\n\nCRITICAL WOUND — ${row.name}${caps.combatHitLocations ? ` (${locLabel})` : ''}.\n` +
             `d100 ${critRoll} on the ${locLabel} critical table:\n${row.effect}`;
         } else if (prefabCriticals.length > 0) {
           const tpl = prefabCriticals[Math.floor(Math.random() * prefabCriticals.length)];
-          freshCritical = { loc: caps.combatHitLocations ? locLabel : '', roll: appliedHit.locRoll, name: tpl.name, effect: tpl.effect, days: tpl.days };
+          freshCritical = criticalFromDefinition(tpl, caps.combatHitLocations ? locLabel : '', appliedHit.locRoll);
           critLine = `\n\nCRITICAL WOUND — ${tpl.name}${caps.combatHitLocations ? ` (${locLabel})` : ''}.\nAdded to the Wounds screen.`;
         }
       }
@@ -282,7 +297,11 @@ export const CombatScreen: React.FC = () => {
       const transaction = runStoredTransaction(() => {
         setWounds(res.newWounds);
         if (lostAdvantage) setAdvantage(0);
-        if (freshCritical) crits.add(freshCritical);
+        if (freshCritical) {
+          const critical = freshCritical;
+          if (critical.conditions) setConds(current => addCriticalConditions(current, critical.conditions));
+          crits.add({ ...critical, conditionsApplied: true });
+        }
       });
       const durability = await transaction.completion;
       if (!durability.ok) {
@@ -296,7 +315,7 @@ export const CombatScreen: React.FC = () => {
       Alert.alert(
         res.woundsLost > 0 ? `Hit${locPart} — ${res.woundsLost} Wound${res.woundsLost === 1 ? '' : 's'} lost` : `Hit${locPart} — fully soaked`,
         `Damage ${res.damage} − TB ${res.toughnessBonus} − AP ${res.ap} = ${res.woundsLost} Wound${res.woundsLost === 1 ? '' : 's'}.\n` +
-        `Wounds ${res.currentWounds} → ${res.newWounds}.${advLine}${critLine}`,
+        `Wounds ${res.currentWounds} → ${res.newWounds}.${advLine}${critLine}` + (freshCritical ? `\n\n${criticalEffectNotice(freshCritical)}` : ''),
       );
     } finally {
       hitActionRef.current = false;
@@ -488,175 +507,84 @@ export const CombatScreen: React.FC = () => {
   return (
     <ScreenContainer>
       <Hero
+        eyebrow={c.name}
         title="Combat"
-        subRow={
-          <span className="cmb-sub">
-            {caps.combatHitLocations ? 'Weapons, armour, and hit locations.' : 'Weapons and armour.'}
-          </span>
-        }
+        subRow={<span className="cmb-sub">Weapons, wounds, and active conditions.</span>}
       />
 
+      <div className="cmb-status">
+        <div className={`cmb-wounds${wounds === 0 ? ' cmb-wounds--critical' : ''}`}>
+          <div><span className="cmb-label">Wounds</span><strong>{wounds}<small> / {maxWounds}</small></strong></div>
+          <Button iconLeft={<Icon name="heart" size={14} color={colors.ink2} />} onPress={openHit}>Take a hit</Button>
+        </div>
+        <div className="cmb-advantage">
+          <div><span className="cmb-label">Advantage</span><span className="cmb-advantage-bonus">+{advantageBonus(advantage)} to combat tests</span></div>
+          <Stepper value={advantage} min={0} max={30} decreaseLabel="Decrease Advantage" increaseLabel="Increase Advantage" onChange={setAdvantage} />
+          <Button variant="ghost" onPress={() => {
+            const ticket = setAdvantage(0);
+            void ticket.completion.then(durability => {
+              if (!durability.ok) Alert.alert('Could not reset Advantage', durability.error.message);
+            });
+          }}>Reset</Button>
+        </div>
+      </div>
+      {Object.entries(conds).some(([, stacks]) => stacks > 0) && <div className="cmb-active-conditions" aria-label="Active conditions">
+        {Object.entries(conds).filter(([, stacks]) => stacks > 0).map(([name, stacks]) =>
+          <Pill key={name} variant="empire">{name} ×{stacks}</Pill>)}
+        <span>Conditions: {condMod.total > 0 ? '+' : ''}{condMod.total} to tests</span>
+      </div>}
+
       <div className="cmb-row">
-        <Card flush style={{ width: 320, flexShrink: 0 }}>
-          <CardHead title={caps.combatHitLocations ? 'Hit Locations' : 'Armour'} />
-          {caps.combatHitLocations ? (
-            <div className="cmb-figure-box">
-              <HitLocationFigure ap={ap} labels={figureLabels} />
-            </div>
-          ) : null}
-          <div className="cmb-figure-foot">
-            <div className="cmb-row-between">
-              <span className="cmb-meta-mono">TOTAL AP</span>
-              <span className="cmb-total-mono">{totalAP}</span>
-            </div>
-            <Button
-              variant="primary"
-              iconLeft={<Icon name="dice" size={12} color={colors.ivory} />}
-              style={{ alignSelf: 'stretch', marginTop: 12 }}
-              onPress={openHit}
-            >
-              Take a hit
-            </Button>
-          </div>
-        </Card>
-
-        <div className="cmb-right">
+        <div className="cmb-weapons">
           <Card flush>
-            <CardHead
-              title="Advantage"
-              right={
-                <Button
-                  variant="ghost"
-                  onPress={() => {
-                    const ticket = setAdvantage(0);
-                    void ticket.completion.then((durability) => {
-                      if (!durability.ok) Alert.alert('Could not reset Advantage', durability.error.message);
-                    });
-                  }}
-                >
-                  Reset
-                </Button>
-              }
-            />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '2px 4px 10px' }}>
-              <Stepper value={advantage} min={0} max={30} onChange={setAdvantage} />
-              <span className="cmb-meta-mono">
-                {advantage > 0
-                  ? `+${advantageBonus(advantage)} to your Weapon / Ballistic Skill tests`
-                  : 'No Advantage — win a bout or charge to gain a point'}
-              </span>
-            </div>
-          </Card>
-
-          <Card flush>
-            <CardHead
-              title="Weapons"
-              right={
-                <Button
-                  variant="ghost"
-                  iconLeft={<Icon name="plus" size={12} color={colors.ink2} />}
-                  onPress={openNewWeapon}
-                >
-                  New
-                </Button>
-              }
-            />
-            <Table>
-              <TableRow header>
-                <Cell header flex={2}>Weapon</Cell>
-                <Cell header flex={1.1}>Group</Cell>
-                <Cell header num flex={0.6}>Enc.</Cell>
-                <Cell header flex={1}>Reach/Range</Cell>
-                <Cell header flex={0.9}>Damage</Cell>
-                <Cell header flex={1.4}>Qualities</Cell>
-                <Cell header flex={0.5}> </Cell>
-              </TableRow>
-              {weapons.items.map((w, i) => (
-                <TableRow key={`${w.name}-${i}`} last={i === weapons.items.length - 1}>
-                  <Cell flex={2}>
-                    <button
-                      type="button"
-                      className="btn-reset cmb-weapon-name"
-                      onClick={() => openEditWeapon(i)}
-                    >
-                      {w.name}
-                    </button>
-                  </Cell>
-                  <Cell flex={1.1} textStyle={{ color: colors.ink3 }}>{w.group}</Cell>
-                  <Cell num flex={0.6}>{w.enc}</Cell>
-                  <Cell flex={1} textStyle={{ fontFamily: 'var(--font-mono)' }}>
-                    {weaponDistance(w, charForWeapon(w, combat) === combat.rangedChar) || '—'}
-                  </Cell>
-                  <Cell flex={0.9} textStyle={{ fontFamily: 'var(--font-mono)' }}>{w.dmg}</Cell>
-                  <Cell flex={1.4}>
-                    <div className="cmb-qual-row">
-                      {w.qual.map(q => <Pill key={q} size={10}>{q}</Pill>)}
-                    </div>
-                  </Cell>
-                  <Cell flex={0.5} align="right">
-                    <Button
-                      variant="ghost"
-                      ariaLabel={`Roll attack with ${w.name}`}
-                      iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
-                      onPress={() => openAttack(w)}
-                    >{''}</Button>
-                  </Cell>
-                </TableRow>
-              ))}
-              {weapons.items.length === 0 ? (
-                <TableRow last>
-                  <Cell flex={1} textStyle={{ color: colors.ink3, fontStyle: 'italic' }}>
-                    No weapons. Tap "New" to add one.
-                  </Cell>
-                </TableRow>
-              ) : null}
-            </Table>
-          </Card>
-
-          <Card flush>
-            <CardHead
-              title="Armour"
-              right={
-                <Button
-                  variant="ghost"
-                  iconLeft={<Icon name="plus" size={12} color={colors.ink2} />}
-                  onPress={openNewArmour}
-                >
-                  New
-                </Button>
-              }
-            />
-            <Table>
-              <TableRow header>
-                <Cell header flex={2}>Piece</Cell>
-                <Cell header flex={1.6}>Locations</Cell>
-                <Cell header num flex={0.6}>Enc.</Cell>
-                <Cell header num flex={0.6}>AP</Cell>
-                <Cell header flex={1.4}>Qualities</Cell>
-              </TableRow>
-              {armour.items.map((a, i) => (
-                <TableRow key={`${a.name}-${i}`} last={i === armour.items.length - 1} onPress={() => openEditArmour(i)}>
-                  <Cell flex={2} textStyle={{ fontFamily: 'var(--font-body)', fontWeight: 600 }}>{a.name}</Cell>
-                  <Cell flex={1.6} textStyle={{ color: colors.ink3 }}>{a.locs.join(', ')}</Cell>
-                  <Cell num flex={0.6}>{a.enc}</Cell>
-                  <Cell num flex={0.6} textStyle={{ color: colors.brass, fontFamily: 'var(--font-mono)', fontWeight: 500 }}>{a.ap}</Cell>
-                  <Cell flex={1.4}>
-                    <div className="cmb-qual-row">
-                      {a.qual.map(q => <Pill key={q} size={10}>{q}</Pill>)}
-                    </div>
-                  </Cell>
-                </TableRow>
-              ))}
-              {armour.items.length === 0 ? (
-                <TableRow last>
-                  <Cell flex={1} textStyle={{ color: colors.ink3, fontStyle: 'italic' }}>
-                    No armour. Tap "New" to add a piece.
-                  </Cell>
-                </TableRow>
-              ) : null}
-            </Table>
+            <CardHead title="Weapons" meta={`${weapons.items.length} in your inventory`}
+              right={<Button variant="ghost" iconLeft={<Icon name="plus" size={12} color={colors.ink2} />}
+                onPress={openNewWeapon}>New</Button>} />
+            {weapons.items.map((w, i) => {
+              const base = targetForWeapon(w);
+              const target = resolveTest({ target: base, modifier: condMod.total + advantageBonus(advantage), forceRoll: 1 }, system.test).effectiveTarget;
+              return <article className="cmb-weapon-card" key={`${w.name}-${i}`}>
+                <div className="cmb-weapon-top">
+                  <div>
+                    <button type="button" className="btn-reset cmb-weapon-name" onClick={() => openEditWeapon(i)}>{w.name}</button>
+                    <span className="cmb-weapon-group">{w.group}</span>
+                  </div>
+                  <div className="cmb-target"><span>Test target</span><strong>{target}</strong></div>
+                </div>
+                <div className="cmb-weapon-stats">
+                  <div><span>Damage</span><strong>{w.dmg}</strong></div>
+                  <div><span>{charForWeapon(w, combat) === combat.rangedChar ? 'Range' : 'Reach'}</span><strong>{weaponDistance(w, charForWeapon(w, combat) === combat.rangedChar) || '—'}</strong></div>
+                  <div><span>Enc.</span><strong>{w.enc}</strong></div>
+                </div>
+                <div className="cmb-weapon-bottom">
+                  <div className="cmb-qual-row">{w.qual.length ? w.qual.map(q => <Pill key={q} size={11}>{q}</Pill>) : <span className="cmb-sub">No special qualities</span>}</div>
+                  <Button variant="primary" ariaLabel={`Roll attack with ${w.name}`}
+                    iconLeft={<Icon name="dice" size={14} color={colors.ivory} />} onPress={() => openAttack(w)}>Attack</Button>
+                </div>
+              </article>;
+            })}
+            {!weapons.items.length && <p className="cmb-empty">No weapons yet. Add one to make your first attack.</p>}
           </Card>
         </div>
+        <aside className="cmb-defence">
+          <Card flush>
+            <details className="cmb-armour-map">
+              <summary><span>{caps.combatHitLocations ? 'Armour & hit locations' : 'Armour coverage'}</span><span>{totalAP} total AP</span></summary>
+              {caps.combatHitLocations && <div className="cmb-figure-box"><HitLocationFigure ap={ap} labels={figureLabels} /></div>}
+            </details>
+          </Card>
+          <Card flush>
+            <CardHead title="Armour" right={<Button variant="ghost"
+              iconLeft={<Icon name="plus" size={12} color={colors.ink2} />} onPress={openNewArmour}>New</Button>} />
+            {armour.items.map((a, i) => <button type="button" className="btn-reset cmb-armour-item"
+              key={`${a.name}-${i}`} onClick={() => openEditArmour(i)}>
+              <span><strong>{a.name}</strong><span>{a.locs.join(', ')} · Enc. {a.enc}</span>
+                {a.qual.length > 0 && <span>{a.qual.join(' · ')}</span>}</span>
+              <span className="cmb-armour-ap">{a.ap}<small>AP</small></span>
+            </button>)}
+            {!armour.items.length && <p className="cmb-empty">No armour equipped. Add a piece to track protection.</p>}
+          </Card>
+        </aside>
       </div>
 
       {/* Weapon edit sheet */}
@@ -795,9 +723,15 @@ export const CombatScreen: React.FC = () => {
             <>
               <div className="cmb-hit-preview">
                 <span className="cmb-meta-mono">{w.name} · {w.dmg}</span>{' '}
-                target <strong>{target}{advBonus ? ` + ${advBonus}` : ''}</strong>
+                target <strong>{resolveTest({ target, modifier: condMod.total + advBonus + atk.difficulty, forceRoll: 1 }, system.test).effectiveTarget}</strong>
                 {advBonus ? <span className="cmb-meta-mono">  ·  Advantage +{advBonus}</span> : null}
               </div>
+              <p className="cmb-sub">Base {target} · Advantage +{advBonus} · conditions {condMod.total} · difficulty {atk.difficulty > 0 ? '+' : ''}{atk.difficulty}</p>
+              <p className="cmb-sub"><strong>{atk.defence > 0 ? `Opposed attack · defence ${atk.defence}` : 'Unopposed attack'}</strong> · Settings are remembered for this character after rolling.</p>
+              <Button variant="ghost" onPress={() => setAtk(s => s && ({ ...s, defence: 0, difficulty: 0 }))}>Reset attack settings</Button>
+              <NumberField label="Difficulty modifier" value={atk.difficulty} min={-100} max={100}
+                onChangeNumber={n => setAtk(s => s && ({ ...s, difficulty: n }))}
+                hint="Positive helps; negative makes the attack harder." />
               <NumberField
                 label={ranged ? 'Opposed defence (melee only — 0 for ranged)' : "Defender's defence (0 = unopposed)"}
                 value={atk.defence}

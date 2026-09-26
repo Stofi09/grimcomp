@@ -1,0 +1,36 @@
+.roll-tabs, .roll-difficulty { display: flex; gap: 6px; margin-bottom: 20px; }
+.roll-tabs button, .roll-difficulty button { min-height: 44px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--ink2); padding: 8px 14px; cursor: pointer; font: 13px var(--font-body); }
+.roll-tabs button { flex: 1; }
+.roll-tabs button[aria-pressed="true"], .roll-difficulty button[aria-pressed="true"] { background: var(--ink); color: var(--ivory); border-color: var(--ink); }
+.roll-difficulty { flex-wrap: wrap; margin-top: 10px; }
+.roll-difficulty button { flex: 1; min-width: 44px; }
+.roll-select-label { display: block; margin-bottom: 8px; font: 600 13px var(--font-body); }
+.roll-select { width: 100%; min-height: 48px; margin-bottom: 20px; padding: 10px; background: var(--ivory); color: var(--ink); border: 1px solid var(--borderStrong); border-radius: 5px; font: 14px var(--font-body); }
+.roll-target-preview { border: 1px solid var(--border); background: var(--surface3); border-radius: 6px; padding: 14px 16px; margin-bottom: 16px; }
+.roll-target-preview > div { display: flex; justify-content: space-between; align-items: center; }
+.roll-target-preview strong { font: 30px var(--font-display); }
+.roll-target-preview span { font: 600 14px var(--font-body); }
+.roll-target-preview p, .roll-conditions { font: 12px/1.6 var(--font-body); color: var(--ink2); margin: 8px 0 0; }
+.roll-conditions { margin-bottom: 16px; padding-left: 20px; }
+.roll-result { min-width: 0; border: 1px solid var(--border); border-left: 4px solid var(--empire); border-radius: 6px; background: var(--ivory); padding: 16px; }
+.roll-result--success { border-left-color: var(--success); }
+.roll-result-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.roll-result-heading > strong { font: 20px var(--font-display); overflow-wrap: anywhere; }
+.roll-result-heading time { font: 11px var(--font-body); color: var(--ink3); }
+.roll-result-numbers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 20px 0 12px; }
+.roll-result-numbers span { display: block; font: 11px var(--font-body); color: var(--ink2); margin-bottom: 4px; }
+.roll-result-numbers strong { font: 32px var(--font-mono); }
+.roll-verdict { font: 700 12px var(--font-body); letter-spacing: 1px; color: var(--empire); margin: 12px 0; }
+.roll-result--success .roll-verdict { color: var(--success); }
+.roll-breakdown { border-top: 1px solid var(--divider); font: 12px/1.65 var(--font-body); }
+.roll-breakdown summary { cursor: pointer; padding: 12px 0; min-height: 44px; box-sizing: border-box; }
+.roll-breakdown p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 10px; color: var(--ink2); }
+.roll-save-status { font: 12px/1.6 var(--font-body); color: var(--ink2); margin-bottom: 0; }
+.roll-save-status--error { color: var(--empire); }
+.roll-history { display: grid; gap: 12px; }
+.roll-empty { text-align: center; padding: 28px 8px; color: var(--ink2); }
+.roll-empty strong { font: 24px var(--font-display); }
+.roll-empty p { font: 14px/1.7 var(--font-body); }
+.roll-change-test { width: 100%; min-height: 44px; margin-top: 16px; background: transparent; border: 1px solid var(--border); border-radius: 5px; color: var(--ink2); font: 13px var(--font-body); cursor: pointer; }
+
+.roll-opposition { font: 12px/1.65 var(--font-body); color: var(--ink2); margin: 0 0 12px; }

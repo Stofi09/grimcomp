@@ -64,8 +64,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border-radius: 16px;
   background-color: var(--surface2);
   transform: rotate(45deg); /* turns the "plus" icon into an "x" */
@@ -106,6 +106,7 @@
 
 /* Footer buttons — mirror the RN Button ghost/primary variants. */
 .esh-btn {
+  min-height: 44px;
   display: inline-flex;
   flex-direction: row;
   align-items: center;

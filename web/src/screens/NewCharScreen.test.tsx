@@ -109,6 +109,9 @@ describe('NewCharScreen', () => {
   it('durably creates, activates, and resets in one four-key journal before navigating', async () => {
     const onNav = renderCreator();
     await reachReviewStep();
+    expect(screen.getByRole('region', { name: 'Starting equipment' }).textContent).toContain('Dagger');
+    expect(screen.getByRole('region', { name: 'Starting skills' }).textContent).toContain('advances');
+    expect(screen.getByRole('region', { name: 'Starting talents' }).textContent).toContain('×1');
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
 
     fireEvent.click(screen.getByRole('button', { name: 'Finish & switch' }));
@@ -244,7 +247,7 @@ describe('NewCharScreen', () => {
     expect(created.skills.filter(s => s.career)).toHaveLength(8);
     expect(created.skills.filter(s => s.career).reduce((sum, s) => sum + s.adv, 0)).toBe(40);
     expect(created.talents.filter(t => t.career)).toHaveLength(1);
-    expect(created.weapons.map(w => w.name)).toEqual(['Hand Weapon']);
+    expect(created.weapons.map(w => w.name)).toEqual(['Hand Weapon', 'Dagger']);
     expect(created.armour).toEqual([]);
   });
 

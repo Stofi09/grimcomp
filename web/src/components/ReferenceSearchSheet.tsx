@@ -2,6 +2,7 @@ import * as React from 'react';
 import { useContent } from '@/content/useContent';
 import {
   buildReferenceItems,
+  getReferenceCategories,
   type ReferenceCategory,
   type ReferenceItem,
 } from '@/utils/referenceSearch';
@@ -10,21 +11,10 @@ import { TextField } from './Fields';
 import { Pill } from './Pill';
 import './ReferenceSearchSheet.css';
 
-const CATEGORIES: ReferenceCategory[] = [
-  'Careers',
-  'Skills',
-  'Talents',
-  'Spells',
-  'Prayers',
-  'Conditions',
-  'Critical Wounds',
-  'Chaos & Mutation',
-];
-
 interface ReferenceSearchSheetProps {
   visible: boolean;
   onClose: () => void;
-  initialCategory?: ReferenceCategory | 'All';
+  initialCategory?: ReferenceCategory | null;
   initialQuery?: string;
   title?: string;
   onViewed?: (item: ReferenceItem) => void;
@@ -33,14 +23,15 @@ interface ReferenceSearchSheetProps {
 export const ReferenceSearchSheet: React.FC<ReferenceSearchSheetProps> = ({
   visible,
   onClose,
-  initialCategory = 'All',
+  initialCategory = null,
   initialQuery = '',
   title = 'Search rules',
   onViewed,
 }) => {
   const registry = useContent();
   const items = React.useMemo(() => buildReferenceItems(registry), [registry]);
-  const [category, setCategory] = React.useState<ReferenceCategory | 'All'>(initialCategory);
+  const categories = React.useMemo(() => getReferenceCategories(items), [items]);
+  const [category, setCategory] = React.useState<ReferenceCategory | null>(initialCategory);
   const [query, setQuery] = React.useState(initialQuery);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [activeId, setActiveId] = React.useState<string | null>(null);
@@ -58,7 +49,7 @@ export const ReferenceSearchSheet: React.FC<ReferenceSearchSheetProps> = ({
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const filtered = items.filter(item => {
-    if (category !== 'All' && item.category !== category) return false;
+    if (category !== null && item.category !== category) return false;
     if (!normalizedQuery) return true;
     return `${item.name} ${item.meta} ${item.detail}`
       .toLocaleLowerCase()
@@ -136,9 +127,9 @@ export const ReferenceSearchSheet: React.FC<ReferenceSearchSheetProps> = ({
       />
 
       <div className="ref-search-categories" role="group" aria-label="Reference category">
-        {(['All', ...CATEGORIES] as const).map(candidate => (
+        {[null, ...categories].map(candidate => (
           <button
-            key={candidate}
+            key={candidate === null ? 'all' : `category:${candidate}`}
             type="button"
             className={`btn-reset ref-search-chip${category === candidate ? ' ref-search-chip--active' : ''}`}
             aria-pressed={category === candidate}
@@ -148,7 +139,7 @@ export const ReferenceSearchSheet: React.FC<ReferenceSearchSheetProps> = ({
               setActiveId(null);
             }}
           >
-            {candidate}
+            {candidate ?? 'All categories'}
           </button>
         ))}
       </div>

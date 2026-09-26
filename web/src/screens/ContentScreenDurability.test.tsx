@@ -13,6 +13,7 @@ import {
 } from '@/test/storageTestUtils';
 import { closeCurrentAlert, getCurrentAlert } from '@/ui/alertStore';
 import { ContentScreen } from './ContentScreen';
+import { buildReferenceItems } from '@/utils/referenceSearch';
 
 const bundledSpell: Spell = {
   id: 'spell.original',
@@ -71,6 +72,38 @@ afterEach(async () => {
 });
 
 describe('ContentScreen rename durability', () => {
+  it.each([
+    {
+      section: 'references' as const, label: 'Rules References', singular: 'reference',
+      entry: { id: 'ref.alchemy', name: 'Alchemy notes', category: 'Arcane practice', description: 'Local rules notes.' },
+      category: 'Arcane practice', detail: 'Local rules notes.',
+    },
+    {
+      section: 'tables' as const, label: 'Roll Tables', singular: 'roll table',
+      entry: { id: 'table.omen', name: 'Omen notes', rows: [{ min: 1, max: 100, effect: 'A local outcome.' }] },
+      category: 'Roll Tables', detail: '1–100: A local outcome.',
+    },
+  ])('saves $label entries into a usable overlay and share export', async ({ section, label, singular, entry, category, detail }) => {
+    renderContent();
+    fireEvent.click(screen.getByRole('button', { name: label }));
+    fireEvent.click(screen.getByRole('button', { name: `New ${singular}` }));
+    fireEvent.change(screen.getByRole('textbox', { name: `New ${singular} JSON` }), {
+      target: { value: JSON.stringify(entry) },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await settleStorage();
+    expect(getCurrentAlert()).toBeNull();
+    const stored = JSON.parse(localStorage.getItem('gc.content.userEdits') ?? '{}') as ContentPack;
+    expect(stored[section]).toEqual([entry]);
+    expect(buildReferenceItems(new ContentRegistry([stored]))).toContainEqual(expect.objectContaining({
+      name: entry.name, category, detail,
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Share edits' }));
+    const shared = JSON.parse((screen.getByRole('textbox', { name: 'Shared content pack JSON' }) as HTMLTextAreaElement).value);
+    expect(shared[section]).toEqual([entry]);
+  });
+
   it('commits the replacement and old-id tombstone in one guarded write', async () => {
     const realSetItem = Storage.prototype.setItem;
     let editWrites = 0;

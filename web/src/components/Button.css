@@ -1,5 +1,8 @@
 /* Button — parchment buttons with vertical-gradient variants. */
 .gc-btn {
+  min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
   display: inline-flex;
   flex-direction: row;
   align-items: center;

@@ -7,58 +7,68 @@
   font-family: var(--font-body);
 }
 
-.cmb-row {
-  display: flex;
-  flex-direction: row;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-top: 8px;
+.cmb-status { display: flex; flex-wrap: wrap; border: 1px solid var(--borderStrong); border-top: 3px solid var(--empire); background: var(--ivory); border-radius: 6px; margin: 8px 0 20px; }
+.cmb-wounds, .cmb-advantage { display: flex; align-items: center; gap: 14px; padding: 16px; flex: 1; }
+.cmb-wounds { border-right: 1px solid var(--divider); justify-content: space-between; }
+.cmb-wounds > div { display: flex; align-items: center; gap: 16px; }
+.cmb-wounds strong { font: 32px var(--font-display); color: var(--empire); white-space: nowrap; }
+.cmb-wounds small { font: 16px var(--font-body); color: var(--ink3); }
+.cmb-wounds--critical { background: var(--empireTint); }
+.cmb-label { display: block; font: 600 11px var(--font-body); text-transform: uppercase; letter-spacing: 1px; }
+.cmb-advantage { flex: 1.35; }
+.cmb-advantage > div:first-child { flex: 1; }
+.cmb-advantage-bonus { display: block; margin-top: 6px; font: 12px/1.5 var(--font-body); color: var(--ink2); }
+.cmb-status .gc-btn { min-height: 44px; }
+.cmb-status .gc-stepper-btn { width: 44px; height: 44px; }
+.cmb-active-conditions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -4px 0 20px; }
+.cmb-active-conditions > span:last-child { font: 12px var(--font-body); color: var(--ink2); }
+.cmb-row { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr); gap: 20px; align-items: start; }
+.cmb-weapons, .cmb-defence { min-width: 0; }
+.cmb-defence { display: grid; gap: 16px; }
+.cmb-weapon-card { padding: 20px; border-top: 1px solid var(--divider); }
+.cmb-weapon-top, .cmb-weapon-bottom { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.cmb-weapon-top > div:first-child { min-width: 0; }
+.cmb-weapon-group { display: block; color: var(--ink3); font: 12px var(--font-body); margin-top: 4px; }
+.cmb-target { text-align: right; flex: none; }
+.cmb-target span { display: block; font: 11px var(--font-body); color: var(--ink2); }
+.cmb-target strong { font: 32px var(--font-mono); color: var(--empire); }
+.cmb-weapon-stats { display: grid; grid-template-columns: 1.1fr 1.3fr .6fr; gap: 16px; margin: 16px 0; padding: 12px 0; border-top: 1px solid var(--divider); border-bottom: 1px solid var(--divider); }
+.cmb-weapon-stats span { display: block; font: 11px var(--font-body); color: var(--ink2); margin-bottom: 6px; }
+.cmb-weapon-stats strong { font: 14px var(--font-mono); overflow-wrap: anywhere; }
+.cmb-weapon-bottom .gc-btn { min-height: 44px; min-width: 112px; justify-content: center; flex: none; }
+.cmb-weapon-bottom .cmb-qual-row { min-width: 0; }
+.cmb-armour-map summary { padding: 18px 16px; cursor: pointer; font: 19px var(--font-display); }
+.cmb-armour-map summary > span:last-child { display: block; margin: 6px 0 0 20px; color: var(--ink3); font: 12px var(--font-body); }
+.cmb-figure-box { display: flex; justify-content: center; padding: 12px; border-top: 1px solid var(--divider); }
+.cmb-figure-box svg { max-width: 100%; height: auto; }
+.cmb-armour-item { display: flex; width: 100%; align-items: center; gap: 12px; justify-content: space-between; text-align: left; padding: 16px; border-top: 1px solid var(--divider); }
+.cmb-armour-item:hover { background: var(--brassHighlight); }
+.cmb-armour-item > span:first-child { min-width: 0; }
+.cmb-armour-item strong { font: 600 14px var(--font-body); overflow-wrap: anywhere; }
+.cmb-armour-item span span { display: block; font: 12px/1.6 var(--font-body); color: var(--ink3); margin-top: 4px; }
+.cmb-armour-ap { font: 24px var(--font-mono); text-align: center; color: var(--brass); flex: none; }
+.cmb-armour-ap small { display: block; font: 10px var(--font-body); }
+.cmb-empty { padding: 4px 20px 20px; color: var(--ink2); font: 13px/1.7 var(--font-body); }
+.cmb-meta-mono { font: 12px/1.5 var(--font-mono); color: var(--ink3); }
+@media (max-width: 1100px) {
+  .cmb-row { grid-template-columns: minmax(0, 1fr); }
 }
-
-.cmb-figure-card {
-  width: 320px;
-  flex-shrink: 0;
+@media (max-width: 650px) {
+  .cmb-status { flex-direction: column; }
+  .cmb-wounds { border-right: none; border-bottom: 1px solid var(--divider); padding: 12px 14px; }
+  .cmb-advantage { padding: 12px 14px; gap: 10px; flex-wrap: wrap; }
+  .cmb-advantage-bonus { max-width: 120px; }
+  .cmb-advantage .gc-btn { padding: 6px; }
+  .cmb-weapon-card { padding: 16px; }
+  .cmb-weapon-bottom { align-items: flex-end; gap: 10px; }
+  .cmb-weapons .gc-card-head-meta { display: none; }
 }
-
-.cmb-right {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  gap: 16px;
-  min-width: 360px;
-}
-
-.cmb-figure-box {
-  display: flex;
-  padding: 20px;
-  align-items: center;
-  justify-content: center;
-}
-
-.cmb-figure-foot {
-  padding: 14px 16px;
-  border-top: 1px solid var(--divider);
-}
-
-.cmb-row-between {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.cmb-meta-mono {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--ink3);
-  letter-spacing: 0.6px;
-}
-
-.cmb-total-mono {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  font-size: 13px;
-  color: var(--ink);
+@media (max-width: 360px) {
+  .cmb-wounds { gap: 8px; padding: 12px; }
+  .cmb-wounds > div { gap: 8px; }
+  .cmb-wounds strong { font-size: 28px; }
+  .cmb-wounds small { font-size: 14px; }
+  .cmb-wounds .gc-btn { white-space: nowrap; flex: none; padding-inline: 10px; }
 }
 
 .cmb-hit-preview {
@@ -95,9 +105,11 @@
 }
 
 .cmb-weapon-name {
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 13px;
+  font-family: var(--font-display);
+  font-size: 23px;
+  text-align: left;
+  min-height: 44px;
+  overflow-wrap: anywhere;
   color: var(--ink);
 }
 

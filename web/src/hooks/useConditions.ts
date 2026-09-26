@@ -55,5 +55,5 @@ export function useConditions() {
 
   const names = useMemo(() => defs.map(d => d.name), [defs]);
 
-  return { conds, cycle, modifier, names, defs };
+  return { conds, setConds, cycle, modifier, names, defs };
 }

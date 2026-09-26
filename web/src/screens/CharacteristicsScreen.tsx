@@ -1,3 +1,4 @@
+import { useRecordTest } from '@/hooks/useRecordTest';
 import type * as React from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { type CharacteristicKey } from '@/data/character';
@@ -32,6 +33,7 @@ export const CharacteristicsScreen: React.FC = () => {
   const { list, get, adjust } = useCharacteristics();
   const { template: char } = useCharacter();
   const xp = useXp();
+  const recordTest = useRecordTest();
   const { modifier: condMod } = useConditions();
   const xpRules = useXpRules();
   const system = useSystemRules();
@@ -74,6 +76,7 @@ export const CharacteristicsScreen: React.FC = () => {
     const condLine = condMod.parts.length
       ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
       : '';
+    recordTest(r, condLine);
     Alert.alert(
       `${c.name} — ${outcomeLabel(r.outcome)}`,
       formatTestResult(r) + condLine,

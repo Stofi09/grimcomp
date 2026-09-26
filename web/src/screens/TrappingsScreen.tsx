@@ -7,8 +7,8 @@ import {
   useCharacterCollection,
   type CollectionItemIdentity,
 } from '@/hooks/useCharacterCollection';
-import { useStoredState } from '@/hooks/useStoredState';
-import { useSystemRules } from '@/content/useContent';
+import { runStoredTransaction, useStoredState } from '@/hooks/useStoredState';
+import { useSystemRules, useWeapons } from '@/content/useContent';
 import { Alert } from '@/ui/alertStore';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -29,6 +29,7 @@ export const TrappingsScreen: React.FC = () => {
   const { id, template: c } = useCharacter();
   const maxEnc = useDerived().maxEncumbrance;
   const { currency } = useSystemRules();
+  const weaponDefs = useWeapons();
   const [wealth, setWealth] = useStoredState<Record<string, number>>(
     characterKey(id, 'wealth'),
     c.wealth,
@@ -59,7 +60,7 @@ export const TrappingsScreen: React.FC = () => {
   } | null>(null);
   const itemActionRef = useRef(false);
   const wealthActionRef = useRef(false);
-  const [itemAction, setItemAction] = useState<'save' | 'remove' | null>(null);
+  const [itemAction, setItemAction] = useState<'save' | 'remove' | 'equip' | null>(null);
   const [wealthSaving, setWealthSaving] = useState(false);
   const openNew = () => setEditing({ identity: null, draft: blankTrapping() });
   const openEdit = (i: number) => {
@@ -152,6 +153,35 @@ export const TrappingsScreen: React.FC = () => {
       return;
     }
     setWealthDraft(null);
+  };
+
+  const matchingWeapon = editing && weaponDefs.find(w => w.name.toLowerCase() === editing.draft.name.trim().toLowerCase());
+  const equip = async () => {
+    if (!editing?.identity || !matchingWeapon || itemActionRef.current) return;
+    const { identity, draft } = editing;
+    const definition = matchingWeapon;
+    itemActionRef.current = true;
+    setItemAction('equip');
+    let found = false;
+    try {
+      const durability = await runStoredTransaction(() => {
+        const mutation = trappings.removeIdentified(identity);
+        found = mutation.found;
+        if (found) weapons.add({ name: definition.name, group: definition.group, enc: draft.enc,
+          dmg: definition.dmg, qual: [...definition.qual],
+          ...(definition.reach ? { reach: definition.reach } : {}),
+          ...(definition.range ? { range: definition.range } : {}) });
+      }).completion;
+      if (!durability.ok) Alert.alert('Could not equip weapon', durability.error.message);
+      else if (!found) Alert.alert('Item changed', 'That item changed or was removed. Review your inventory and retry.');
+      else {
+        setEditing(null);
+        Alert.alert('Weapon equipped', `${definition.name} is now available in Combat.`);
+      }
+    } finally {
+      itemActionRef.current = false;
+      setItemAction(null);
+    }
   };
 
   return (
@@ -276,6 +306,10 @@ export const TrappingsScreen: React.FC = () => {
               max={20}
               hint="0 for small items, 1 for typical gear, 2+ for bulky."
             />
+            {editing.identity && matchingWeapon && <>
+              <p className="trp-muted">{matchingWeapon.group} · Damage {matchingWeapon.dmg}. Move this item to your Combat weapons.</p>
+              <Button onPress={equip} disabled={itemAction !== null}>Equip as weapon</Button>
+            </>}
           </>
         ) : null}
       </EditSheet>

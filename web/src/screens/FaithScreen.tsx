@@ -1,3 +1,4 @@
+import { useReportTest } from '@/hooks/useRecordTest';
 import * as React from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { useStoredState } from '@/hooks/useStoredState';
@@ -22,6 +23,7 @@ import './FaithScreen.css';
 
 export const FaithScreen: React.FC = () => {
   const { id, template: c } = useCharacter();
+  const reportTest = useReportTest();
   const { list: chars } = useCharacteristics();
   const { modifier: condMod } = useConditions();
   const system = useSystemRules();
@@ -99,7 +101,7 @@ export const FaithScreen: React.FC = () => {
         );
         return;
       }
-      Alert.alert(
+      reportTest(r,
         `${prayer.name} — Wrath of the Gods`,
         `${formatTestResult(r)}${effectLine}\n\nWrath (${wRoll}):\n${wrath}\n\n−1 Sin (now ${Math.max(0, sin - 1)}).`,
       );
@@ -107,12 +109,12 @@ export const FaithScreen: React.FC = () => {
     }
 
     if (r.success) {
-      Alert.alert(
+      reportTest(r,
         `${prayer.name} — ${outcomeLabel(r.outcome)}`,
         `${formatTestResult(r)}\n\n→ ${prayer.description}`,
       );
     } else {
-      Alert.alert(
+      reportTest(r,
         `${prayer.name} — ${outcomeLabel(r.outcome)}`,
         `${formatTestResult(r)}\n\nThe deity does not answer.`,
       );

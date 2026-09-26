@@ -1,3 +1,5 @@
+import { isRollHistoryEntry, ROLL_HISTORY_LIMIT } from './rollHistory';
+import { isConditionEffects } from './criticalEffects';
 import { isValidStorageKeySegment } from '@grimcomp/core';
 import { validatePack } from '@/content/validate';
 import { validateCharacterTemplate } from '@/content/validateCharacter';
@@ -201,6 +203,8 @@ function validateCollection(value: unknown, label: string, key: string, kind: st
   if (kind === 'criticals') {
     validateRecordArray(value, label, key, (record, entryKey) => {
       requireFields(record, label, entryKey, ['loc', 'name', 'effect'], ['roll', 'days']);
+      if (record.conditions !== undefined && !isConditionEffects(record.conditions)) invalid(label, entryKey, 'invalid critical conditions.');
+      if (record.conditionsApplied !== undefined && typeof record.conditionsApplied !== 'boolean') invalid(label, entryKey, 'conditionsApplied must be boolean.');
     });
   }
 }
@@ -342,6 +346,18 @@ export function validatePortableStorageValue(
     return;
   }
 
+  if (key.endsWith('.rollHistory')) {
+    if (!Array.isArray(value) || value.length > ROLL_HISTORY_LIMIT || !value.every(isRollHistoryEntry)) {
+      invalid(label, key, 'must contain at most 100 valid roll-history entries.');
+    }
+    return;
+  }
+  if (key.endsWith('.combat.attackSettings')) {
+    const settings = requireRecord(value, label, key);
+    requireFields(settings, label, key, [], ['defence', 'difficulty']);
+    if ((settings.defence as number) < 0) invalid(label, key, 'defence must be non-negative.');
+    return;
+  }
   if (key.endsWith('.xp')) return validateXp(value, label, key);
   if (key.endsWith('.identity')) return validateIdentity(value, label, key);
   if (key.endsWith('.career.level')) {

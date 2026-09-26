@@ -1,5 +1,5 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useModalFocus } from '@/hooks/useModalFocus';
 import {
   closeCurrentAlert,
   getCurrentAlert,
@@ -17,7 +17,6 @@ const FALLBACK_BUTTONS: AlertButton[] = [{ text: 'OK' }];
 export function AlertHost() {
   const current = useSyncExternalStore(subscribeToAlerts, getCurrentAlert);
   const sheetRef = useRef<HTMLDivElement | null>(null);
-  const prevFocusRef = useRef<HTMLElement | null>(null);
   const dismissRef = useRef<() => void>(() => {});
 
   const open = current !== null;
@@ -50,21 +49,7 @@ export function AlertHost() {
     if (buttons.length <= 1) closeCurrentAlert();
   };
 
-  // Focus the sheet on open (and on each queued alert); restore focus when
-  // the queue empties.
-  useEffect(() => {
-    if (currentId !== undefined) {
-      if (prevFocusRef.current === null && document.activeElement instanceof HTMLElement) {
-        prevFocusRef.current = document.activeElement;
-      }
-      sheetRef.current?.focus();
-    } else if (prevFocusRef.current !== null) {
-      prevFocusRef.current.focus();
-      prevFocusRef.current = null;
-    }
-  }, [currentId]);
-
-  // Esc to dismiss + lock body scroll while an alert is up.
+  // Esc dismisses the top alert. Focus and scroll ownership are shared with forms.
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -74,16 +59,13 @@ export function AlertHost() {
       }
     };
     window.addEventListener('keydown', onKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     return () => {
       window.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previousOverflow;
     };
   }, [open]);
 
   // Keep Tab focus inside the alert sheet while it is up.
-  useFocusTrap(sheetRef, open);
+  useModalFocus(sheetRef, open, currentId);
 
   if (current === null) return null;
 

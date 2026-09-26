@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { colors } from '@/theme';
-import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useModalFocus } from '@/hooks/useModalFocus';
 import { Icon } from './Icon';
 import './EditSheet.css';
 
@@ -16,6 +16,7 @@ interface EditSheetProps {
   onSave?: () => void;
   saveLabel?: string;
   saveDisabled?: boolean;
+  closeLabel?: string;
   /** Optional left-side action (e.g. "Delete"). */
   destructive?: { label: string; onPress: () => void };
   children: React.ReactNode;
@@ -29,29 +30,13 @@ export const EditSheet: React.FC<EditSheetProps> = ({
   onSave,
   saveLabel = 'Save',
   saveDisabled,
+  closeLabel = 'Cancel',
   destructive,
   children,
 }) => {
   const sheetRef = React.useRef<HTMLDivElement>(null);
 
-  // Focus the sheet on open (so Esc works immediately), restore focus on
-  // close, and lock body scroll while the sheet is up.
-  React.useEffect(() => {
-    if (!visible) return;
-    const previouslyFocused = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
-    sheetRef.current?.focus();
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      previouslyFocused?.focus();
-    };
-  }, [visible]);
-
-  // Keep Tab focus inside the sheet while it is open.
-  useFocusTrap(sheetRef, visible);
+  useModalFocus(sheetRef, visible);
 
   if (!visible) return null;
 
@@ -112,7 +97,7 @@ export const EditSheet: React.FC<EditSheetProps> = ({
           )}
           <div className="esh-footer-actions">
             <button type="button" className="btn-reset esh-btn esh-btn-ghost" onClick={onClose}>
-              Cancel
+              {closeLabel}
             </button>
             {onSave ? (
               <button

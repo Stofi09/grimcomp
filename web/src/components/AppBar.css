@@ -14,8 +14,8 @@
 }
 
 .appbar-menu {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -77,6 +77,9 @@
 }
 
 .appbar-action {
+  min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -98,15 +101,14 @@
   background: var(--surface2);
 }
 
-.appbar-action-text {
+.appbar-action-text, .appbar-history-text {
   font-family: var(--font-body);
   font-size: 12px;
   color: var(--ink2);
 }
 
-/* On phones, retain the two essential controls: drawer navigation and quick
-   roll. The current breadcrumb remains as page context; its ancestors and the
-   secondary toolbar actions would otherwise compete for the same 390px row. */
+/* On phones, retain navigation, roll history, and the test roller. History
+   uses its labelled icon while breadcrumbs keep only the current screen. */
 @media (max-width: 560px) {
   .appbar {
     padding-left: 12px;
@@ -116,7 +118,7 @@
 
   .appbar-crumb-row:not(:last-child),
   .appbar-action--search,
-  .appbar-action--notifications,
+  .appbar-history-text,
   .appbar-sep2 {
     display: none;
   }

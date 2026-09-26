@@ -1,3 +1,5 @@
+import { useRecordTest } from '@/hooks/useRecordTest';
+import { normalizeExtraSkills, mergeCharacterSkills } from '@/utils/characterSkills';
 import type * as React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { ScreenContainer } from './ScreenContainer';
@@ -40,40 +42,6 @@ interface SkillDraft {
   type: 'basic' | 'advanced';
   pricing: 'career' | 'other';
 }
-
-// Character overlays are user-importable JSON. Ignore malformed records rather
-// than letting one bad value break every skill calculation and table render.
-const normalizeExtraSkills = (value: unknown): Skill[] => {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set<string>();
-  const normalized: Skill[] = [];
-  for (const candidate of value) {
-    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue;
-    const record = candidate as Record<string, unknown>;
-    const name = typeof record.name === 'string' ? record.name.trim() : '';
-    const char = typeof record.char === 'string' ? record.char.trim() : '';
-    const adv = record.adv;
-    if (!name || !char || !Number.isInteger(adv) || (adv as number) < 0) continue;
-    if (typeof record.career !== 'boolean') continue;
-    if (record.advanced !== undefined && typeof record.advanced !== 'boolean') continue;
-    if (record.grouped !== undefined && typeof record.grouped !== 'string') continue;
-    if (record.definitionId !== undefined
-      && (typeof record.definitionId !== 'string' || !record.definitionId.trim())) continue;
-    const key = name.toLocaleLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    normalized.push({
-      name,
-      char,
-      adv: adv as number,
-      career: record.career,
-      advanced: record.advanced as boolean | undefined,
-      grouped: record.grouped as string | undefined,
-      definitionId: typeof record.definitionId === 'string' ? record.definitionId.trim() : undefined,
-    });
-  }
-  return normalized;
-};
 
 const skillRulesLookup = (skill: SkillDef | undefined): string => {
   if (!skill) return '';
@@ -131,31 +99,8 @@ export const SkillsScreen: React.FC = () => {
   // Merge the current registry scheme into old character records as a
   // non-destructive live migration. This means characters created before the
   // fallback career data shipped gain their missing career skills at +0.
-  const skills = useMemo(() => {
-    const careerNames = new Set(careerSkillNames ?? []);
-    const merged: Skill[] = c.skills.map(skill => careerNames.has(skill.name)
-      ? { ...skill, career: true }
-      : skill);
-    const have = new Set(merged.map(skill => skill.name));
-    for (const name of careerSkillNames ?? []) {
-      if (have.has(name)) continue;
-      const def = skillDefs.find(candidate => candidate.name === name)
-        ?? skillDefs.find(candidate => name.startsWith(`${candidate.name} (`));
-      merged.push({
-        name,
-        char: def?.char ?? c.characteristics[0]?.key ?? 'ws',
-        adv: 0,
-        career: true,
-        advanced: def?.advanced,
-        definitionId: def?.id,
-      });
-      have.add(name);
-    }
-    for (const skill of extraSkills) {
-      if (!have.has(skill.name)) merged.push(skill);
-    }
-    return merged;
-  }, [c.characteristics, c.skills, careerSkillNames, extraSkills, skillDefs]);
+  const skills = useMemo(() => mergeCharacterSkills(c, careerSkillNames, extraSkills, skillDefs),
+    [c, careerSkillNames, extraSkills, skillDefs]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState<SkillDraft | null>(null);
@@ -234,6 +179,7 @@ export const SkillsScreen: React.FC = () => {
   // doesn't already have as rollable references — grouped skills need a chosen
   // specialisation, so they're left out.
   const system = useSystemRules();
+  const recordTest = useRecordTest();
   const ownedNames = useMemo(() => new Set(skills.map(s => s.name)), [skills]);
   const ownedDefinitionIds = useMemo(
     () => new Set(skills.flatMap(skill => skill.definitionId ? [skill.definitionId] : [])),
@@ -373,6 +319,7 @@ export const SkillsScreen: React.FC = () => {
     const breakdown = condMod.parts.length
       ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
       : '';
+    recordTest(r, breakdown + skillRulesLookup(skill));
     Alert.alert(
       `${skill.name} — ${outcomeLabel(r.outcome)}`,
       formatTestResult(r) + breakdown + skillRulesLookup(skill),
@@ -665,6 +612,7 @@ const SkillTable: React.FC<SkillTableProps> = ({
   definitionForSkill,
 }) => {
   const system = useSystemRules();
+  const recordTest = useRecordTest();
   return (
   <Card flush>
     <Table>
@@ -741,6 +689,7 @@ const SkillTable: React.FC<SkillTableProps> = ({
                     const breakdown = condMod.parts.length
                       ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
                       : '';
+                    recordTest(r, breakdown + skillRulesLookup(definition));
                     Alert.alert(
                       `${s.name} — ${outcomeLabel(r.outcome)}`,
                       formatTestResult(r) + breakdown + skillRulesLookup(definition),

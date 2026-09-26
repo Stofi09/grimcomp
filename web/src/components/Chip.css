@@ -5,11 +5,13 @@
 }
 
 .gc-chip-group .gc-chip {
+  min-height: 44px;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
 
 .gc-chip {
+  min-height: 44px;
   display: inline-flex;
   flex-direction: row;
   align-items: center;
@@ -26,8 +28,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  min-height: 28px;
+  width: 44px;
+  min-height: 44px;
   background-color: var(--surface2);
   border: 1px solid var(--borderSoft);
   border-left: 0;

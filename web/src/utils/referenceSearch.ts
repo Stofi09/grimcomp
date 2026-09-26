@@ -7,7 +7,7 @@ import {
   careerSourceLabel,
 } from './careers';
 import { skillRulesStatusLabel, skillRulesStatusMeta, skillSourceLabel } from './skills';
-import { spellRulesStatusLabel, spellRulesStatusMeta, spellSourceLabel } from './spells';
+import { formatSpellCn, spellRulesStatusLabel, spellRulesStatusMeta, spellSourceLabel } from './spells';
 import {
   TALENT_TRACKING_NOTICE,
   talentRulesStatusLabel,
@@ -15,15 +15,13 @@ import {
   talentSourceLabel,
 } from './talents';
 
-export type ReferenceCategory =
-  | 'Careers'
-  | 'Skills'
-  | 'Talents'
-  | 'Spells'
-  | 'Prayers'
-  | 'Conditions'
-  | 'Critical Wounds'
-  | 'Chaos & Mutation';
+/** Packs may add their own categories without a code or storage migration. */
+export type ReferenceCategory = string;
+
+const CORE_REFERENCE_CATEGORIES = [
+  'Careers', 'Skills', 'Talents', 'Spells', 'Prayers', 'Conditions',
+  'Critical Wounds', 'Chaos & Mutation', 'Roll Tables',
+];
 
 export interface ReferenceItem {
   id: string;
@@ -31,6 +29,14 @@ export interface ReferenceItem {
   name: string;
   meta: string;
   detail: string;
+}
+
+/** Preserve the familiar core order, then include every loaded custom category. */
+export function getReferenceCategories(items: readonly ReferenceItem[]): ReferenceCategory[] {
+  const additional = [...new Set(items.map(item => item.category))]
+    .filter(category => !CORE_REFERENCE_CATEGORIES.includes(category))
+    .sort((a, b) => a.localeCompare(b));
+  return [...CORE_REFERENCE_CATEGORIES, ...additional];
 }
 
 const nonEmpty = (...parts: Array<string | number | undefined>) =>
@@ -133,7 +139,7 @@ export function buildReferenceItems(registry: ContentRegistry): ReferenceItem[] 
       name: spell.name,
       meta: nonEmptyUnique(
         spell.lore,
-        `CN ${spell.cn}`,
+        `CN ${formatSpellCn(spell)}`,
         spell.range,
         spell.duration,
         spellRulesStatusMeta(spell),
@@ -167,13 +173,22 @@ export function buildReferenceItems(registry: ContentRegistry): ReferenceItem[] 
     meta: `${critical.days} healing day${critical.days === 1 ? '' : 's'}`,
     detail: critical.effect,
   }));
+  const tables: ReferenceItem[] = registry.allTables.map(table => ({
+    id: `table:${table.id}`,
+    category: 'Roll Tables',
+    name: table.name,
+    meta: `${table.dice?.count ?? 1}d${table.dice?.sides ?? 100} · ${table.rows.length} outcome${table.rows.length === 1 ? '' : 's'}`,
+    detail: table.rows.map(row =>
+      `${row.min === row.max ? row.min : `${row.min}–${row.max}`}: ${row.effect}`,
+    ).join('\n'),
+  }));
   const additional: ReferenceItem[] = registry.allReferences.map(reference => ({
     id: `reference:${reference.id}`,
-    category: reference.category as ReferenceCategory,
+    category: reference.category.trim() || 'Rules',
     name: reference.name,
     meta: nonEmpty(reference.meta, reference.approximate ? 'Approximate companion rule' : undefined),
     detail: reference.description,
   }));
 
-  return [...careers, ...skills, ...talents, ...spells, ...prayers, ...conditions, ...criticals, ...additional];
+  return [...careers, ...skills, ...talents, ...spells, ...prayers, ...conditions, ...criticals, ...tables, ...additional];
 }

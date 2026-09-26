@@ -414,3 +414,10 @@
   justify-content: space-between;
   margin-top: 4px;
 }
+
+.nc-review-package { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; margin-top: 24px; border-top: 1px solid var(--divider); padding-top: 20px; }
+.nc-review-package h3 { font: 22px var(--font-display); margin: 0 0 12px; }
+.nc-review-package ul { padding-left: 18px; margin: 0; }
+.nc-review-package li, .nc-review-package p { font: 13px/1.65 var(--font-body); color: var(--ink2); }
+.nc-review-package li { margin-bottom: 10px; }
+.nc-review-package li p { margin: 4px 0; }

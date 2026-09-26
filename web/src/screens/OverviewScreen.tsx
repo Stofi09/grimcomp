@@ -8,8 +8,7 @@ import { useVitals } from '@/hooks/useVitals';
 import { useCareer } from '@/hooks/useCareer';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useCharacter, characterKey, type IdentityOverlay } from '@/hooks/useCharacter';
-import { useSystemRules } from '@/content/useContent';
-import { rollDice, diceLabel } from '@/utils/roll';
+import { RollSheet } from '@/components/RollSheet';
 import { Hero } from '@/components/Hero';
 import { Pill } from '@/components/Pill';
 import { Button } from '@/components/Button';
@@ -65,7 +64,7 @@ export const OverviewScreen: React.FC = () => {
   // the system formulas in the content packs, evaluated against the live
   // characteristics.
   const derived = useDerived();
-  const { test } = useSystemRules();
+  const [rollOpen, setRollOpen] = useState(false);
   // Live wounds (for the segmented bar) — same key WoundsScreen writes to.
   const [wounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
 
@@ -99,6 +98,7 @@ export const OverviewScreen: React.FC = () => {
 
   return (
     <ScreenContainer>
+      <RollSheet visible={rollOpen} onClose={() => setRollOpen(false)} />
       <Hero
         eyebrow={`${c.party.name} · Career ${career.level}/${career.ranks.length || 4}`}
         italic
@@ -130,10 +130,7 @@ export const OverviewScreen: React.FC = () => {
             <Button
               variant="primary"
               iconLeft={<Icon name="dice" size={13} color={colors.ivory} />}
-              onPress={() => {
-                const roll = rollDice(test.dice);
-                Alert.alert('Test Roll', `${diceLabel(test.dice)} → ${roll}`);
-              }}
+              onPress={() => setRollOpen(true)}
             >
               Roll Test
             </Button>

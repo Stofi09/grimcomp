@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ContentRegistry } from '@/content/registry';
 import type { ContentPack } from '@/content/types';
-import { buildReferenceItems } from './referenceSearch';
+import { buildReferenceItems, getReferenceCategories } from './referenceSearch';
 
 const pack: ContentPack = {
   $schema: 'grimcomp.content.v2',
@@ -117,6 +117,68 @@ const pack: ContentPack = {
 };
 
 describe('buildReferenceItems', () => {
+  it('labels an unknown casting number without interpreting numeric 99 as a placeholder', () => {
+    const items = buildReferenceItems(new ContentRegistry([{
+      ...pack,
+      spells: [
+        { ...pack.spells![0], id: 'unknown', cn: null, rulesStatus: 'bibliographic' },
+        { ...pack.spells![0], id: 'high-cn', cn: 99, rulesStatus: 'bibliographic' },
+      ],
+    }]));
+    expect(items.find(item => item.id === 'spell:unknown')?.meta).toContain('CN Unknown');
+    expect(items.find(item => item.id === 'spell:unknown')?.meta).not.toContain('null');
+    expect(items.find(item => item.id === 'spell:high-cn')?.meta).toContain('CN 99');
+  });
+
+  it('indexes the merged roll tables with their dice and every outcome', () => {
+    const registry = new ContentRegistry([{
+      ...pack,
+      tables: [
+        { id: 'omen', name: 'Old omen', rows: [{ min: 1, max: 100, effect: 'Replaced.' }] },
+        { id: 'deleted', name: 'Deleted table', rows: [] },
+        { id: 'default', name: 'Default dice', rows: [{ min: 1, max: 100, effect: 'An ordinary day.' }] },
+      ],
+    }, {
+      ...pack,
+      id: 'overlay',
+      tables: [{
+        id: 'omen', name: 'Omens', dice: { count: 2, sides: 10 },
+        rows: [
+          { min: 2, max: 2, effect: 'A hopeful sign.' },
+          { min: 3, max: 20, effect: 'Consult the stars.' },
+        ],
+      }],
+      deletions: { tables: ['deleted'] },
+    }]);
+    const items = buildReferenceItems(registry);
+    expect(items.filter(item => item.category === 'Roll Tables')).toEqual([
+      {
+        id: 'table:omen', category: 'Roll Tables', name: 'Omens',
+        meta: '2d10 · 2 outcomes', detail: '2: A hopeful sign.\n3–20: Consult the stars.',
+      },
+      {
+        id: 'table:default', category: 'Roll Tables', name: 'Default dice',
+        meta: '1d100 · 1 outcome', detail: '1–100: An ordinary day.',
+      },
+    ]);
+    expect(items.some(item => item.name === 'Deleted table')).toBe(false);
+  });
+
+  it('includes loaded custom categories once, including categories named All', () => {
+    const registry = new ContentRegistry([{
+      ...pack,
+      references: [
+        { id: 'alchemy', name: 'Alchemy', category: 'Arcane practice', description: 'Use Trade.' },
+        { id: 'ritual', name: 'Rituals', category: 'Arcane practice', description: 'A reference.' },
+        { id: 'all', name: 'Custom All', category: 'All', description: 'A custom category.' },
+      ],
+    }]);
+    const categories = getReferenceCategories(buildReferenceItems(registry));
+    expect(categories.filter(category => category === 'Arcane practice')).toHaveLength(1);
+    expect(categories).toContain('Roll Tables');
+    expect(categories.slice(-2)).toEqual(['All', 'Arcane practice']);
+  });
+
   it('indexes every reference category with searchable rule detail', () => {
     const items = buildReferenceItems(new ContentRegistry([pack]));
 

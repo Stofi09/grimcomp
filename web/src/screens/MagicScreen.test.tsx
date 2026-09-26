@@ -262,6 +262,37 @@ describe('MagicScreen spellbook', () => {
     expect(getCurrentAlert()?.message).not.toContain('the spell still resolves');
   });
 
+  it('shows unknown CN and opens its source without rolling, spending the pool, or recording a test', async () => {
+    selectCaster();
+    localStorage.setItem('gc.c2.magic.pool', JSON.stringify(10));
+    const dart = (magicPack.spells as unknown as Spell[]).find(spell => spell.id === 'sp.petty.dart')!;
+    const unknownPack: ContentPack = {
+      $schema: 'grimcomp.content.v2', id: 'unknown-cn', name: 'Unknown CN', version: '1',
+      spells: [{ ...dart, cn: null, rulesStatus: 'bibliographic', sourceBook: 'Winds of Magic', sourcePage: 42 }],
+    };
+    renderMagic(new ContentRegistry([...basePacks, unknownPack]));
+    await settleStorage();
+    const random = vi.spyOn(Math, 'random');
+    const writes = vi.spyOn(Storage.prototype, 'setItem');
+
+    expect(screen.getByText('Unknown')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Cast Dart' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'See source for Dart' }));
+    await settleStorage();
+
+    expect(getCurrentAlert()?.title).toBe('Dart — Casting Number unknown');
+    expect(getCurrentAlert()?.message).toContain('Winds of Magic · p. 42');
+    expect(random).not.toHaveBeenCalled();
+    expect(writes).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem('gc.c2.magic.pool') ?? 'null')).toBe(10);
+    expect(localStorage.getItem('gc.c2.rollHistory')).toBeNull();
+
+    closeCurrentAlert();
+    fireEvent.click(screen.getByRole('button', { name: 'Manage spellbook' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search spells' }), { target: { value: 'Dart' } });
+    expect(screen.getByRole('listitem').textContent).toContain('CN Unknown · See source');
+  });
+
   it('rolls the pool back and withholds the cast result when persistence fails', async () => {
     selectCaster();
     localStorage.setItem('gc.c2.magic.pool', JSON.stringify(10));

@@ -1,3 +1,4 @@
+import { useReportTest } from '@/hooks/useRecordTest';
 import * as React from 'react';
 import { ScreenContainer } from './ScreenContainer';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
@@ -150,6 +151,7 @@ const SpellbookManager: React.FC<SpellbookManagerProps> = ({
 
 export const MagicScreen: React.FC = () => {
   const { id, template: c } = useCharacter();
+  const reportTest = useReportTest();
   const content = useContent();
   const { list: chars } = useCharacteristics();
   const { modifier: condMod } = useConditions();
@@ -253,7 +255,7 @@ export const MagicScreen: React.FC = () => {
             Alert.alert('Could not save Channelling', `The roll was discarded because the pool change could not be saved. ${durability.error.message}`);
             return;
           }
-          Alert.alert(
+          reportTest(r,
             'Channelling — Minor Miscast',
             `${formatTestResult(r)}\n\nMISCAST (${mRoll}):\n${rollOnTable(miscastMinor, mRoll)}\n\nPool still gained ${slGain} SL → ${newPool} total.`,
           );
@@ -263,7 +265,7 @@ export const MagicScreen: React.FC = () => {
             Alert.alert('Could not save Channelling', `The roll was discarded because the pool change could not be saved. ${durability.error.message}`);
             return;
           }
-          Alert.alert(
+          reportTest(r,
             'Channelling — Major Miscast',
             `${formatTestResult(r)}\n\nMISCAST (${mRoll}):\n${rollOnTable(miscastMajor, mRoll)}\n\nChannelling pool lost.`,
           );
@@ -280,7 +282,7 @@ export const MagicScreen: React.FC = () => {
           return;
         }
       }
-      Alert.alert(
+      reportTest(r,
         `Channelling — ${outcomeLabel(r.outcome)}`,
         `${formatTestResult(r)}\n\n${
           r.success
@@ -372,7 +374,7 @@ export const MagicScreen: React.FC = () => {
         ? spell.rulesStatus === 'bibliographic' ? 'THRESHOLD' : 'CAST'
         : 'FIZZLE';
       const miscast = miscastDouble(r.roll) ? ' · MISCAST' : '';
-      Alert.alert(`${spell.name} — ${resolution}${miscast}`, body);
+      reportTest(r, `${spell.name} — ${resolution}${miscast}`, body);
     } finally {
       poolActionRef.current = false;
       setPoolActionPending(false);

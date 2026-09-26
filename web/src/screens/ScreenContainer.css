@@ -19,3 +19,7 @@
   margin-left: auto;
   margin-right: auto;
 }
+
+@media (max-width: 560px) {
+  .sc-content { padding: 20px 16px 36px; }
+}

@@ -97,3 +97,5 @@
   gap: 6px;
   margin-bottom: 20px;
 }
+
+.wnd-effect-note { display: block; margin: 8px 0; font: 12px/1.6 var(--font-body); color: var(--ink3); }

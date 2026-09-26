@@ -10,7 +10,7 @@ import type { IconName } from '@/components/iconNames';
 import { Table, TableRow, Cell } from '@/components/Table';
 import { ReferenceSearchSheet } from '@/components/ReferenceSearchSheet';
 import { useStoredState } from '@/hooks/useStoredState';
-import type { ReferenceCategory, ReferenceItem } from '@/utils/referenceSearch';
+import { buildReferenceItems, getReferenceCategories, type ReferenceCategory, type ReferenceItem } from '@/utils/referenceSearch';
 import { colors } from '@/theme';
 import './ReferenceScreen.css';
 
@@ -19,46 +19,51 @@ interface CategoryDef {
   title: string;
   count: number;
   sub?: string;
-  category?: ReferenceCategory;
+  category: ReferenceCategory;
 }
 
 export const ReferenceScreen: React.FC = () => {
   const reg = useContent();
   const [recent, setRecent] = useStoredState<ReferenceItem[]>('gc.reference.recent', []);
   const [search, setSearch] = React.useState<{
-    category: ReferenceCategory | 'All';
+    category: ReferenceCategory | null;
     query: string;
   } | null>(null);
+  const items = React.useMemo(() => buildReferenceItems(reg), [reg]);
+  const categoryCounts = new Map<ReferenceCategory, number>();
+  for (const item of items) {
+    categoryCounts.set(item.category, (categoryCounts.get(item.category) ?? 0) + 1);
+  }
   const loreCount = new Set(reg.allSpells.map(s => s.lore)).size;
   // Count declared deities from the roster, not distinct prayer deities — the
   // latter includes the generic "Any" blessing bucket (creation.anyDeity).
   const deityCount = reg.allDeities.length;
-  // Counts come straight from the loaded content registry, so importing a
-  // content pack updates this screen automatically. Critical Wounds reads the
-  // registry's criticals. Generic reference entries cover rules that do not
-  // need their own interactive mechanic, including the companion mutation set.
-  const critCount = reg.criticals.length;
-  const chaosCount = reg.allReferences.filter(entry => entry.category === 'Chaos & Mutation').length;
   const careerReferenceCount = reg.allReferences.filter(entry => entry.category === 'Careers').length;
   const layerLabel = `${reg.packs.length} content layer${reg.packs.length === 1 ? '' : 's'}`;
-  const cats: CategoryDef[] = [
-    {
+  const categoryDetails: Record<string, { icon: IconName; sub?: string }> = {
+    Careers: {
       icon: 'crown',
-      title: 'Careers',
-      count: reg.allCareers.length + careerReferenceCount,
       sub: careerReferenceCount
         ? `${reg.allCareers.length} paths + ${careerReferenceCount} special refs`
         : 'all 4 ranks',
-      category: 'Careers',
     },
-    { icon: 'scroll', title: 'Skills', count: reg.allSkillDefs.length, sub: 'basic + advanced', category: 'Skills' },
-    { icon: 'star', title: 'Talents', count: reg.allTalentDefs.length, category: 'Talents' },
-    { icon: 'sparkle', title: 'Spells', count: reg.allSpells.length, sub: `${loreCount} lores`, category: 'Spells' },
-    { icon: 'flame', title: 'Prayers', count: reg.allPrayers.length, sub: `${deityCount} deities`, category: 'Prayers' },
-    { icon: 'heart', title: 'Conditions', count: reg.conditions.length, category: 'Conditions' },
-    { icon: 'sword', title: 'Critical Wounds', count: critCount, sub: 'loaded wounds', category: 'Critical Wounds' },
-    { icon: 'mask', title: 'Chaos & Mutation', count: chaosCount, sub: 'approximate companion set', category: 'Chaos & Mutation' },
-  ];
+    Skills: { icon: 'scroll', sub: 'basic + advanced' },
+    Talents: { icon: 'star' },
+    Spells: { icon: 'sparkle', sub: `${loreCount} lores` },
+    Prayers: { icon: 'flame', sub: `${deityCount} deities` },
+    Conditions: { icon: 'heart' },
+    'Critical Wounds': { icon: 'sword', sub: 'loaded wounds' },
+    'Chaos & Mutation': { icon: 'mask' },
+    'Roll Tables': { icon: 'dice', sub: 'outcomes + dice' },
+  };
+  const cats: CategoryDef[] = getReferenceCategories(items).map(category => ({
+    title: category,
+    category,
+    count: categoryCounts.get(category) ?? 0,
+    ...(Object.prototype.hasOwnProperty.call(categoryDetails, category)
+      ? categoryDetails[category]
+      : { icon: 'book' as const }),
+  }));
   const recordViewed = (item: ReferenceItem) => {
     setRecent(previous => [item, ...previous.filter(entry => entry.id !== item.id)].slice(0, 4));
   };
@@ -71,7 +76,7 @@ export const ReferenceScreen: React.FC = () => {
         actions={
           <Button
             iconLeft={<Icon name="search" size={13} color={colors.ink} />}
-            onPress={() => setSearch({ category: 'All', query: '' })}
+            onPress={() => setSearch({ category: null, query: '' })}
           >
             Search rules
           </Button>
@@ -84,12 +89,9 @@ export const ReferenceScreen: React.FC = () => {
           <button
             key={c.title}
             type="button"
-            className={`btn-reset ref-card-btn ref-cell-wrap${c.category ? '' : ' ref-card-btn--disabled'}`}
-            aria-label={c.category ? `Open ${c.title} reference` : `${c.title} not available`}
-            aria-disabled={!c.category}
-            onClick={c.category
-              ? () => setSearch({ category: c.category!, query: '' })
-              : undefined}
+            className="btn-reset ref-card-btn ref-cell-wrap"
+            aria-label={`Open ${c.title} reference`}
+            onClick={() => setSearch({ category: c.category, query: '' })}
           >
             <Card tight style={{ flex: 1 }}>
               <div className="ref-row-between">
@@ -139,7 +141,7 @@ export const ReferenceScreen: React.FC = () => {
       <ReferenceSearchSheet
         visible={search !== null}
         onClose={() => setSearch(null)}
-        initialCategory={search?.category ?? 'All'}
+        initialCategory={search?.category ?? null}
         initialQuery={search?.query ?? ''}
         onViewed={recordViewed}
       />

@@ -47,6 +47,72 @@ afterEach(async () => {
 });
 
 describe('WoundsScreen combat transactions', () => {
+  it('cannot use a draught without inventory or when already at full health', async () => {
+    localStorage.setItem('gc.c1.trappings', '[]');
+    localStorage.setItem('gc.c1.wounds', '2');
+    _resetStoredCache();
+    const view = render(<ContentContext.Provider value={registry}><WoundsScreen /></ContentContext.Provider>);
+    expect((screen.getByRole('button', { name: /Use healing draught/ }) as HTMLButtonElement).disabled).toBe(true);
+    view.unmount();
+    localStorage.setItem('gc.c1.trappings', JSON.stringify([{ name: 'Healing Draught', enc: 0 }]));
+    localStorage.setItem('gc.c1.wounds', '999');
+    _resetStoredCache();
+    render(<ContentContext.Provider value={registry}><WoundsScreen /></ContentContext.Provider>);
+    expect((screen.getByRole('button', { name: /Use healing draught/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('consumes exactly one dose and heals once during rapid repeated taps', async () => {
+    localStorage.setItem('gc.c1.trappings', JSON.stringify([
+      { name: 'Healing Draught', enc: 0 }, { name: 'Healing Draught', enc: 0 }, { name: 'Lantern', enc: 1 },
+    ]));
+    localStorage.setItem('gc.c1.wounds', '2');
+    _resetStoredCache();
+    render(<ContentContext.Provider value={registry}><WoundsScreen /></ContentContext.Provider>);
+    const button = screen.getByRole('button', { name: /Use healing draught/ });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await settleStorage();
+    expect(JSON.parse(localStorage.getItem('gc.c1.wounds')!)).toBe(6);
+    expect(JSON.parse(localStorage.getItem('gc.c1.trappings')!)).toEqual([
+      { name: 'Healing Draught', enc: 0 }, { name: 'Lantern', enc: 1 },
+    ]);
+    expect(getCurrentAlert()?.message).toContain('Consumed 1');
+  });
+
+  it('rolls back both the dose and healing if the wounds write fails', async () => {
+    const inventory = [{ name: 'Healing Draught', enc: 0 }];
+    localStorage.setItem('gc.c1.trappings', JSON.stringify(inventory));
+    localStorage.setItem('gc.c1.wounds', '2');
+    _resetStoredCache();
+    const write = Storage.prototype.setItem;
+    let failed = false;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function(this: Storage, key, value) {
+      if (!failed && key === 'gc.c1.wounds') { failed = true; throw new Error('disk full'); }
+      write.call(this, key, value);
+    });
+    render(<ContentContext.Provider value={registry}><WoundsScreen /></ContentContext.Provider>);
+    fireEvent.click(screen.getByRole('button', { name: /Use healing draught/ }));
+    await settleStorage();
+    expect(failed).toBe(true);
+    expect(JSON.parse(localStorage.getItem('gc.c1.wounds')!)).toBe(2);
+    expect(JSON.parse(localStorage.getItem('gc.c1.trappings')!)).toEqual(inventory);
+  });
+
+  it('applies conditions from an older wound only once, preserving other conditions', async () => {
+    localStorage.setItem('gc.c1.criticals', JSON.stringify([{
+      loc: 'Body', roll: 55, name: 'Winded and Reeling', days: 3,
+      effect: 'The wind and footing both go. Stunned 1 and Prone.',
+    }]));
+    localStorage.setItem('gc.c1.conditions', JSON.stringify({ Fatigued: 1 }));
+    _resetStoredCache();
+    render(<ContentContext.Provider value={registry}><WoundsScreen /></ContentContext.Provider>);
+    const apply = screen.getByRole('button', { name: 'Apply conditions' });
+    fireEvent.click(apply);
+    fireEvent.click(apply);
+    await settleStorage();
+    expect(JSON.parse(localStorage.getItem('gc.c1.conditions')!)).toEqual({ Fatigued: 1, Stunned: 1, Prone: 1 });
+    expect(screen.queryByRole('button', { name: 'Apply conditions' })).toBeNull();
+  });
   it('burns Fate and sets Wounds to zero in one durable journal', async () => {
     localStorage.setItem('gc.c1.wounds', JSON.stringify(5));
     localStorage.setItem('gc.c1.vitals', JSON.stringify({

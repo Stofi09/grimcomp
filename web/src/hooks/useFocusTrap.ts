@@ -15,7 +15,23 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean
     const node = ref.current;
     if (!node) return;
 
+    const isTopModal = () => {
+      const alert = document.querySelector('[role="alertdialog"][aria-modal="true"]');
+      const dialogs = document.querySelectorAll('[aria-modal="true"]');
+      return (alert ?? dialogs[dialogs.length - 1] ?? node) === node;
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      if (isTopModal() && event.target instanceof Node && !node.contains(event.target)) node.focus();
+    };
+
     const onKeyDown = (e: KeyboardEvent): void => {
+      if (!isTopModal()) return;
+      if (!node.contains(document.activeElement) && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        e.stopPropagation();
+        node.focus();
+        return;
+      }
       if (e.key !== 'Tab') return;
       const focusable = Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE))
         .filter(el => el.offsetParent !== null || el === document.activeElement);
@@ -40,7 +56,11 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean
       }
     };
 
-    node.addEventListener('keydown', onKeyDown);
-    return () => node.removeEventListener('keydown', onKeyDown);
+    document.addEventListener('keydown', onKeyDown, true);
+    document.addEventListener('focusin', onFocusIn);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true);
+      document.removeEventListener('focusin', onFocusIn);
+    };
   }, [ref, active]);
 }
