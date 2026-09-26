@@ -1,5 +1,5 @@
 import type { Critical } from '@/data/character';
-import type { CriticalDef } from '@/content/types';
+import type { ConditionDef, CriticalDef } from '@/content/types';
 
 export function isConditionEffects(value: unknown): value is Record<string, number> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -12,10 +12,23 @@ export function criticalFromDefinition(definition: CriticalDef, loc: string, rol
     ...(definition.conditions ? { conditions: { ...definition.conditions } } : {}) };
 }
 
-/** Only authored immediate effects are automated; never infer rules from prose. */
-export function addCriticalConditions(current: Record<string, number>, effects: Record<string, number> = {}) {
+/**
+ * Only authored immediate effects are automated; never infer rules from prose.
+ * When condition definitions are supplied, added stacks stop at a condition's
+ * `maxStacks` — so a non-stacking condition such as Prone stays at 1 — without
+ * ever lowering stacks the character already had.
+ */
+export function addCriticalConditions(
+  current: Record<string, number>,
+  effects: Record<string, number> = {},
+  defs: ReadonlyArray<Pick<ConditionDef, 'name' | 'maxStacks'>> = [],
+) {
   const next = { ...current };
-  for (const [name, stacks] of Object.entries(effects)) next[name] = (next[name] ?? 0) + stacks;
+  for (const [name, stacks] of Object.entries(effects)) {
+    const had = next[name] ?? 0;
+    const cap = defs.find(def => def.name === name)?.maxStacks;
+    next[name] = cap === undefined ? had + stacks : Math.max(had, Math.min(cap, had + stacks));
+  }
   return next;
 }
 

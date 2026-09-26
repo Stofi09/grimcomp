@@ -18,9 +18,15 @@ interface ChipProps {
   onPress?: () => void;
   /** Optional explicit rule/help action rendered beside the state control. */
   onInfoPress?: () => void;
+  /**
+   * Optional "remove one" action, shown while the count is above zero. Lets a
+   * stacking chip with a high cap step down without cycling through every
+   * stack back to zero.
+   */
+  onDecrement?: () => void;
 }
 
-export const Chip: React.FC<ChipProps> = ({ label, count, on, onPress, onInfoPress }) => {
+export const Chip: React.FC<ChipProps> = ({ label, count, on, onPress, onInfoPress, onDecrement }) => {
   // Uncontrolled fallback for screens that don't manage their own state.
   const [internalCount, setInternalCount] = useState(count ?? 0);
   const controlled = !!onPress;
@@ -52,20 +58,35 @@ export const Chip: React.FC<ChipProps> = ({ label, count, on, onPress, onInfoPre
     </button>
   );
 
-  if (!onInfoPress) return stateControl;
+  const decrementControl = onDecrement && cur > 0 ? (
+    <button
+      type="button"
+      className="btn-reset gc-chip-step"
+      aria-label={`Remove one ${label} stack`}
+      title={`Remove one ${label} stack`}
+      onClick={onDecrement}
+    >
+      <Icon name="minus" size={12} color={colors.ink3} />
+    </button>
+  ) : null;
+
+  if (!onInfoPress && !decrementControl) return stateControl;
 
   return (
     <span className="gc-chip-group">
       {stateControl}
-      <button
-        type="button"
-        className="btn-reset gc-chip-info"
-        aria-label={`Read ${label} rule`}
-        title={`Read ${label} rule`}
-        onClick={onInfoPress}
-      >
-        <Icon name="info" size={12} color={colors.ink3} />
-      </button>
+      {decrementControl}
+      {onInfoPress ? (
+        <button
+          type="button"
+          className="btn-reset gc-chip-info"
+          aria-label={`Read ${label} rule`}
+          title={`Read ${label} rule`}
+          onClick={onInfoPress}
+        >
+          <Icon name="info" size={12} color={colors.ink3} />
+        </button>
+      ) : null}
     </span>
   );
 };

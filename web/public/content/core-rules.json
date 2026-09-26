@@ -53,18 +53,18 @@
     }
   },
   "conditions": [
-    { "name": "Ablaze", "maxStacks": 2, "description": "You are on fire and take damage each round until the flames are put out." },
-    { "name": "Bleeding", "maxStacks": 2, "description": "An open wound drains you, costing Wounds each round until staunched." },
-    { "name": "Blinded", "maxStacks": 2, "description": "You cannot see, failing tests that rely on sight and fighting at a penalty." },
-    { "name": "Broken", "maxStacks": 2, "description": "Your nerve has failed; you flee or cower and cannot take aggressive actions." },
-    { "name": "Deafened", "maxStacks": 2, "description": "You cannot hear, failing tests that rely on sound." },
-    { "name": "Entangled", "maxStacks": 2, "description": "You are caught or grappled and cannot move until you break free." },
-    { "name": "Fatigued", "maxStacks": 2, "penalty": -10, "description": "You are tired, suffering a penalty to all tests until you rest." },
-    { "name": "Poisoned", "maxStacks": 2, "description": "A toxin courses through you, costing Wounds each round until it passes." },
-    { "name": "Prone", "maxStacks": 2, "description": "You are knocked down and must spend an action to stand." },
-    { "name": "Stunned", "maxStacks": 2, "penalty": -10, "description": "You are dazed and reeling, suffering a penalty and unable to act effectively." },
-    { "name": "Surprised", "maxStacks": 2, "penalty": -20, "clearsAtSceneEnd": true, "description": "You were caught off guard and cannot react until the surprise passes." },
-    { "name": "Unconscious", "maxStacks": 2, "description": "You are knocked out and helpless until you recover your senses." }
+    { "name": "Ablaze", "maxStacks": 10, "description": "You are on fire. At the end of each Round take 1d10 Damage, reduced by Toughness Bonus and Armour Points (minimum 1 Wound), +1 per additional Ablaze Condition. Resolve manually." },
+    { "name": "Bleeding", "maxStacks": 10, "description": "You are losing blood: lose 1 Wound per Bleeding Condition at the end of each Round (End of round on the Wounds screen applies it) until it is staunched." },
+    { "name": "Blinded", "maxStacks": 10, "description": "You cannot see properly: −10 per Condition to Tests that rely on sight, and melee attackers gain +10 to hit you. Apply manually; it only affects sight-based Tests." },
+    { "name": "Broken", "maxStacks": 10, "description": "Your nerve has failed: you must flee or hide, and suffer −10 per Condition to every Test except those to run away or hide. Apply manually; the exempt Tests are the ones a Broken character usually makes." },
+    { "name": "Deafened", "maxStacks": 10, "description": "You cannot hear properly: −10 per Condition to Tests that rely on hearing, and attackers from your flank or rear gain +10 to hit you. Apply manually." },
+    { "name": "Entangled", "maxStacks": 10, "description": "You are held fast: you cannot Move and suffer −10 per Condition to Tests involving movement until you break free with an Opposed Strength Test. Apply manually." },
+    { "name": "Fatigued", "maxStacks": 10, "penalty": -10, "description": "You are exhausted: −10 per Condition to all Tests (applied automatically) until you recover." },
+    { "name": "Poisoned", "maxStacks": 10, "penalty": -10, "description": "A toxin courses through you: you lose Wounds at the end of each Round and suffer −10 per Condition to all Tests. The Test penalty is applied automatically; resolve Wound loss manually." },
+    { "name": "Prone", "maxStacks": 1, "description": "You are on the ground: −20 to Tests involving movement, and melee attackers gain +20 to hit you. Standing up uses your Move. Apply manually." },
+    { "name": "Stunned", "maxStacks": 10, "penalty": -10, "description": "You are dazed: you cannot take an Action and suffer −10 per Condition to all Tests (applied automatically)." },
+    { "name": "Surprised", "maxStacks": 1, "clearsAtSceneEnd": true, "description": "You are caught unawares: you cannot act, move, or defend yourself in Opposed Tests, and attackers gain +20 to hit you (apply on their roll). It ends at the end of the Round or after the first attack against you; the app clears it at scene end." },
+    { "name": "Unconscious", "maxStacks": 1, "description": "You are knocked out and helpless: you can take no Actions or Moves and are unaware of your surroundings until you recover." }
   ],
   "xpRules": {
     "characteristicAdvances": [

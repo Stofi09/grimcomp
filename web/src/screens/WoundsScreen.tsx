@@ -57,7 +57,7 @@ const sameCritical = (left: Critical, right: Critical): boolean => (
 export const WoundsScreen: React.FC = () => {
   const { id, template: c } = useCharacter();
   const [wounds, setWounds] = useStoredState(characterKey(id, 'wounds'), c.wounds.current);
-  const { conds, setConds, cycle, names } = useConditions();
+  const { conds, setConds, cycle, decrement, names } = useConditions();
   const vitals = useVitals();
 
   const content = useContent();
@@ -228,7 +228,7 @@ export const WoundsScreen: React.FC = () => {
       if (!caps.combatHitLocations) fresh.loc = '';
       const durability = await runStoredTransaction(() => {
         crits.add({ ...fresh, conditionsApplied: true });
-        if (fresh.conditions) setConds(current => addCriticalConditions(current, fresh.conditions));
+        if (fresh.conditions) setConds(current => addCriticalConditions(current, fresh.conditions, conditionDefs));
       }).completion;
       if (!durability.ok) {
         Alert.alert('Could not add critical', durability.error.message);
@@ -262,7 +262,7 @@ export const WoundsScreen: React.FC = () => {
       const durability = await runStoredTransaction(() => {
         const mutation = crits.updateIdentified(identity, { ...critical, conditions: effects, conditionsApplied: true });
         found = mutation.found;
-        if (found) setConds(current => addCriticalConditions(current, effects));
+        if (found) setConds(current => addCriticalConditions(current, effects, conditionDefs));
       }).completion;
       if (!durability.ok) Alert.alert('Could not apply conditions', durability.error.message);
       else if (!found) Alert.alert('Critical changed', 'Review the current wound and retry.');
@@ -443,7 +443,7 @@ export const WoundsScreen: React.FC = () => {
         </Card>
       </div>
 
-      <Section title="Conditions" aside="tap to change stacks · info opens the rule" />
+      <Section title="Conditions" aside="tap adds a stack · − removes one · info opens the rule" />
       <div className="wnd-chips">
         {names.map(t => {
           const n = conds[t] ?? 0;
@@ -454,6 +454,7 @@ export const WoundsScreen: React.FC = () => {
               count={n}
               on={n > 0}
               onPress={() => cycle(t)}
+              onDecrement={() => decrement(t)}
               onInfoPress={() => showConditionRule(t)}
             />
           );

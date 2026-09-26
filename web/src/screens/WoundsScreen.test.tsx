@@ -113,6 +113,20 @@ describe('WoundsScreen combat transactions', () => {
     expect(JSON.parse(localStorage.getItem('gc.c1.conditions')!)).toEqual({ Fatigued: 1, Stunned: 1, Prone: 1 });
     expect(screen.queryByRole('button', { name: 'Apply conditions' })).toBeNull();
   });
+  it('stacks a 4e stacking condition past 2, removes one stack at a time, and keeps Prone binary', async () => {
+    localStorage.setItem('gc.c1.conditions', JSON.stringify({ Bleeding: 2, Prone: 1 }));
+    _resetStoredCache();
+    render(<ContentContext.Provider value={registry}><WoundsScreen /></ContentContext.Provider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Bleeding, 2' }));
+    await settleStorage();
+    expect(JSON.parse(localStorage.getItem('gc.c1.conditions')!)).toMatchObject({ Bleeding: 3 });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove one Bleeding stack' }));
+    await settleStorage();
+    expect(JSON.parse(localStorage.getItem('gc.c1.conditions')!)).toMatchObject({ Bleeding: 2 });
+    fireEvent.click(screen.getByRole('button', { name: 'Prone, 1' }));
+    await settleStorage();
+    expect(JSON.parse(localStorage.getItem('gc.c1.conditions')!)).toMatchObject({ Bleeding: 2, Prone: 0 });
+  });
   it('burns Fate and sets Wounds to zero in one durable journal', async () => {
     localStorage.setItem('gc.c1.wounds', JSON.stringify(5));
     localStorage.setItem('gc.c1.vitals', JSON.stringify({

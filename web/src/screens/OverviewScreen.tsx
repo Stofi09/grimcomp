@@ -63,7 +63,7 @@ export const OverviewScreen: React.FC = () => {
   const xp = useXp();
   const career = useCareer();
   const vitals = useVitals();
-  const { conds, cycle, names, defs: conditionDefs } = useConditions();
+  const { conds, cycle, decrement, names, defs: conditionDefs } = useConditions();
   // All derived stats (max wounds, walk/run, corruption threshold) come from
   // the system formulas in the content packs, evaluated against the live
   // characteristics.
@@ -259,7 +259,7 @@ export const OverviewScreen: React.FC = () => {
         </Card>
       </div>
 
-      <Section title="Current Conditions" aside="tap to change stacks · info opens the rule" />
+      <Section title="Current Conditions" aside="tap adds a stack · − removes one · info opens the rule" />
       <div className="ovw-chips">
         {names.map(t => {
           const n = conds[t] ?? 0;
@@ -270,6 +270,7 @@ export const OverviewScreen: React.FC = () => {
               count={n}
               on={n > 0}
               onPress={() => cycle(t)}
+              onDecrement={() => decrement(t)}
               onInfoPress={() => showConditionRule(t)}
             />
           );

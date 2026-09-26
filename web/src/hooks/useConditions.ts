@@ -28,7 +28,8 @@ export function useConditions() {
 
   const [conds, setConds] = useStoredState<ConditionMap>(characterKey(id, 'conditions'), seed);
 
-  // Tapping a chip cycles 0 → 1 → … → maxStacks → 0 (default cap 2).
+  // Tapping a chip cycles 0 → 1 → … → maxStacks → 0 (default cap 2). Stacks
+  // added past the cap (e.g. by several critical wounds) also wrap to 0.
   const cycle = useCallback((name: string) => {
     const cap = defs.find(d => d.name === name)?.maxStacks ?? 2;
     setConds(prev => {
@@ -37,6 +38,16 @@ export function useConditions() {
       return { ...prev, [name]: next };
     });
   }, [setConds, defs]);
+
+  // Remove one stack. Stacking conditions (WFRP 4e) carry high caps, so the
+  // chips pair the tap-to-add cycle with this step down instead of forcing a
+  // full cycle back to zero.
+  const decrement = useCallback((name: string) => {
+    setConds(prev => {
+      const cur = prev[name] ?? 0;
+      return cur > 0 ? { ...prev, [name]: cur - 1 } : prev;
+    });
+  }, [setConds]);
 
   const modifier = useMemo<ConditionModifierBreakdown>(() => {
     const parts: ConditionModifierBreakdown['parts'] = [];
@@ -55,5 +66,5 @@ export function useConditions() {
 
   const names = useMemo(() => defs.map(d => d.name), [defs]);
 
-  return { conds, setConds, cycle, modifier, names, defs };
+  return { conds, setConds, cycle, decrement, modifier, names, defs };
 }

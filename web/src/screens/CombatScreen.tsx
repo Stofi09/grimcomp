@@ -116,7 +116,7 @@ export const CombatScreen: React.FC = () => {
   const { id, template: c } = useCharacter();
   const content = useContent();
   const { list: charList } = useCharacteristics();
-  const { modifier: condMod, conds, setConds } = useConditions();
+  const { modifier: condMod, conds, setConds, defs: conditionDefs } = useConditions();
   const { maxWounds } = useDerived();
   const recordTest = useRecordTest();
   const system = useSystemRules();
@@ -322,7 +322,7 @@ export const CombatScreen: React.FC = () => {
         if (lostAdvantage) setAdvantage(0);
         if (freshCritical) {
           const critical = freshCritical;
-          if (critical.conditions) setConds(current => addCriticalConditions(current, critical.conditions));
+          if (critical.conditions) setConds(current => addCriticalConditions(current, critical.conditions, conditionDefs));
           crits.add({ ...critical, conditionsApplied: true });
         }
       });
