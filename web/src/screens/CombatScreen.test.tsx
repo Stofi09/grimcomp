@@ -128,6 +128,28 @@ describe('CombatScreen weapon distance', () => {
     expect(JSON.parse(localStorage.getItem('gc.c1.advantage')!)).toBe(1);
   });
 
+  it('credits a skill spelled with different case and treats every 4e ranged group as ranged', () => {
+    localStorage.setItem('gc.c1.conditions', JSON.stringify({}));
+    localStorage.setItem('gc.c1.skills.adv', JSON.stringify({ 'Melee (Two-handed)': 15 }));
+    localStorage.setItem('gc.c1.weapons', JSON.stringify([
+      { name: 'QA Warhammer', group: 'Two-Handed', enc: 3, reach: 'Average', dmg: 'SB+6', qual: [] },
+      { name: 'QA Handgun', group: 'Blackpowder', enc: 2, range: '50', dmg: '9', qual: [] },
+      { name: 'QA Whip', group: 'Entangling', enc: 0, range: '6', dmg: 'SB+2', qual: [] },
+    ]));
+    _resetStoredCache();
+
+    renderCombatScreen();
+
+    // WS 43 + 15 advances recorded under "Melee (Two-handed)".
+    const hammer = screen.getByRole('button', { name: 'QA Warhammer' }).closest('article');
+    expect(hammer?.textContent).toContain('Test target58');
+    for (const name of ['QA Handgun', 'QA Whip']) {
+      const row = screen.getByRole('button', { name }).closest('article');
+      expect(row?.textContent, name).toContain('Range');
+      expect(row?.textContent, name).not.toContain('Reach');
+    }
+  });
+
   it('uses and durably persists Range for a ranged weapon even when legacy data also has Reach', async () => {
     localStorage.setItem('gc.c1.weapons', JSON.stringify([{
       name: 'QA Longbow',

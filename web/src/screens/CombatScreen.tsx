@@ -22,7 +22,7 @@ import { testSafeRegex } from '@/utils/safeRegex';
 import {
   apByLocation, apAt, hitLocationFromRoll, applyDamage,
   advantageBonus, resolveAttackOutcome, computeHitDamage, weaponQualityNotes, hasQuality,
-  normalizeWeaponDistance, weaponDistance,
+  normalizeWeaponDistance, weaponDistance, skillAdvancesFor,
   type ApLocation,
 } from '@/utils/combat';
 import { Alert } from '@/ui/alertStore';
@@ -38,11 +38,13 @@ import { TextField, NumberField, PickerField, MultiPickerField, QualitiesField }
 import { colors } from '@/theme';
 import './CombatScreen.css';
 
-// Fallback weapon-group picker options, used only when the loaded packs ship
-// no weapons to derive groups from.
+// Fallback weapon-group picker options (the WFRP 4e Melee and Ranged
+// specialisations), used only when the loaded packs ship no weapons to derive
+// groups from.
 const FALLBACK_WEAPON_GROUPS = [
-  'Basic', 'Cavalry', 'Fencing', 'Brawling', 'Flail', 'Parrying', 'Polearm',
-  'Two-handed', 'Bow', 'Crossbow', 'Sling', 'Throwing',
+  'Basic', 'Brawling', 'Cavalry', 'Fencing', 'Flail', 'Parry', 'Polearm',
+  'Two-Handed', 'Blackpowder', 'Bow', 'Crossbow', 'Engineering', 'Entangling',
+  'Explosives', 'Sling', 'Throwing',
 ].map(g => ({ value: g, label: g }));
 
 const ARMOUR_LOCS = [
@@ -149,9 +151,12 @@ export const CombatScreen: React.FC = () => {
   const vars = charVars(charList);
   const toughnessBonus = vars.tb ?? 0;
 
+  // An untrained specialisation tests the bare characteristic (0 advances) so
+  // any weapon stays usable; the skill lookup ignores case so career skills
+  // such as "Melee (Two-handed)" credit weapons grouped "Two-Handed".
   const targetForWeapon = (w: Weapon): number => {
     const ch = charList.find(x => x.key === charForWeapon(w, combat));
-    const adv = skillAdv[skillForWeapon(w, combat)] ?? 0;
+    const adv = skillAdvancesFor(skillAdv, skillForWeapon(w, combat));
     return (ch?.current ?? 0) + adv;
   };
 

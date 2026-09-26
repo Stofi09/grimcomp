@@ -45,7 +45,7 @@
       "wrathBonusPerSin": 10
     },
     "combat": {
-      "rangedGroupPattern": "bow|cross|sling|throw|gun|fire",
+      "rangedGroupPattern": "bow|cross|sling|throw|blackpowder|engineer|entangl|explosive|gun|fire",
       "meleeChar": "ws",
       "rangedChar": "bs",
       "meleeSkillPattern": "Melee ({group})",

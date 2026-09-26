@@ -14,6 +14,8 @@ import {
   hasQuality,
   normalizeWeaponDistance,
   weaponDistance,
+  skillAdvancesFor,
+  skillNameKey,
 } from './combat';
 import type { HitLocationRow } from '@/content/types';
 
@@ -45,6 +47,21 @@ describe('weapon reach/range shape', () => {
     );
     expect(weapon).toEqual({ name: 'Sword', reach: 'Average' });
     expect(weaponDistance(weapon, false)).toBe('Average');
+  });
+});
+
+describe('skillAdvancesFor — weapon group ↔ skill specialisation', () => {
+  it('credits a career skill spelled with different case or spacing', () => {
+    const advances = { 'Melee (Two-handed)': 10, 'Ranged (Bow)': 5 };
+    expect(skillAdvancesFor(advances, 'Melee (Two-Handed)')).toBe(10);
+    expect(skillAdvancesFor(advances, 'ranged  (bow)')).toBe(5);
+    expect(skillNameKey(' Melee (Two-Handed) ')).toBe('melee (two-handed)');
+  });
+
+  it('prefers an exact key and treats an untrained specialisation as 0 advances', () => {
+    expect(skillAdvancesFor({ 'Melee (Basic)': 5, 'melee (basic)': 15 }, 'Melee (Basic)')).toBe(5);
+    expect(skillAdvancesFor({ 'Melee (Basic)': 5 }, 'Melee (Fencing)')).toBe(0);
+    expect(skillAdvancesFor({}, 'Ranged (Blackpowder)')).toBe(0);
   });
 });
 

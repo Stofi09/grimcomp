@@ -45,13 +45,24 @@ const ARMOUR_LOCS = [
 type WeaponGroup = typeof WEAPON_GROUPS[number]['value'];
 type ArmourLoc = typeof ARMOUR_LOCS[number]['value'];
 
+// Every WFRP 4e Ranged specialisation, plus legacy "Gunpowder"/"Firearm" groups.
 const charForWeapon = (w: Weapon): 'ws' | 'bs' => {
   const g = w.group.toLowerCase();
-  return /bow|cross|sling|throw|gun|fire/.test(g) ? 'bs' : 'ws';
+  return /bow|cross|sling|throw|blackpowder|engineer|entangl|explosive|gun|fire/.test(g) ? 'bs' : 'ws';
 };
 
 const skillForWeapon = (w: Weapon): string =>
   charForWeapon(w) === 'bs' ? `Ranged (${w.group})` : `Melee (${w.group})`;
+
+// Skill names and weapon groups differ only in case in places ("Melee
+// (Two-handed)" vs group "Two-Handed"), so an exact key wins, then a
+// case-insensitive match; an untrained specialisation has 0 advances.
+const skillKey = (name: string): string => name.trim().replace(/\s+/g, ' ').toLowerCase();
+const skillAdvancesFor = (advances: Record<string, number>, skillName: string): number => {
+  if (Object.prototype.hasOwnProperty.call(advances, skillName)) return advances[skillName] ?? 0;
+  const match = Object.entries(advances).find(([name]) => skillKey(name) === skillKey(skillName));
+  return match?.[1] ?? 0;
+};
 
 const computeDamage = (formula: string, sb: number): number => {
   const m = formula.match(/(SB)?\s*([+-]?\d+)?/i);
@@ -100,7 +111,7 @@ export const CombatScreen: React.FC = () => {
 
   const targetForWeapon = (w: Weapon): number => {
     const ch = c.characteristics.find(x => x.key === charForWeapon(w))!;
-    const adv = skillAdv[skillForWeapon(w)] ?? 0;
+    const adv = skillAdvancesFor(skillAdv, skillForWeapon(w));
     return ch.init + getChar(charForWeapon(w)) + adv;
   };
 

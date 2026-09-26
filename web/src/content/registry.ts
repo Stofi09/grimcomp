@@ -132,7 +132,10 @@ export const DEFAULT_SYSTEM: SystemRules = {
     wrathBonusPerSin: 10,
   },
   combat: {
-    rangedGroupPattern: 'bow|cross|sling|throw|gun|fire',
+    // Every WFRP 4e Ranged specialisation (Blackpowder, Bow, Crossbow,
+    // Engineering, Entangling, Explosives, Sling, Throwing) plus the legacy
+    // "Gunpowder"/"Firearm" spellings older packs and characters still carry.
+    rangedGroupPattern: 'bow|cross|sling|throw|blackpowder|engineer|entangl|explosive|gun|fire',
     meleeChar: 'ws',
     rangedChar: 'bs',
     meleeSkillPattern: 'Melee ({group})',

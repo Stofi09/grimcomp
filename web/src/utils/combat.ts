@@ -34,6 +34,29 @@ export function weaponDistance(weapon: WeaponDistance, ranged: boolean): string 
   return ranged ? weapon.range : weapon.reach;
 }
 
+// --- Weapon group ↔ skill specialisation ------------------------------------
+
+/** Compare skill / weapon-group names the way a player reads them: case- and
+    spacing-insensitive, so "Melee (Two-handed)" names the "Two-Handed" group. */
+export function skillNameKey(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+}
+
+/**
+ * Advances recorded for a skill, matched case-insensitively. Career data and
+ * weapon groups spell some specialisations differently ("Two-handed" vs
+ * "Two-Handed"); an exact key still wins so a sheet that somehow holds both
+ * spellings keeps its authored value. Unknown skills have 0 advances.
+ */
+export function skillAdvancesFor(advances: Readonly<Record<string, number>>, skillName: string): number {
+  if (Object.prototype.hasOwnProperty.call(advances, skillName)) return advances[skillName] ?? 0;
+  const wanted = skillNameKey(skillName);
+  for (const [name, adv] of Object.entries(advances)) {
+    if (skillNameKey(name) === wanted) return adv ?? 0;
+  }
+  return 0;
+}
+
 /**
  * WFRP 4e hit location (CRB p.159): reverse the digits of the successful to-hit
  * roll. 27 → 72, 6 → 60, a double like 33 → 33. A roll reading 00 (i.e. 100)
