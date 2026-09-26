@@ -7,6 +7,7 @@ import { characterKey } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useConditions } from '@/hooks/useConditions';
 import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
+import { nativeSpellSourceLabel, runNativeSpellCast } from '@/utils/nativeSpellCasting';
 import { useResolveSpells, useTable } from '@/content/useContent';
 import { rollOnTable } from '@/content/tables';
 import type { Spell } from '@/content/types';
@@ -133,7 +134,7 @@ export const MagicScreen: React.FC = () => {
     }
   };
 
-  const cast = async (spell: Spell) => {
+  const cast = (spell: Spell) => runNativeSpellCast(spell, async castingNumber => {
     if (poolActionRef.current) return;
     poolActionRef.current = true;
     setPoolActionPending(true);
@@ -141,7 +142,7 @@ export const MagicScreen: React.FC = () => {
       const r = resolveTest({ target: castTarget, modifier: condMod.total, label: `Cast ${spell.name}` });
       // Total SL = test SL + channelling pool.
       const totalSl = r.sl + pool;
-      const reachedCN = totalSl >= spell.cn;
+      const reachedCN = totalSl >= castingNumber;
       const usedPool = pool;
       const durability = await setPool(0); // Pool spends regardless of success.
       if (!durability.ok) {
@@ -156,16 +157,19 @@ export const MagicScreen: React.FC = () => {
       // spell goes off — not merely a fumble (96–00).
       const isDouble = r.roll >= 11 && r.roll <= 99 && Math.floor(r.roll / 10) === (r.roll % 10);
 
-      let body = `${formatTestResult(r)}\n\nChannelling pool used: +${usedPool} SL\nTotal SL: ${totalSl}\nNeeded: ${spell.cn}\n\n`;
+      let body = `${formatTestResult(r)}\n\nChannelling pool used: +${usedPool} SL\nTotal SL: ${totalSl}\nNeeded: ${castingNumber}\n\n`;
+      const effect = spell.rulesStatus === 'bibliographic'
+        ? `Casting threshold reached. Resolve the spell using ${nativeSpellSourceLabel(spell)}.`
+        : `${spell.name} resolves!\n${spell.description}${spell.damage ? `\nDamage: ${spell.damage}` : ''}`;
 
       if (isDouble) {
         const mRoll = rollD100();
         body += `MISCAST (${mRoll}):\n${rollOnTable(miscastMinor, mRoll)}`;
         if (reachedCN) {
-          body += `\n\n…the spell still resolves: ${spell.description}${spell.damage ? `\nDamage: ${spell.damage}` : ''}`;
+          body += `\n\n${effect}`;
         }
       } else if (reachedCN) {
-        body += `→ ${spell.name} resolves!\n${spell.description}${spell.damage ? `\nDamage: ${spell.damage}` : ''}`;
+        body += `→ ${effect}`;
       } else {
         body += `→ Not enough SL — spell fizzles. The energy disperses harmlessly.`;
       }
@@ -175,7 +179,7 @@ export const MagicScreen: React.FC = () => {
       poolActionRef.current = false;
       setPoolActionPending(false);
     }
-  };
+  }, message => Alert.alert('Casting Number unknown', message));
 
   const releasePool = async () => {
     if (poolActionRef.current || pool === 0) return;
@@ -255,22 +259,32 @@ export const MagicScreen: React.FC = () => {
               <Cell flex={2}>
                 <View>
                   <Text style={styles.spellName}>{s.name}</Text>
-                  <Text style={styles.spellDesc} numberOfLines={2}>{s.description}</Text>
+                  <Text style={styles.spellDesc} numberOfLines={2}>
+                    {s.rulesStatus === 'bibliographic'
+                      ? 'Index only — consult the source for full spell rules.'
+                      : s.description}
+                  </Text>
+                  {s.sourceBook || s.sourcePage !== undefined ? (
+                    <Text style={styles.spellDesc}>{nativeSpellSourceLabel(s)}</Text>
+                  ) : null}
+                  {s.cn === null ? (
+                    <Text style={styles.spellDesc}>Casting Number unknown — casting unavailable.</Text>
+                  ) : null}
                 </View>
               </Cell>
               <Cell flex={1}>
                 <Pill variant={s.lore === 'Petty' ? 'ghost' : 'empire'} size={10}>{s.lore}</Pill>
               </Cell>
-              <Cell num flex={0.6} textStyle={[{ fontFamily: fontFamilies.monoMedium, color: s.cn >= 8 ? colors.empire : colors.ink }, tabular]}>{s.cn}</Cell>
-              <Cell flex={1.2} textStyle={{ fontFamily: fontFamilies.mono, fontSize: 11, color: colors.ink3 }}>{s.range}</Cell>
-              <Cell flex={1.1} textStyle={{ fontFamily: fontFamilies.mono, fontSize: 11, color: colors.ink3 }}>{s.duration}</Cell>
+              <Cell num flex={0.6} textStyle={[{ fontFamily: fontFamilies.monoMedium, color: s.cn !== null && s.cn >= 8 ? colors.empire : colors.ink }, tabular]}>{s.cn ?? 'Unknown'}</Cell>
+              <Cell flex={1.2} textStyle={{ fontFamily: fontFamilies.mono, fontSize: 11, color: colors.ink3 }}>{s.rulesStatus === 'bibliographic' ? 'See source' : s.range}</Cell>
+              <Cell flex={1.1} textStyle={{ fontFamily: fontFamilies.mono, fontSize: 11, color: colors.ink3 }}>{s.rulesStatus === 'bibliographic' ? 'See source' : s.duration}</Cell>
               <Cell flex={0.5} align="right">
                 <Button
                   variant="ghost"
                   iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
-                  accessibilityLabel={`Cast ${s.name}`}
+                  accessibilityLabel={s.cn === null ? `Cannot cast ${s.name}: Casting Number unknown` : `Cast ${s.name}`}
                   onPress={() => cast(s)}
-                  disabled={poolActionPending}
+                  disabled={poolActionPending || s.cn === null}
                 >{''}</Button>
               </Cell>
             </TableRow>

@@ -5,27 +5,39 @@
 import type {
   ContentPack, Spell, Prayer, RollTable, XpCostRow,
   Race, Career, SkillDef, TalentDef, WeaponDef, ArmourDef, TrappingDef,
+  ReferenceDef,
 } from './types';
 
 export class ContentRegistry {
   readonly packs: ContentPack[];
 
   private readonly spellMap = new Map<string, Spell>();
+  private readonly legacySpellMap: Map<string, Spell>;
   private readonly prayerMap = new Map<string, Prayer>();
   private readonly tableMap = new Map<string, RollTable>();
   private readonly raceMap = new Map<string, Race>();
   private readonly careerMap = new Map<string, Career>();
   private readonly skillMap = new Map<string, SkillDef>();
+  private readonly legacySkillMap: Map<string, SkillDef>;
   private readonly talentMap = new Map<string, TalentDef>();
+  private readonly legacyTalentMap: Map<string, TalentDef>;
   private readonly weaponMap = new Map<string, WeaponDef>();
   private readonly armourMap = new Map<string, ArmourDef>();
   private readonly trappingMap = new Map<string, TrappingDef>();
+  private readonly referenceMap = new Map<string, ReferenceDef>();
 
   readonly conditions: string[] = [];
   readonly xpCosts: XpCostRow[] = [];
 
-  constructor(packs: ContentPack[]) {
+  constructor(packs: ContentPack[], options: {
+    legacySpells?: readonly Spell[];
+    legacySkills?: readonly SkillDef[];
+    legacyTalents?: readonly TalentDef[];
+  } = {}) {
     this.packs = packs;
+    this.legacySpellMap = new Map((options.legacySpells ?? []).map(spell => [spell.id, spell]));
+    this.legacySkillMap = new Map((options.legacySkills ?? []).map(skill => [skill.id, skill]));
+    this.legacyTalentMap = new Map((options.legacyTalents ?? []).map(talent => [talent.id, talent]));
     for (const pack of packs) {
       for (const s of pack.spells ?? []) this.spellMap.set(s.id, s);
       for (const p of pack.prayers ?? []) this.prayerMap.set(p.id, p);
@@ -37,6 +49,7 @@ export class ContentRegistry {
       for (const w of pack.weapons ?? []) this.weaponMap.set(w.id, w);
       for (const a of pack.armour ?? []) this.armourMap.set(a.id, a);
       for (const tr of pack.trappings ?? []) this.trappingMap.set(tr.id, tr);
+      for (const reference of pack.references ?? []) this.referenceMap.set(reference.id, reference);
       // conditions / xpCosts are flat tables rather than id-keyed collections —
       // the last pack to define a section replaces it wholesale.
       if (pack.conditions) {
@@ -53,12 +66,12 @@ export class ContentRegistry {
   }
 
   getSpell(id: string): Spell | undefined {
-    return this.spellMap.get(id);
+    return this.spellMap.get(id) ?? this.legacySpellMap.get(id);
   }
 
   resolveSpells(ids: string[]): Spell[] {
     return ids
-      .map(id => this.spellMap.get(id))
+      .map(id => this.getSpell(id))
       .filter((s): s is Spell => s !== undefined);
   }
 
@@ -78,6 +91,14 @@ export class ContentRegistry {
 
   getTable(id: string): RollTable | undefined {
     return this.tableMap.get(id);
+  }
+
+  get allTables(): RollTable[] {
+    return [...this.tableMap.values()];
+  }
+
+  get allReferences(): ReferenceDef[] {
+    return [...this.referenceMap.values()];
   }
 
   get allRaces(): Race[] {
@@ -100,8 +121,16 @@ export class ContentRegistry {
     return [...this.skillMap.values()];
   }
 
+  getSkillDef(id: string): SkillDef | undefined {
+    return this.skillMap.get(id) ?? this.legacySkillMap.get(id);
+  }
+
   get allTalentDefs(): TalentDef[] {
     return [...this.talentMap.values()];
+  }
+
+  getTalentDef(id: string): TalentDef | undefined {
+    return this.talentMap.get(id) ?? this.legacyTalentMap.get(id);
   }
 
   get allWeapons(): WeaponDef[] {

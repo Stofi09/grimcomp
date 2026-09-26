@@ -105,17 +105,42 @@ export function validatePack(raw: unknown): ValidationResult {
       for (const f of spec.numbers ?? []) {
         if (!isNumber(entry[f])) push(`${where} is missing numeric field "${f}".`);
       }
+      for (const field of ['sourceBook', 'rulesNote']) {
+        if (entry[field] !== undefined && !isString(entry[field])) {
+          push(`${where}.${field} must be a string.`);
+        }
+      }
+      if (entry.sourcePage !== undefined && (
+        !isNumber(entry.sourcePage) || !Number.isInteger(entry.sourcePage) || entry.sourcePage < 0
+      )) push(`${where}.sourcePage must be a non-negative integer.`);
+      if (entry.rulesStatus !== undefined
+        && entry.rulesStatus !== 'bibliographic' && entry.rulesStatus !== 'approximate') {
+        push(`${where}.rulesStatus must be "bibliographic" or "approximate".`);
+      }
       spec.extra?.(entry, where, push);
     });
   };
 
   checkSection('spells', {
     strings: ['name', 'lore', 'range', 'target', 'duration', 'description'],
-    numbers: ['cn'],
+    extra: (entry, where, p) => {
+      if (entry.cn === null) {
+        if (entry.rulesStatus !== 'bibliographic') {
+          p(`${where}.cn may be null only for a bibliographic spell.`);
+        }
+      } else if (!isNumber(entry.cn) || !Number.isInteger(entry.cn) || entry.cn < 0) {
+        p(`${where}.cn must be a non-negative integer or null for a bibliographic spell.`);
+      }
+    },
   });
 
   checkSection('prayers', {
     strings: ['name', 'deity', 'range', 'target', 'duration', 'description'],
+    extra: (entry, where, p) => {
+      if (entry.type !== undefined && entry.type !== 'blessing' && entry.type !== 'miracle') {
+        p(`${where}.type must be "blessing" or "miracle".`);
+      }
+    },
   });
 
   checkSection('tables', {
@@ -158,6 +183,15 @@ export function validatePack(raw: unknown): ValidationResult {
   checkSection('careers', {
     strings: ['name', 'class'],
     extra: (entry, where, p) => {
+      for (const field of ['approximate', 'creationAvailable', 'randomEligible']) {
+        if (entry[field] !== undefined && typeof entry[field] !== 'boolean') {
+          p(`${where}.${field} must be a boolean.`);
+        }
+      }
+      if (entry.magicAccess !== undefined
+        && !['none', 'starting', 'later'].includes(entry.magicAccess as string)) {
+        p(`${where}.magicAccess must be "none", "starting", or "later".`);
+      }
       if (!isStringArray(entry.species)) p(`${where} "species" must be an array of nonblank race ids.`);
       if (!Array.isArray(entry.ranks)) {
         p(`${where} "ranks" must be an array.`);
@@ -182,11 +216,39 @@ export function validatePack(raw: unknown): ValidationResult {
       if (!CHARACTERISTIC_KEYS.has(entry.char as string)) {
         p(`${where} "char" must be a native characteristic key.`);
       }
+      if (entry.restriction !== undefined && !isString(entry.restriction)) p(`${where}.restriction must be a string.`);
+      if (entry.exclusiveWith !== undefined && !isStringArray(entry.exclusiveWith)) {
+        p(`${where}.exclusiveWith must be an array of nonblank skill ids.`);
+      }
     },
   });
 
   checkSection('talents', {
     strings: ['name', 'description'],
+    extra: (entry, where, p) => {
+      if (entry.max !== undefined && (!isNumber(entry.max) || !Number.isInteger(entry.max) || entry.max < 1)) {
+        p(`${where}.max must be a positive integer.`);
+      }
+      if (entry.maxChar !== undefined && !CHARACTERISTIC_KEYS.has(entry.maxChar as string)) {
+        p(`${where}.maxChar must be a native characteristic key.`);
+      }
+      for (const field of ['tests', 'restriction']) {
+        if (entry[field] !== undefined && !isString(entry[field])) p(`${where}.${field} must be a string.`);
+      }
+      if (entry.specializations !== undefined && !isStringArray(entry.specializations)) {
+        p(`${where}.specializations must be an array of nonblank strings.`);
+      }
+    },
+  });
+
+  checkSection('references', {
+    strings: ['name', 'category', 'description'],
+    extra: (entry, where, p) => {
+      if (entry.meta !== undefined && !isString(entry.meta)) p(`${where}.meta must be a string.`);
+      if (entry.approximate !== undefined && typeof entry.approximate !== 'boolean') {
+        p(`${where}.approximate must be a boolean.`);
+      }
+    },
   });
 
   checkSection('weapons', {

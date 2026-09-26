@@ -1,18 +1,26 @@
 // Content type definitions and the ContentPack envelope.
 //
 // Game content — spells, prayers, rules tables, races, careers, skills,
-// talents, items — is authored as JSON ContentPacks under src/content/packs and
-// merged at runtime by the ContentRegistry. Screens read content through the
-// useContent hooks, never by importing a pack directly.
+// talents, items — is projected from the shared web catalogue by bundled.ts.
+// Native engine defaults and old saved-spell ids stay under src/content/packs.
+// Screens read the merged ContentRegistry through useContent hooks.
 
 import type { CharacteristicKey } from '@/data/character';
 
-export interface Spell {
+/** Provenance and completeness of a catalogue entry's rule detail. */
+export interface SourceMetadata {
+  sourceBook?: string;
+  sourcePage?: number;
+  rulesStatus?: 'bibliographic' | 'approximate';
+  rulesNote?: string;
+}
+
+export interface Spell extends SourceMetadata {
   id: string;
   name: string;
   lore: string;
-  /** Casting Number: target SL to reach. */
-  cn: number;
+  /** Casting Number: target SL to reach. Null is unknown for an indexed entry. */
+  cn: number | null;
   range: string;
   target: string;
   duration: string;
@@ -21,7 +29,7 @@ export interface Spell {
   damage?: string;
 }
 
-export interface Prayer {
+export interface Prayer extends SourceMetadata {
   id: string;
   name: string;
   deity: string;
@@ -29,6 +37,7 @@ export interface Prayer {
   target: string;
   duration: string;
   description: string;
+  type?: 'blessing' | 'miracle';
 }
 
 /** One d100 outcome band: a roll in [min, max] yields `effect`. */
@@ -38,7 +47,7 @@ export interface RollTableRow {
   effect: string;
 }
 
-export interface RollTable {
+export interface RollTable extends SourceMetadata {
   id: string;
   name: string;
   rows: RollTableRow[];
@@ -49,7 +58,7 @@ export interface XpCostRow {
   cost: number;
 }
 
-export interface Race {
+export interface Race extends SourceMetadata {
   id: string;
   name: string;
   /** Flat modifiers applied to rolled starting characteristic values. */
@@ -74,31 +83,52 @@ export interface CareerRankDef {
   status: string;
 }
 
-export interface Career {
+export interface Career extends SourceMetadata {
   id: string;
   name: string;
   class: string;
   /** Race IDs eligible to take this career. */
   species: string[];
   ranks: CareerRankDef[];
+  approximate?: boolean;
+  creationAvailable?: boolean;
+  randomEligible?: boolean;
+  magicAccess?: 'none' | 'starting' | 'later';
 }
 
-export interface SkillDef {
+export interface SkillDef extends SourceMetadata {
   id: string;
   name: string;
   char: CharacteristicKey;
   advanced: boolean;
   grouped: boolean;
   description: string;
+  restriction?: string;
+  exclusiveWith?: string[];
 }
 
-export interface TalentDef {
+export interface TalentDef extends SourceMetadata {
   id: string;
   name: string;
   description: string;
+  max?: number;
+  maxChar?: CharacteristicKey;
+  tests?: string;
+  specializations?: string[];
+  restriction?: string;
 }
 
-export interface WeaponDef {
+/** Searchable material that does not alter the native rules engine. */
+export interface ReferenceDef extends SourceMetadata {
+  id: string;
+  category: string;
+  name: string;
+  meta?: string;
+  description: string;
+  approximate?: boolean;
+}
+
+export interface WeaponDef extends SourceMetadata {
   id: string;
   name: string;
   group: string;
@@ -109,7 +139,7 @@ export interface WeaponDef {
   qual: string[];
 }
 
-export interface ArmourDef {
+export interface ArmourDef extends SourceMetadata {
   id: string;
   name: string;
   locs: string[];
@@ -118,7 +148,7 @@ export interface ArmourDef {
   qual: string[];
 }
 
-export interface TrappingDef {
+export interface TrappingDef extends SourceMetadata {
   id: string;
   name: string;
   enc: number;
@@ -128,8 +158,8 @@ export interface TrappingDef {
 export const CONTENT_SCHEMA = 'grimcomp.content.v1';
 
 /**
- * A unit of loadable game content. Bundled core packs live in
- * src/content/packs; user-imported packs are stored under `gc.content.packs`.
+ * A unit of loadable native game content. Bundled catalogue projections and
+ * native rules use this same envelope. User packs live under `gc.content.packs`.
  * Every section is optional so a pack can carry just spells, just races, etc.
  */
 export interface ContentPack {
@@ -146,6 +176,7 @@ export interface ContentPack {
   careers?: Career[];
   skills?: SkillDef[];
   talents?: TalentDef[];
+  references?: ReferenceDef[];
   weapons?: WeaponDef[];
   armour?: ArmourDef[];
   trappings?: TrappingDef[];

@@ -12,8 +12,9 @@ import { runStoredTransaction, useStoredState } from '@/hooks/useStoredState';
 import { useRoster } from '@/hooks/useRoster';
 import { useCharacter } from '@/hooks/useCharacter';
 import { CHARACTER_TEMPLATES, computeMaxWounds, type Character, type CharacteristicKey } from '@/data/character';
-import { useRaces, useSkillDefs, useTalentDefs, useCareers, useContent } from '@/content/useContent';
+import { useRaces, useCareers, useContent } from '@/content/useContent';
 import type { Race, SkillDef, TalentDef, Spell, Prayer } from '@/content/types';
+import { isNativeCreationCareerAvailable, resolveNativeCreationCareer, resolveNativeRaceGrants } from '@/content/creation';
 import type { ScreenId } from '@/data/nav';
 import { colors, fontFamilies } from '@/theme';
 import { layoutStyles, tabular } from '@/components/primitives';
@@ -188,8 +189,6 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
   const { setActive } = useCharacter();
   const races = useRaces();
   const careers = useCareers();
-  const skillDefs = useSkillDefs();
-  const talentDefs = useTalentDefs();
   const content = useContent();
 
   // Wizard step + draft are persisted so the user can come back to their
@@ -202,15 +201,22 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
   const arch = ARCHETYPES.find(a => a.key === draft.archetypeKey) ?? ARCHETYPES[0];
   const srcTpl = CHARACTER_TEMPLATES[arch.source];
   const race = races.find(r => r.name === draft.species);
+  // Species in imported v1 packs can still grant old native-only ids. Resolve
+  // them through the registry's fallback lookups without exposing duplicate
+  // definitions in the shared catalogue.
+  const { skills: skillDefs, talents: talentDefs } = resolveNativeRaceGrants(content, race);
 
   // Species eligibility: each archetype maps to a career whose `species` list
   // says who may take it. Halflings can't be Wizards, Runesmith is Dwarf-only, etc.
   const raceName = (id: string) => races.find(r => r.id === id)?.name ?? id;
-  const allowedRaceIds = careers.find(c => c.id === arch.careerId)?.species ?? [];
-  const comboOk = !race || allowedRaceIds.length === 0 || allowedRaceIds.includes(race.id);
+  const selectedCareer = resolveNativeCreationCareer(careers, arch.careerId);
+  const careerAvailable = isNativeCreationCareerAvailable(selectedCareer);
+  const allowedRaceIds = selectedCareer?.species ?? [];
+  const comboOk = careerAvailable && (!race || allowedRaceIds.length === 0 || allowedRaceIds.includes(race.id));
 
   // Preview the would-be character so the Review step shows live values.
-  const preview = buildCharacter(draft, 'preview', race, skillDefs, talentDefs, content.allSpells, content.allPrayers);
+  const templateSpells = content.resolveSpells(srcTpl.knownSpells ?? []);
+  const preview = buildCharacter(draft, 'preview', race, skillDefs, talentDefs, templateSpells, content.allPrayers);
 
   const canProceed = (() => {
     if (step === 0) return draft.name.trim().length > 0;
@@ -229,6 +235,10 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
       Alert.alert('Roll your stats', 'Tap "Reroll" on the Stats step before finishing.');
       return;
     }
+    if (!careerAvailable) {
+      Alert.alert('Career unavailable', 'This career is reference-only or is missing from the loaded catalogue. Choose another archetype.');
+      return;
+    }
     if (!comboOk) {
       Alert.alert(
         'Invalid combination',
@@ -238,7 +248,7 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
       return;
     }
     const id = nextId();
-    const c = buildCharacter(draft, id, race, skillDefs, talentDefs, content.allSpells, content.allPrayers);
+    const c = buildCharacter(draft, id, race, skillDefs, talentDefs, templateSpells, content.allPrayers);
     savingRef.current = true;
     setSaving(true);
     const result = await (async () => {
@@ -369,9 +379,9 @@ export const NewCharScreen: React.FC<Props> = ({ onNav }) => {
           ) : null}
 
           <View style={styles.archGrid}>
-            {ARCHETYPES.map(a => {
+            {ARCHETYPES.filter(a => isNativeCreationCareerAvailable(resolveNativeCreationCareer(careers, a.careerId))).map(a => {
               const on = draft.archetypeKey === a.key;
-              const allowed = careers.find(c => c.id === a.careerId)?.species ?? [];
+              const allowed = resolveNativeCreationCareer(careers, a.careerId)?.species ?? [];
               const fits = !race || allowed.length === 0 || allowed.includes(race.id);
               return (
                 <Pressable
