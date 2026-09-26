@@ -18,6 +18,9 @@ export default defineConfig({
     },
   },
   server: {
+    proxy: {
+      '/api': 'http://127.0.0.1:3001',
+    },
     fs: {
       allow: [searchForWorkspaceRoot(webRoot), coreRoot],
     },
@@ -26,6 +29,11 @@ export default defineConfig({
   // plain Node environment (no DOM needed — these modules never touch the
   // browser). Component tests can opt into jsdom later per-file.
   test: {
+    // Native component tests provide their own vi.mock host implementations.
+    // Resolve the module without requiring the separate Expo dependencies.
+    alias: {
+      'react-native': fileURLToPath(new URL('./src/test/nativeHost.ts', import.meta.url)),
+    },
     environment: 'node',
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     testTimeout: 5_000,

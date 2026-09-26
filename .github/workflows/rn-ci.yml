@@ -28,6 +28,7 @@ on:
       - 'web/src/storage/native*.test.ts'
       - 'web/src/utils/nativeRoll.test.ts'
       - 'web/src/components/nativeControls.test.ts'
+      - 'web/src/account/native*.test.*'
       - '.github/workflows/rn-ci.yml'
   pull_request:
     paths:
@@ -50,6 +51,7 @@ on:
       - 'web/src/storage/native*.test.ts'
       - 'web/src/utils/nativeRoll.test.ts'
       - 'web/src/components/nativeControls.test.ts'
+      - 'web/src/account/native*.test.*'
       - '.github/workflows/rn-ci.yml'
 
 jobs:

@@ -1,3 +1,10 @@
-# Excluded from EAS cloud builds. Inherits from .gitignore plus these.
+# Excluded from EAS cloud builds, including local account data and configuration.
 .DS_Store
 /_check
+/server/
+.env
+.env.local
+.env.*
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

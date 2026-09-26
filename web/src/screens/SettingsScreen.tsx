@@ -25,6 +25,7 @@ import {
 } from '@/utils/settingsExport';
 import { Alert } from '@/ui/alertStore';
 import { colors } from '@/theme';
+import { AccountPanel } from '@/account/AccountPanel';
 import './SettingsScreen.css';
 
 /** Bound memory use before File.text() with the shared portable-backup cap. */
@@ -290,8 +291,10 @@ export const SettingsScreen: React.FC = () => {
     <ScreenContainer>
       <Hero
         title="Settings"
-        subRow={<span className="set-sub">All data is stored on this device. Rulebook data is available offline.</span>}
+        subRow={<span className="set-sub">Characters save on this device. Rulebook data is available offline.</span>}
       />
+
+      <AccountPanel />
 
       {/* hidden file inputs driven by the buttons below */}
       <input

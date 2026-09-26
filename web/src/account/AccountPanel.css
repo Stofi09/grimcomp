@@ -1,0 +1,52 @@
+.account-panel {
+  margin-top: 20px;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+
+.account-copy {
+  margin: 0;
+  color: var(--ink3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.account-panel .gc-card-body { gap: 14px; }
+.account-modes { display: flex; gap: 6px; flex-wrap: wrap; }
+.account-form { display: grid; gap: 12px; max-width: 420px; }
+.account-form label { display: grid; gap: 6px; font-weight: 600; }
+.account-form input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 1px solid var(--borderSoft);
+  border-radius: 4px;
+  padding: 10px 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+}
+.account-form input:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.account-form input:disabled { opacity: 0.65; }
+.account-form > button { justify-self: start; }
+.account-error { color: var(--empireDeep); font-size: 12px; line-height: 1.6; }
+.account-error p { margin: 0; }
+.account-notice { margin: 0; color: var(--ink2); font-size: 12px; line-height: 1.6; }
+.account-identity, .account-backup-heading, .account-backups li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.account-identity > div, .account-backups li > div { display: grid; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.account-backup-heading { padding-top: 14px; border-top: 1px solid var(--divider); }
+.account-backup-heading > div { flex: 1; min-width: 180px; }
+.account-backup-heading h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+.account-backups { list-style: none; padding: 0; margin: 0; }
+.account-backups li { border-top: 1px solid var(--divider); padding: 10px 0; }
+.account-backups li:last-child { padding-bottom: 0; }
+.account-backups time { font-size: 12px; }

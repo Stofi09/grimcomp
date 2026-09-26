@@ -9,6 +9,12 @@ android/
 *.log
 .env
 .env.local
+.env.*
+!.env.example
+server/data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
 .idea/
 .vscode/
 .claude/

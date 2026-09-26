@@ -25,6 +25,7 @@ import {
 } from '@/storage/nativeImportLimits';
 import { useNativeStorageStatus } from '@/storage/useNativeStorage';
 import { colors, fontFamilies } from '@/theme';
+import { AccountPanel } from '@/account/AccountPanel';
 
 interface RowProps {
   title: string;
@@ -232,8 +233,10 @@ export const SettingsScreen: React.FC = () => {
     <ScreenContainer>
       <Hero
         title="Settings"
-        subRow={<Text style={styles.sub}>All data is stored on this device. Rulebook data is available offline.</Text>}
+        subRow={<Text style={styles.sub}>Characters save on this device. Rulebook data is available offline.</Text>}
       />
+
+      <AccountPanel />
 
       <Card flush style={{ marginTop: 20 }}>
         {/* XP rule toggle — actually used by useXp.spend */}
