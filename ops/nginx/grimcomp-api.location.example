@@ -1,0 +1,25 @@
+# Replace the /api/ 503 location in grimcomp-https.conf.example with this block
+# only after API health, account smoke, SQLite backup and recovery verification.
+location ^~ /api/ {
+    proxy_pass http://127.0.0.1:3030;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    # Overwrite incoming spoofed chains; nginx is the sole trusted local hop.
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Connection "";
+    # A 960 KiB snapshot is nested inside JSON and can grow through escaping.
+    # The application enforces its exact snapshot and request-body bounds.
+    client_max_body_size 2m;
+    client_body_timeout 30s;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 30s;
+    proxy_send_timeout 30s;
+    proxy_no_cache 1;
+    proxy_cache_bypass 1;
+    add_header Cache-Control "no-store" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header X-Frame-Options DENY always;
+}

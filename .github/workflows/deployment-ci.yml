@@ -1,0 +1,40 @@
+name: deployment-artifacts
+
+on:
+  push:
+    paths: ['ops/**', 'web/**', 'server/**', 'src/**', 'packages/core/**', 'package.json', 'pnpm-lock.yaml', '.github/workflows/deployment-ci.yml']
+  pull_request:
+    paths: ['ops/**', 'web/**', 'server/**', 'src/**', 'packages/core/**', 'package.json', 'pnpm-lock.yaml', '.github/workflows/deployment-ci.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-rehearse:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            web/pnpm-lock.yaml
+      - name: Build, validate and package; no deployment
+        shell: bash
+        run: |
+          mkdir "$RUNNER_TEMP/grimcomp-artifacts"
+          bash -n ops/build-release.sh
+          bash ops/build-release.sh "$(git rev-parse HEAD)" "$RUNNER_TEMP/grimcomp-artifacts"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grimcomp-${{ github.sha }}
+          path: ${{ runner.temp }}/grimcomp-artifacts/
+          if-no-files-found: error
+          retention-days: 14

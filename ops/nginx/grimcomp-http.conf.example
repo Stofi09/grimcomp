@@ -1,0 +1,16 @@
+# Install only this server block into the existing nginx configuration.
+# Bootstrap ACME webroot before installing the TLS block. No global directives.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name grimcomp.solak.hu;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/lib/letsencrypt;
+        default_type text/plain;
+        try_files $uri =404;
+    }
+    location / {
+        return 308 https://grimcomp.solak.hu$request_uri;
+    }
+}

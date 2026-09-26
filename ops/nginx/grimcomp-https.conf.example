@@ -1,0 +1,53 @@
+# Requires an existing certificate obtained through the shared ACME webroot.
+# Pair with grimcomp-http.conf.example. No default_server, upstream, map or
+# shared rate-limit zones. Validate the full host config before a graceful reload.
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name grimcomp.solak.hu;
+    ssl_certificate /etc/letsencrypt/live/grimcomp.solak.hu/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/grimcomp.solak.hu/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    root /srv/grimcomp/current;
+    index index.html;
+    autoindex off;
+    access_log /var/log/nginx/grimcomp.access.log combined;
+    error_log /var/log/nginx/grimcomp.error.log warn;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header X-Frame-Options DENY always;
+
+    # Fingerprinted assets from past releases survive current-pointer switches.
+    location ^~ /assets/ {
+        alias /srv/grimcomp/assets/;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        add_header X-Frame-Options DENY always;
+    }
+    location ^~ /content/ {
+        try_files $uri =404;
+        add_header Cache-Control "no-cache" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        add_header X-Frame-Options DENY always;
+    }
+
+    # Optional accounts. Until the separately staged API is verified and backed
+    # up, keep this controlled 503. Replace this location with the API snippet
+    # when its service and /api/health pass; never fall back to index.html.
+    location ^~ /api/ {
+        default_type application/json;
+        add_header Cache-Control "no-store" always;
+        return 503 '{"error":"Account service is not enabled on this deployment."}';
+    }
+    location ~ /\. { return 404; }
+    location / {
+        try_files $uri $uri/ =404;
+        add_header Cache-Control "no-cache" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        add_header X-Frame-Options DENY always;
+    }
+}

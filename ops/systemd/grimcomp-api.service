@@ -1,0 +1,46 @@
+[Unit]
+Description=Grim Companion optional account API
+After=network.target
+RequiresMountsFor=/srv/grimcomp-api /var/lib/grimcomp
+
+[Service]
+Type=simple
+User=grimcomp
+Group=grimcomp
+WorkingDirectory=/srv/grimcomp-api/current
+EnvironmentFile=/etc/grimcomp/api.env
+ExecStart=/opt/grimcomp/node/bin/node /srv/grimcomp-api/current/server/index.mjs
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+StateDirectory=grimcomp
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET
+ReadWritePaths=/var/lib/grimcomp
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/32
+MemoryMax=512M
+MemorySwapMax=0
+CPUQuota=100%
+CPUWeight=20
+IOWeight=20
+TasksMax=64
+LimitCORE=0
+
+[Install]
+WantedBy=multi-user.target
