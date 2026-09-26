@@ -49,7 +49,22 @@
   font-family: var(--font-mono);
   letter-spacing: 0.6px;
   text-transform: uppercase;
-  flex-shrink: 0;
+  min-width: 0;
+  text-align: right;
+}
+
+/* On phones a long aside takes its own line under the title instead of
+   running off the edge of the screen. */
+@media (max-width: 600px) {
+  .gc-section {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .gc-section-aside {
+    flex-basis: 100%;
+    text-align: left;
+  }
 }
 
 /* Eyebrow — brass caps label with ticks either side. */

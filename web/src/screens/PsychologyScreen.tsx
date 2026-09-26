@@ -33,7 +33,7 @@ export const PsychologyScreen: React.FC = () => {
       />
 
       <div className="psy-row">
-        <Card style={{ flex: 1, minWidth: 280 }}>
+        <Card style={{ flex: 1, minWidth: 'min(280px, 100%)' }}>
           <span className="psy-label">Motivation</span>
           <span className="psy-title">{c.motivation || '—'}</span>
           <span className="psy-body">Acting on your Motivation refreshes Resolve to its maximum.</span>
@@ -42,7 +42,7 @@ export const PsychologyScreen: React.FC = () => {
             <span className="psy-meta-mono">Resolve {vitals.resolve}/{vitals.resilience}</span>
           </div>
         </Card>
-        <Card style={{ flex: 1, minWidth: 280 }}>
+        <Card style={{ flex: 1, minWidth: 'min(280px, 100%)' }}>
           <span className="psy-label">Psychological traits</span>
           <div className="psy-chips">
             {c.psychology.map((p, i) => (
@@ -53,14 +53,14 @@ export const PsychologyScreen: React.FC = () => {
       </div>
 
       <div className="psy-row" style={{ marginTop: 12 }}>
-        <Card style={{ flex: 1, minWidth: 280 }}>
+        <Card style={{ flex: 1, minWidth: 'min(280px, 100%)' }}>
           <span className="psy-label">Short-term ambition</span>
           <span className="psy-title">{c.ambitionsShort}</span>
           <div className="psy-pill-row">
             <Pill variant="brass" size={10}>complete = 100 XP</Pill>
           </div>
         </Card>
-        <Card style={{ flex: 1, minWidth: 280 }}>
+        <Card style={{ flex: 1, minWidth: 'min(280px, 100%)' }}>
           <span className="psy-label">Long-term ambition</span>
           <span className="psy-title">{c.ambitionsLong}</span>
           <div className="psy-pill-row">
@@ -73,7 +73,7 @@ export const PsychologyScreen: React.FC = () => {
         <>
           <Section title="Corruption & Mutation" />
           <div className="psy-row">
-            <Card style={{ flex: 1, minWidth: 280 }}>
+            <Card style={{ flex: 1, minWidth: 'min(280px, 100%)' }}>
               <div className="psy-row-between">
                 <span className="psy-label">Corruption points</span>
                 <span className="psy-meta-mono">threshold {corrThresh} · TB+WPB</span>
@@ -92,7 +92,7 @@ export const PsychologyScreen: React.FC = () => {
                 <Stepper value={vitals.corruption} min={0} max={99} onChange={vitals.setCorruption} />
               </div>
             </Card>
-            <Card style={{ flex: 1, minWidth: 280 }}>
+            <Card style={{ flex: 1, minWidth: 'min(280px, 100%)' }}>
               <span className="psy-label">Mutations</span>
               {c.mutations.length === 0 ? (
                 <span className="psy-body psy-clean">— clean —</span>

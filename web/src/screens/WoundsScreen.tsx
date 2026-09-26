@@ -370,7 +370,7 @@ export const WoundsScreen: React.FC = () => {
       />
 
       <div className="wnd-row">
-        <Card style={{ flex: 2, minWidth: 360 }}>
+        <Card style={{ flex: 2, minWidth: 'min(360px, 100%)' }}>
           <div className="wnd-row-between">
             <span className="wnd-label">Current wounds</span>
             <span className="wnd-meta-mono">{woundsLabel}</span>
@@ -388,7 +388,7 @@ export const WoundsScreen: React.FC = () => {
           </div>
         </Card>
 
-        <Card style={{ flex: 1, minWidth: 240 }}>
+        <Card style={{ flex: 1, minWidth: 'min(240px, 100%)' }}>
           <span className="wnd-label">Quick actions</span>
           <div className="wnd-actions">
             <Button

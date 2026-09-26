@@ -36,12 +36,14 @@
   box-sizing: border-box;
 }
 
+/* padding-right keeps the name clear of the absolutely-placed bonus roundel. */
 .gc-stat-top {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
+  padding-right: 26px;
 }
 
 .gc-stat-key {
@@ -56,6 +58,7 @@
   letter-spacing: 1.4px;
   text-transform: uppercase;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .gc-stat-name {
@@ -63,6 +66,7 @@
   font-size: 14.5px;
   color: var(--ink2);
   flex: 1;
+  min-width: 0;
 }
 
 .gc-stat-num {

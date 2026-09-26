@@ -57,3 +57,12 @@
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
+
+/* Small phones: 14px side padding on every cell costs a 4-column table more
+   than 100px of a ~300px row. */
+@media (max-width: 400px) {
+  .tbl-cell {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}

@@ -14,25 +14,35 @@
   color: var(--ink4);
 }
 
-/* statsGrid: { flexDirection: 'row', flexWrap: 'wrap',
-   marginHorizontal: -6, marginBottom: -12 } */
-.chr-stats-grid {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  margin-left: -6px;
-  margin-right: -6px;
-  margin-bottom: -12px;
+/* The profile grid sizes itself by its own width, not the viewport: the tablet
+   rail takes 268px, so the same viewport can leave very different room. Each
+   cell needs ~130px for its 124px buy stepper, so 5 columns need ~700px;
+   narrower grids drop to 3 and then 2 columns instead of crushing the stepper. */
+.chr-stats-wrap {
+  container-type: inline-size;
 }
 
-/* statCell: { width: '20%', paddingHorizontal: 6, paddingBottom: 12 } —
-   now a container holding the tappable Stat plus a buy/undo stepper. */
+.chr-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@container (max-width: 699px) {
+  .chr-stats-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 419px) {
+  .chr-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* A grid cell holding the tappable Stat plus a buy/undo stepper. */
 .chr-stat-cell {
-  width: 20%;
-  padding-left: 6px;
-  padding-right: 6px;
-  padding-bottom: 12px;
-  box-sizing: border-box;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
@@ -54,8 +64,9 @@
 .chr-stat-buy {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   margin-top: 8px;
 }
 
@@ -191,4 +202,12 @@
   flex-direction: row;
   margin-top: 14px;
   gap: 8px;
+}
+
+/* On phones the hero dots would dangle at wrapped line ends; the row gap already
+   separates the items. */
+@media (max-width: 600px) {
+  .chr-sep {
+    display: none;
+  }
 }

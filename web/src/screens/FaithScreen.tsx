@@ -139,7 +139,7 @@ export const FaithScreen: React.FC = () => {
         />
 
         <div className="fth-row">
-          <Card style={{ flex: 1, minWidth: 280 }}>
+          <Card style={{ flex: 1, minWidth: 'min(280px, 100%)' }}>
             <span className="fth-label">Sin</span>
             <span className="fth-big-corr">{sin}</span>
             <span className="fth-body">
@@ -162,7 +162,7 @@ export const FaithScreen: React.FC = () => {
             </div>
           </Card>
 
-          <Card style={{ flex: 1, minWidth: 280 }}>
+          <Card style={{ flex: 1, minWidth: 'min(280px, 100%)' }}>
             <span className="fth-label">Deity</span>
             <span className="fth-deity">{deityLine}</span>
             <span className="fth-body">{dogma}</span>
@@ -208,7 +208,7 @@ export const FaithScreen: React.FC = () => {
       />
 
       <div className="fth-row">
-        <Card style={{ flex: 1, minWidth: 280 }}>
+        <Card style={{ flex: 1, minWidth: 'min(280px, 100%)' }}>
           <span className="fth-label">Sin</span>
           <span className="fth-big-corr" style={sin >= 3 ? { color: colors.empire } : undefined}>{sin}</span>
           <span className="fth-body">
@@ -233,7 +233,7 @@ export const FaithScreen: React.FC = () => {
           </div>
         </Card>
 
-        <Card style={{ flex: 1, minWidth: 280 }}>
+        <Card style={{ flex: 1, minWidth: 'min(280px, 100%)' }}>
           <span className="fth-label">Deity</span>
           <span className="fth-deity">{deityLine}</span>
           <span className="fth-body">{deityDogma}</span>

@@ -15,6 +15,10 @@ import { Alert } from '@/ui/alertStore';
 import { colors } from '@/theme';
 import './XpScreen.css';
 
+// A 170px basis lets the three counters wrap on phones instead of clipping
+// their big numbers (a 0 basis never wraps).
+const COUNTER_STYLE = { flex: '1 1 170px' } as const;
+
 const KIND_VARIANT: Record<XpKind, PillVariant> = {
   gain: 'success',
   career: 'empire',
@@ -87,9 +91,9 @@ export const XpScreen: React.FC = () => {
       />
 
       <div className="xp-row">
-        <Counter label="Spendable" sub="now" value={xp.current} variant="fate" style={{ flex: 1 }} />
-        <Counter label="Spent" sub="lifetime" value={xp.spent} style={{ flex: 1 }} />
-        <Counter label="Total earned" sub="play time" value={xp.total} style={{ flex: 1 }} />
+        <Counter label="Spendable" sub="now" value={xp.current} variant="fate" style={COUNTER_STYLE} />
+        <Counter label="Spent" sub="lifetime" value={xp.spent} style={COUNTER_STYLE} />
+        <Counter label="Total earned" sub="play time" value={xp.total} style={COUNTER_STYLE} />
       </div>
 
       <Section title="Log" aside="newest first" />

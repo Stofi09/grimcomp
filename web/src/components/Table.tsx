@@ -55,15 +55,18 @@ interface CellProps {
   style?: React.CSSProperties | null;
   textStyle?: React.CSSProperties | null;
   align?: 'left' | 'right' | 'center';
+  /** Extra class for screen-specific responsive rules (e.g. hiding a column). */
+  className?: string;
 }
 
-export const Cell: React.FC<CellProps> = ({ children, flex, width, num, header, style, textStyle, align }) => {
+export const Cell: React.FC<CellProps> = ({ children, flex, width, num, header, style, textStyle, align, className: extraClass }) => {
   const alignment: React.CSSProperties['alignItems'] =
     align === 'right' ? 'flex-end' : align === 'center' ? 'center' : 'flex-start';
   const className = [
     'tbl-cell',
     header ? 'tbl-cell-header' : null,
     num ? 'tbl-cell-num' : null,
+    extraClass ?? null,
   ]
     .filter(Boolean)
     .join(' ');

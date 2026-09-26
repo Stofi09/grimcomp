@@ -197,3 +197,58 @@
     gap: 3px;
   }
 }
+
+/* Responsive skill tables. The tables size themselves by their own width, not
+   the viewport: the tablet rail takes 268px, so the same viewport can leave very
+   different room. Below ~620px the six columns cannot hold the 124px stepper, so
+   the characteristic moves next to the name, Adv. is read from the stepper, and
+   the Buy cell takes its own line. `!important` beats the Cell's inline flex. */
+.skl-table {
+  container-type: inline-size;
+}
+
+.skl-name-char {
+  display: none;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink3);
+}
+
+@container (max-width: 619px) {
+  .skl-table .tbl-row {
+    flex-wrap: wrap;
+  }
+
+  .skl-table .tbl-cell {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .skl-table .skl-col-char,
+  .skl-table .skl-col-adv,
+  .skl-table .tbl-row-header .skl-col-buy {
+    display: none;
+  }
+
+  .skl-table .skl-name-char {
+    display: inline;
+  }
+
+  .skl-table .skl-col-actions {
+    flex: 0 0 auto !important;
+  }
+
+  .skl-table .skl-col-buy {
+    flex: 1 0 100% !important;
+    order: 1;
+    padding-top: 0;
+  }
+}
+
+/* On phones the hero dots would dangle at wrapped line ends; the row gap already
+   separates the items. */
+@media (max-width: 600px) {
+  .skl-sep {
+    display: none;
+  }
+}

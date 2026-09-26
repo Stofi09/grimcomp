@@ -403,23 +403,29 @@ export const SkillsScreen: React.FC = () => {
         <>
           <Section title="Basic skills (untrained)" aside="any character may attempt these at the raw characteristic" />
           <Card flush>
+            <div className="skl-table">
             <Table>
               <TableRow header>
                 <Cell header flex={2.4}>Name</Cell>
-                <Cell header flex={0.5}>Char.</Cell>
+                <Cell header flex={0.5} className="skl-col-char">Char.</Cell>
                 <Cell header num flex={0.6}>Total</Cell>
-                <Cell header flex={0.4}> </Cell>
+                <Cell header flex={0.4} className="skl-col-actions"> </Cell>
               </TableRow>
               {untrainedBasics.map((d, i) => (
                 <TableRow key={d.id} last={i === untrainedBasics.length - 1}>
-                  <Cell flex={2.4}><span className="skl-name">{d.name}</span></Cell>
-                  <Cell flex={0.5} textStyle={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: colors.ink3 }}>
+                  <Cell flex={2.4}>
+                    <div className="skl-name-row">
+                      <span className="skl-name">{d.name}</span>
+                      <span className="skl-name-char">{charLabel[d.char] ?? d.char}</span>
+                    </div>
+                  </Cell>
+                  <Cell flex={0.5} className="skl-col-char" textStyle={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: colors.ink3 }}>
                     {charLabel[d.char] ?? d.char}
                   </Cell>
                   <Cell num flex={0.6} textStyle={{ fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: 13 }}>
                     {charBase[d.char] ?? 0}
                   </Cell>
-                  <Cell flex={0.4} align="right">
+                  <Cell flex={0.4} align="right" className="skl-col-actions">
                     <Button
                       variant="ghost"
                       ariaLabel={`Test ${d.name}`}
@@ -430,6 +436,7 @@ export const SkillsScreen: React.FC = () => {
                 </TableRow>
               ))}
             </Table>
+            </div>
           </Card>
         </>
       ) : null}
@@ -615,14 +622,15 @@ const SkillTable: React.FC<SkillTableProps> = ({
   const recordTest = useRecordTest();
   return (
   <Card flush>
+    <div className="skl-table">
     <Table>
       <TableRow header>
         <Cell header flex={2.4}>Name</Cell>
-        <Cell header flex={0.5}>Char.</Cell>
-        <Cell header num flex={0.5}>Adv.</Cell>
+        <Cell header flex={0.5} className="skl-col-char">Char.</Cell>
+        <Cell header num flex={0.5} className="skl-col-adv">Adv.</Cell>
         <Cell header num flex={0.6}>Total</Cell>
-        <Cell header flex={2}>Buy</Cell>
-        <Cell header flex={0.4}> </Cell>
+        <Cell header flex={2} className="skl-col-buy">Buy</Cell>
+        <Cell header flex={0.4} className="skl-col-actions"> </Cell>
       </TableRow>
       {skills.map((s, i) => {
         const adv = advances[s.name] ?? s.adv;
@@ -640,6 +648,7 @@ const SkillTable: React.FC<SkillTableProps> = ({
               <div className="skl-name-stack">
                 <div className="skl-name-row">
                   <span className="skl-name">{s.name}</span>
+                  <span className="skl-name-char">{charLabel[s.char]}</span>
                   {s.advanced ? <Pill variant="brass" size={9.5}>advanced</Pill> : null}
                 </div>
                 {referenceMeta ? <span className="skl-row-reference">{referenceMeta}</span> : null}
@@ -648,16 +657,16 @@ const SkillTable: React.FC<SkillTableProps> = ({
                 ) : null}
               </div>
             </Cell>
-            <Cell flex={0.5} textStyle={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: colors.ink3 }}>
+            <Cell flex={0.5} className="skl-col-char" textStyle={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: colors.ink3 }}>
               {charLabel[s.char]}
             </Cell>
-            <Cell num flex={0.5} textStyle={{ color: colors.brass, fontFamily: 'var(--font-body)', fontWeight: 600 }}>
+            <Cell num flex={0.5} className="skl-col-adv" textStyle={{ color: colors.brass, fontFamily: 'var(--font-body)', fontWeight: 600 }}>
               +{adv}
             </Cell>
             <Cell num flex={0.6} textStyle={{ fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: 13 }}>
               {tot}
             </Cell>
-            <Cell flex={2}>
+            <Cell flex={2} className="skl-col-buy">
               <div className="skl-purchase-cell">
                 <Stepper
                   value={adv}
@@ -671,7 +680,7 @@ const SkillTable: React.FC<SkillTableProps> = ({
                 <span className="skl-cost">{nextCost} XP next</span>
               </div>
             </Cell>
-            <Cell flex={0.4} align="right">
+            <Cell flex={0.4} align="right" className="skl-col-actions">
               <div className="skl-row-actions">
                 <Button
                   variant="ghost"
@@ -710,6 +719,7 @@ const SkillTable: React.FC<SkillTableProps> = ({
         );
       })}
     </Table>
+    </div>
   </Card>
   );
 };

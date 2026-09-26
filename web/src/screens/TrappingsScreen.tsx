@@ -23,6 +23,10 @@ import { TextField, NumberField } from '@/components/Fields';
 import { colors } from '@/theme';
 import './TrappingsScreen.css';
 
+// A 180px basis lets the three summary cards wrap on phones instead of
+// squeezing each to a third of the width (a 0 basis never wraps).
+const SUMMARY_ITEM = { flex: '1 1 180px' } as const;
+
 const blankTrapping = (): Trapping => ({ name: '', enc: 0 });
 
 export const TrappingsScreen: React.FC = () => {
@@ -220,7 +224,7 @@ export const TrappingsScreen: React.FC = () => {
               <span className="trp-enc-frac">/{maxEnc}</span>
             </span>
           }
-          style={{ flex: 1 }}
+          style={SUMMARY_ITEM}
         />
         <Counter
           label="Wealth"
@@ -235,9 +239,9 @@ export const TrappingsScreen: React.FC = () => {
               ))}
             </span>
           }
-          style={{ flex: 1 }}
+          style={SUMMARY_ITEM}
         />
-        <Card style={{ flex: 1 }}>
+        <Card style={SUMMARY_ITEM}>
           <span className="trp-label">Encumbrance breakdown</span>
           <div className="trp-breakdown">
             <div className="trp-row-between"><span className="trp-muted">Weapons</span><span className="trp-mono">{encW}</span></div>

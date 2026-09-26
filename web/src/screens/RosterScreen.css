@@ -16,12 +16,13 @@
   gap: 12px;
 }
 
-/* cellWrap: { flexBasis: '48%', flexGrow: 1, minWidth: 320 } */
+/* cellWrap: { flexBasis: '48%', flexGrow: 1, minWidth: 320 } — capped at the
+   container width so a 320px phone doesn't overflow. */
 .rost-cell-wrap {
   display: flex;
   flex-basis: 48%;
   flex-grow: 1;
-  min-width: 320px;
+  min-width: min(320px, 100%);
 }
 
 /* The whole card is the switch button; it fills its wrapper. */

@@ -421,7 +421,7 @@ export const TalentsScreen: React.FC = () => {
           return (
             <Card
               key={`${talent.definitionId ?? 'legacy'}:${talent.specialization ?? ''}:${talent.name}:${index}`}
-              style={{ flexBasis: '48%', flexGrow: 1, minWidth: 280 }}
+              style={{ flexBasis: '48%', flexGrow: 1, minWidth: 'min(280px, 100%)' }}
             >
               <div className="tal-row" style={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div style={{ flex: 1 }}>

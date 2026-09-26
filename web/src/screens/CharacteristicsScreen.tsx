@@ -195,6 +195,7 @@ export const CharacteristicsScreen: React.FC = () => {
 
       <Section title="Profile" />
 
+      <div className="chr-stats-wrap">
       <div className="chr-stats-grid">
         {list.map(x => (
           <div key={x.key} className="chr-stat-cell">
@@ -222,11 +223,12 @@ export const CharacteristicsScreen: React.FC = () => {
           </div>
         ))}
       </div>
+      </div>
 
       <Section title="Buy advances" aside={`per advance · one purchase = +${buyStep}`} />
 
       <div className="chr-purchase-row">
-        <Card flush style={{ flex: 1, minWidth: 320 }}>
+        <Card flush style={{ flex: 1, minWidth: 'min(320px, 100%)' }}>
           <CardHead title="Cost bands" meta="per advance · xp" />
           <Table>
             <TableRow header>
@@ -251,7 +253,7 @@ export const CharacteristicsScreen: React.FC = () => {
           </Table>
         </Card>
 
-        <Card bordered style={{ flex: 1.1, minWidth: 320 }}>
+        <Card bordered style={{ flex: 1.1, minWidth: 'min(320px, 100%)' }}>
           <div className="chr-suggest-eyebrow-wrap">
             <span className="chr-eyebrow">Suggested purchase</span>
           </div>

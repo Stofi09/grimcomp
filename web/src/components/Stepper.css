@@ -1,7 +1,10 @@
 /* Stepper — [−] value [+] control. */
+/* Never shrink below the 44px touch targets: a squeezed flex parent used to
+   collapse the whole control to a few pixels. Parents must make room instead. */
 .gc-stepper {
   display: inline-flex;
   flex-direction: row;
+  flex-shrink: 0;
   align-items: stretch;
   border: 1px solid var(--borderStrong);
   background-color: var(--surface);
@@ -14,6 +17,7 @@
 .gc-stepper-btn {
   width: 44px;
   height: 44px;
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;

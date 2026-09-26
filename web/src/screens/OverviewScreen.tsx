@@ -25,6 +25,10 @@ import { colors } from '@/theme';
 import { Alert } from '@/ui/alertStore';
 import './OverviewScreen.css';
 
+// A 240px basis lets Movement and Experience stack on phones instead of
+// clipping their contents (a 0 basis never wraps).
+const TWO_COL_CARD = { flex: '1 1 240px' } as const;
+
 interface IdentDraft {
   name: string;
   age: number;
@@ -86,14 +90,14 @@ export const OverviewScreen: React.FC = () => {
   // Identity sub-row. Freshly-created characters have no age/height/looks/
   // motivation yet (the wizard doesn't collect them), so build the row from
   // only the fields that carry a value and interleave separators — otherwise
-  // it reads "age 0 · · hair,  eyes · """.
+  // it reads "age 0 · · hair,  eyes · """. The motivation always takes its own
+  // line, so it gets no separator (one would dangle at the end of the line).
   const looks = [c.hair && `${c.hair} hair`, c.eyes && `${c.eyes} eyes`]
     .filter(Boolean).join(', ');
   const identityParts: React.ReactNode[] = [
     <span key="who" className="ovw-sub-text">{c.species}{c.age > 0 ? `, age ${c.age}` : ''}</span>,
     c.height ? <span key="height" className="ovw-sub-text">{c.height}</span> : null,
     looks ? <span key="looks" className="ovw-sub-text">{looks}</span> : null,
-    c.motivation ? <span key="mot" className="ovw-sub-text ovw-sub-motivation">"{c.motivation}"</span> : null,
   ].filter(Boolean);
 
   return (
@@ -117,6 +121,7 @@ export const OverviewScreen: React.FC = () => {
                 {part}
               </Fragment>
             ))}
+            {c.motivation ? <span className="ovw-sub-text ovw-sub-motivation">"{c.motivation}"</span> : null}
           </>
         }
         actions={
@@ -141,7 +146,7 @@ export const OverviewScreen: React.FC = () => {
       <Section title="Vitals" />
 
       <div className="ovw-vitals-grid">
-        <Card bordered style={{ flexGrow: 1, minWidth: 280, flexBasis: '40%' }}>
+        <Card bordered style={{ flexGrow: 1, minWidth: 'min(280px, 100%)', flexBasis: '40%' }}>
           <div className="ovw-row-between">
             <div>
               <span className="ovw-label ovw-label--empire">Wounds</span>
@@ -158,7 +163,7 @@ export const OverviewScreen: React.FC = () => {
           </div>
         </Card>
 
-        <Card style={{ flexGrow: 1, minWidth: 280, flexBasis: '28%' }}>
+        <Card style={{ flexGrow: 1, minWidth: 'min(280px, 100%)', flexBasis: '28%' }}>
           <div className="ovw-row-between">
             <span className="ovw-label ovw-label--brass">Fate &amp; Fortune</span>
             <button type="button" className="btn-reset ovw-refresh-link" onClick={vitals.refreshFortune}>
@@ -182,7 +187,7 @@ export const OverviewScreen: React.FC = () => {
           </div>
         </Card>
 
-        <Card style={{ flexGrow: 1, minWidth: 280, flexBasis: '28%' }}>
+        <Card style={{ flexGrow: 1, minWidth: 'min(280px, 100%)', flexBasis: '28%' }}>
           <div className="ovw-row-between">
             <span className="ovw-label">Soul</span>
             <button type="button" className="btn-reset ovw-refresh-link" onClick={vitals.refreshResolve}>
@@ -215,7 +220,7 @@ export const OverviewScreen: React.FC = () => {
       </div>
 
       <div className="ovw-two-col ovw-mt12">
-        <Card tight style={{ flex: 1 }}>
+        <Card tight style={TWO_COL_CARD}>
           <div className="ovw-row-between">
             <span className="ovw-label">Movement</span>
             <span className="ovw-meta-mono ovw-meta-mono--10">M {c.movement}</span>
@@ -239,7 +244,7 @@ export const OverviewScreen: React.FC = () => {
           </div>
         </Card>
 
-        <Card tight style={{ flex: 1 }}>
+        <Card tight style={TWO_COL_CARD}>
           <div className="ovw-row-between">
             <span className="ovw-label">Experience</span>
             <span className="ovw-meta-mono ovw-meta-mono--10">{xpTotal} TOTAL</span>

@@ -16,6 +16,7 @@
 
 /* the motivation sub-line: italic + ink3 (numberOfLines={2} in RN) */
 .ovw-sub-motivation {
+  flex-basis: 100%;
   font-style: italic;
   color: var(--ink3);
   display: -webkit-box;
@@ -329,4 +330,12 @@
   color: var(--ink3);
   font-family: var(--font-body);
   display: block;
+}
+
+/* On phones the hero dots would dangle at wrapped line ends; the row gap already
+   separates the items. */
+@media (max-width: 600px) {
+  .ovw-sub-sep {
+    display: none;
+  }
 }
