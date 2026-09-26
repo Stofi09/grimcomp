@@ -6,6 +6,12 @@ Sample character: **Sigmund Braun** — Human Roadwarden, rank 2.
 
 > **Web version:** there is also a browser build under [`web/`](web/) — a plain React + Vite static site that shares the parchment design and main character-companion workflows while adding a content editor and a more extensively configurable rules runtime. It runs fully offline (`localStorage`) and deploys as static files. See [`web/README.md`](web/README.md) for content authoring, configuration, tests, and deployment.
 
+The native and web apps share the bundled content catalogue under `web/public/content`. Reference search includes the Core and Winds of Magic indexes, summaries, and tables, with source/status labels where provided. These packs do **not** yet contain the complete sourcebooks. Run `pnpm run audit:content` for the current inventory and see [sourcebook coverage](docs/CONTENT_SOURCES.md) for sources, remaining gaps, and import instructions.
+
+## Accounts and database
+
+Both apps now support optional email/password accounts and private SQLite-backed roster backups from Settings. Existing character saves continue to work offline. Run `pnpm server` alongside the app; see [backend setup and hosting](server/README.md) for configuration, mobile device URLs, and production deployment.
+
 ## Stack
 
 - React Native via Expo SDK 51

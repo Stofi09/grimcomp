@@ -6,6 +6,10 @@ This is a browser counterpart to the Expo/React-Native app kept at the repo root
 
 ---
 
+## Accounts and private backups
+
+Settings includes email/password registration, login/logout, and private account backup/restore. Run `pnpm server` from the repository root alongside `pnpm dev` in this directory; Vite forwards `/api` to the SQLite-backed service on port 3001. The static app remains usable offline. For account-enabled hosting, serve the built app with the backend or proxy same-origin `/api` to it. See [account service setup](../server/README.md).
+
 ## Quick start
 
 ```bash
@@ -24,13 +28,15 @@ pnpm test:watch # run the unit suite in watch mode
 
 Deploy by copying **`web/dist/`** to any static host (GitHub Pages, Netlify, Vercel, S3, nginx, a USB stick). The build uses relative asset paths (`base: './'`), so it works from a subdirectory too — no server config required.
 
-The app stores all player data (characters, advances, wounds, XP, notes, imported packs) in the browser's **localStorage** — nothing is sent anywhere, and it works fully offline. Storage belongs to that browser profile and site origin; clearing site data removes it, so use the Settings exports described under [Backup, sharing & portability](#backup-sharing--portability) when the data matters.
+The app stores all player data (characters, advances, wounds, XP, notes, imported packs) in the browser's **localStorage** and works fully offline. Signing in enables explicit private backup uploads to the configured account server. Storage belongs to that browser profile and site origin; clearing site data removes it, so use the Settings exports described under [Backup, sharing & portability](#backup-sharing--portability) when the data matters.
 
 ---
 
 ## How content works
 
 The primary game data is authored as **content packs** — JSON files under [`public/content/`](public/content/). At startup the app fetches [`manifest.json`](public/content/manifest.json), then loads every pack it lists, validates each one, and merges them into a single registry that every screen reads from. Runtime defaults cover a missing system section, and bundled careers missing detailed schemes receive conservative fallback data marked **approximate** in the UI.
+
+The native app now projects this same catalogue into its v1 runtime. The sourcebooks are still incomplete: [sourcebook coverage](../docs/CONTENT_SOURCES.md) documents the public sources, outstanding source comparisons, and `pnpm run audit:content` inventory command. Reference browsing includes arbitrary loaded categories and roll tables; the Content editor can author and share both rules references and tables.
 
 ```
 public/content/
@@ -112,7 +118,9 @@ In `core-magic.json` (or your own pack), edit the `spells` array:
 
 To **remove** a spell, delete its object. To **add** one, append a new object with a unique `id` (convention: `sp.<lore>.<slug>`). A character's authored defaults live in the `knownSpells` array in `core-characters.json`; players can add or remove loaded spells without editing JSON from **Magic → Manage spellbook**. Prayers work similarly in `core-faith.json` (`prayers`, ids `p.<slug>`, with a `deity`).
 
-`winds-of-magic.json` intentionally avoids reproducing the supplement's protected rules text. All 200 spell entries include researched name, lore, CN, and source-page metadata. The 67 spells that overlap the older companion pack retain its short mechanics summary and are visibly labelled **Approximate**; the other 133 are visibly labelled **Index only** and use `"See source"` where mechanics could not be verified from an authoritative public source. Consult the current owned book or official module to resolve them—Cubicle 7 has revised the PDF since its original release.
+`winds-of-magic.json` contains 200 spell entries with name, lore, and source-page metadata. The 67 spells overlapping the older companion pack retain its short mechanics summaries and are visibly labelled **Approximate**. Of those, 65 also retain the older companion casting number; two preserve previously sourced CN revisions. The other 133 spells are **Index only**: three have previously sourced casting numbers, while **130 use `"cn": null` because their CN is unknown**. Unknown-CN entries cannot resolve a cast or consume the Channelling pool. An earlier pack incorrectly used `99` for missing CNs; it was not a verified casting number. Numeric `99` remains valid in custom packs, without any runtime sentinel meaning.
+
+The pack does not contain the supplement's complete rules text. `"See source"` marks missing range, target, and duration details. Consult the current owned book or official module to resolve them—Cubicle 7 has revised the PDF since its original release. Source-page metadata alone does not verify an entry's remaining mechanics.
 
 ### Add a career
 
@@ -320,7 +328,7 @@ In `core-characters.json`, the `characters` array holds full character templates
 
 A [Vitest](https://vitest.dev) suite covers the rules-critical pure logic and the QA-sensitive UI flows: the d100/dice **roll engine** (`src/utils/roll.ts`), the **formula evaluator** (`src/utils/formula.ts`), **combat resolution** (`src/utils/combat.ts` — hit location, armour soak, the 0-Wounds Critical, Advantage, Opposed tests, weapon distance, and quality-aware damage), **spellcasting** (`src/utils/magic.ts` — SL-vs-CN and Overcasting), **advancement** (`src/utils/advancement.ts` — talent caps, non-career pricing), **character creation** (`src/utils/creation.ts` plus `NewCharScreen.test.tsx`), **separate recovery clocks** (`src/utils/recovery.ts`), **critical tables** (`src/content/tables.ts`), the **persistence store** (`src/hooks/storageCore.ts`), bounded content regular expressions and **content-pack validation** (`src/content/validate.ts`), scoped **Settings exports**, reference history, accessible fields/listbox behavior, and **storage migrations** (`src/storage/migrations.ts`). Run it with `pnpm test` (or `pnpm test:watch`).
 
-Tests live next to the code they cover as `*.test.ts` or `*.test.tsx`. They're **excluded from `pnpm tsc`** (which type-checks only the app) because some use Node APIs (`node:fs`) or a per-file jsdom environment; Vitest transforms and runs them itself, so both `pnpm tsc` and `pnpm test` stay green. `pnpm test:coverage` writes ignored text/JSON V8 reports under `coverage/`. `pnpm test:native` is the focused React-Native CI lane: it imports platform-neutral native storage, roll, and control-accessibility modules through this workspace's Vitest installation rather than running the full web suite. Native React-Native screen TSX is outside the web runner's coverage report and still requires the native typecheck, Expo export, and device/simulator smoke coverage described in the root README.
+Tests live next to the code they cover as `*.test.ts` or `*.test.tsx`. They're **excluded from `pnpm tsc`** (which type-checks only the app) because some use Node APIs (`node:fs`) or a per-file jsdom environment; Vitest transforms and runs them itself, so both `pnpm tsc` and `pnpm test` stay green. `pnpm test:coverage` writes ignored text/JSON V8 reports under `coverage/`. `pnpm test:native` is the focused React-Native CI lane: it covers native storage, rolls, controls, and account session/backup regressions through this workspace's Vitest installation rather than running the full web suite. The native account panel has focused lifecycle tests with mocked native host controls; these do not replace simulator testing. Native React-Native screen TSX is outside the web runner's coverage report and still requires the native typecheck, Expo export, and device/simulator smoke coverage described in the root README.
 
 **Storage migrations.** All player data is stored as `gc.*` JSON keys in `localStorage`. `runStorageMigrations()` (called once in `main.tsx` before React renders) stamps and versions that data, so a future breaking change to a data shape can *rewrite* existing saves rather than silently hydrating them as the wrong shape. The migration table is empty today on purpose — the framework ships one release ahead of the first breaking change so it's proven before anything depends on it.
 
@@ -338,9 +346,16 @@ Portable web/native backups share a 960 KiB UTF-8 file limit. The cap leaves the
 
 ## Everyday UI behavior
 
+- **Combat** puts current Wounds, Advantage, and weapon cards before expandable armour coverage. Each weapon shows its live test target and a labelled Attack action; the attack sheet includes a difficulty modifier and a complete target breakdown.
+- **Roll / Roll Test** in the toolbar and Overview open the same character-aware test picker. It uses live characteristic and skill advances, prevents untrained Advanced skill tests, and applies difficulty and active condition penalties. The result appears immediately with the target, roll, and success levels.
+- **Roll history** in the toolbar keeps the latest 100 tests per character across reloads. Characteristic, skill, attack, Channelling, spellcasting, and prayer tests are recorded with their details. History travels in character and full Settings backups under `gc.<id>.rollHistory`; native preserves this portable data but does not yet provide a history screen. Save failures are reported without claiming that the result was recorded. History recalls results; it does not undo gameplay changes.
 - The rail and Characters roster read live character overlays, so Fate/Fortune, wounds, XP, identity, and career changes update without a reload.
 - **Search** in the app bar and Reference screen searches the loaded offline rules. Its result list is one keyboard tab stop: Arrow Up/Down and Home/End move the active option, while Enter/Space opens it. Reference's **Recently viewed** list is populated by entries opened from that screen's search; it is not seeded with sample history.
 - **Trappings → Edit wealth** edits the active character's denominations from `system.currency.units`; the base-unit total updates from those persisted values.
+- Creation review lists the actual starting skills (advances and totals), talent descriptions, and equipment. New characters receive their Dagger as a Combat weapon; existing inventory weapons can be moved through **Trappings → Edit item → Equip as weapon** when a matching weapon definition is loaded.
+- **Use healing draught** consumes one `Healing Draught` inventory entry and restores up to 4 Wounds in one transaction. It is unavailable without a dose or at full health. Each inventory entry represents one dose.
+- Critical definitions may include an immediate `conditions` map, such as `{ "Stunned": 1, "Prone": 1 }`. Combat and Wounds apply these stacks with the injury; other effects remain explicitly manual. Older wounds offer **Apply conditions** once when matching authored effects exist, for injuries whose conditions were not already applied manually.
+- Attack defence and difficulty are remembered per character after rolling, with an explicit reset in the attack form. History emphasizes **HIT / NO HIT**, displaying the defender's result for newly recorded opposed attacks. Tablet action buttons, steppers, and condition controls have at least 44-pixel touch targets; modal forms and results share focus and scroll ownership.
 - Magic, Faith, XP, content, and inventory mutation flows withhold success feedback until storage confirms the write and ignore duplicate activation while a save is pending. Stale weapon, armour, and Trappings editors refuse to update a different item after a cross-tab reorder or conflict.
 - Bounded steppers disable their decrease/increase controls at the minimum/maximum. Form labels, choice-group state, modal focus handling, and the Settings XP-mode selection are exposed to keyboard and assistive-technology users.
 
