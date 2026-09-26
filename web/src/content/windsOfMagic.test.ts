@@ -173,7 +173,7 @@ describe('Winds of Magic content pack', () => {
     const coreResult = validatePack(corePack);
     const result = validatePack(pack);
     expect(corePack.version).toBe('2026.08.20');
-    expect(pack.version).toBe('2026.08.21');
+    expect(pack.version).toBe('2026.09.07');
     expect(coreResult.errors).toEqual([]);
     expect(coreResult.warnings).toEqual([]);
     expect(result.errors).toEqual([]);
@@ -184,7 +184,7 @@ describe('Winds of Magic content pack', () => {
     expect(manifest.packs[coreIndex + 1]).toBe('winds-of-magic.json');
   });
 
-  it('contains the complete 200-spell ordinary roster', () => {
+  it('retains the existing 200-spell catalogue inventory', () => {
     expect(pack.spells).toHaveLength(200);
     expect(pack.spells.filter(spell => spell.lore === 'Arcane')).toHaveLength(8);
     for (const lore of COLOUR_LORES) {
@@ -350,8 +350,12 @@ describe('Winds of Magic content pack', () => {
 
     for (const spell of pack.spells) {
       expect(spell.id, spell.name).toMatch(/^sp\.[a-z]+\.[a-z0-9-]+$/);
-      expect(Number.isInteger(spell.cn), spell.name).toBe(true);
-      expect(spell.cn, spell.name).toBeGreaterThanOrEqual(0);
+      if (spell.cn === null) {
+        expect(spell.rulesStatus, spell.name).toBe('bibliographic');
+      } else {
+        expect(Number.isInteger(spell.cn), spell.name).toBe(true);
+        expect(spell.cn, spell.name).toBeGreaterThanOrEqual(0);
+      }
       for (const field of requiredText) {
         expect(spell[field].trim(), `${spell.name}.${field}`).not.toBe('');
       }
@@ -359,7 +363,10 @@ describe('Winds of Magic content pack', () => {
       expect(Number.isInteger(spell.sourcePage), spell.name).toBe(true);
       expect(spell.sourcePage, spell.name).toBeGreaterThanOrEqual(26);
       expect(spell.sourcePage, spell.name).toBeLessThanOrEqual(149);
-      expect('rulesNote' in spell, spell.name).toBe(false);
+      if ('rulesNote' in spell) {
+        expect(spell.rulesNote?.trim(), spell.name).not.toBe('');
+        expect(spell.rulesStatus, spell.name).toBe('approximate');
+      }
     }
   });
 
@@ -372,8 +379,19 @@ describe('Winds of Magic content pack', () => {
     for (const spell of approximate) {
       const prior = corePack.spells.find(entry => entry.id === spell.id);
       expect(prior, spell.name).toBeDefined();
+      // Keep the two previously sourced revisions. Other overlaps inherit the
+      // companion CN with the same approximate status as their other mechanics.
+      if (!['sp.heavens.mistral-from-the-stratosphere', 'sp.heavens.storm-of-shentek'].includes(spell.id)) {
+        expect(spell.cn, spell.name).toBe(prior?.cn);
+        expect(spell.rulesNote, spell.name).toContain('older companion entry');
+      }
       expect(spell.range, spell.name).toBe(prior?.range);
-      expect(spell.target, spell.name).toBe(prior?.target);
+      if (spell.id === 'sp.heavens.let-the-four-winds-blow') {
+        expect(spell.target).toBe('AoE (4×WPB yards radius)');
+        expect(spell.rulesNote).toContain('official Foundry module 7.1.1 issue #2533');
+      } else {
+        expect(spell.target, spell.name).toBe(prior?.target);
+      }
       expect(spell.duration, spell.name).toBe(prior?.duration);
       expect(spell.description, spell.name).toBe(prior?.description);
       expect([spell.range, spell.target, spell.duration], spell.name).not.toContain('See source');
@@ -395,7 +413,14 @@ describe('Winds of Magic content pack', () => {
     }
   });
 
-  it('merges with core to the reviewed 255-spell library', () => {
+  it('represents unknown casting numbers explicitly instead of playable 99 placeholders', () => {
+    expect(pack.spells.filter(spell => spell.cn === null)).toHaveLength(130);
+    expect(pack.spells.some(spell => spell.cn === 99)).toBe(false);
+    expect(pack.spells.filter(spell => spell.rulesStatus === 'approximate')
+      .every(spell => typeof spell.cn === 'number' && spell.cn >= 0)).toBe(true);
+  });
+
+  it('merges with core to the 255-spell library without duplicate identities', () => {
     expect(registry.allSpells).toHaveLength(255);
     for (const id of REMOVED_CORE_IDS) {
       expect(registry.getSpell(id), id).toBeUndefined();
@@ -418,6 +443,8 @@ describe('Winds of Magic content pack', () => {
     expect(fireSpells).toHaveLength(6);
     for (const spell of fireSpells) {
       expect(spell?.rulesStatus, spell?.id).toBe('approximate');
+      expect(typeof spell?.cn, spell?.id).toBe('number');
+      expect(spell?.cn, spell?.id).not.toBe(99);
       expect(spell?.range, spell?.id).not.toBe('See source');
       expect(spell?.target, spell?.id).not.toBe('See source');
       expect(spell?.duration, spell?.id).not.toBe('See source');

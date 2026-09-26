@@ -5,6 +5,7 @@
 // decide whether a campaign permits negative XP or a particular Wounds value.
 
 import { isValidStorageKeySegment } from '@grimcomp/core';
+import { isConditionEffects } from '@/utils/criticalEffects';
 
 type JsonObject = Record<string, unknown>;
 
@@ -302,6 +303,8 @@ function validateCriticals(character: JsonObject, where: string, errors: string[
     requireString(value, 'name', criticalWhere, errors, true);
     requireString(value, 'effect', criticalWhere, errors, true);
     requireFiniteNumber(value, 'days', criticalWhere, errors);
+    if (value.conditions !== undefined && !isConditionEffects(value.conditions)) errors.push(`${criticalWhere}.conditions is invalid.`);
+    if (value.conditionsApplied !== undefined && typeof value.conditionsApplied !== 'boolean') errors.push(`${criticalWhere}.conditionsApplied must be boolean.`);
   });
 }
 

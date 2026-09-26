@@ -1,5 +1,10 @@
 import type { Spell } from '@/content/types';
 
+/** Unknown bibliographic values are displayed explicitly, never as a numeric target. */
+export function formatSpellCn(spell: Pick<Spell, 'cn'>): string {
+  return spell.cn === null ? 'Unknown' : String(spell.cn);
+}
+
 /** Compact provenance label shared by Magic and the global reference search. */
 export function spellSourceLabel(
   spell: Pick<Spell, 'sourceBook' | 'sourcePage'>,

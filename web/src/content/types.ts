@@ -129,8 +129,8 @@ export interface Spell {
   id: string;
   name: string;
   lore: string;
-  /** Casting Number: target SL to reach. */
-  cn: number;
+  /** Casting Number: target SL to reach; null only for an index entry with an unknown CN. */
+  cn: number | null;
   range: string;
   target: string;
   duration: string;
@@ -249,15 +249,14 @@ export interface CriticalDef {
   name: string;
   effect: string;
   days: number;
+  /** Immediate condition stacks added when this injury is inflicted. */
+  conditions?: Record<string, number>;
 }
 
 /** One d100 band on a location-specific critical-wound table. */
-export interface CriticalRow {
+export interface CriticalRow extends CriticalDef {
   min: number;
   max: number;
-  name: string;
-  effect: string;
-  days: number;
 }
 
 /**
@@ -641,7 +640,7 @@ export interface ContentPack {
 /** The id-keyed entity sections the in-app content editor can create/edit/delete. */
 export const EDITABLE_SECTIONS = [
   'spells', 'prayers', 'races', 'careers', 'skills', 'talents',
-  'weapons', 'armour', 'trappings', 'deities',
+  'weapons', 'armour', 'trappings', 'deities', 'references', 'tables',
 ] as const;
 export type EditableSection = typeof EDITABLE_SECTIONS[number];
 

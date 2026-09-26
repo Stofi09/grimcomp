@@ -20,6 +20,7 @@ import {
 import { compileFormula } from '@/utils/formula';
 import { safeRegexError } from '@/utils/safeRegex';
 import { validateCharacterTemplate } from './validateCharacter';
+import { isConditionEffects } from '@/utils/criticalEffects';
 
 export interface ValidationResult {
   pack?: ContentPack;
@@ -238,10 +239,12 @@ export function validatePack(raw: unknown): ValidationResult {
 
   checkSection('spells', {
     nonBlankStrings: ['name', 'lore', 'range', 'target', 'duration', 'description'],
-    numbers: ['cn'],
     extra: (entry, where, p) => {
-      if (typeof entry.cn === 'number'
-        && (!Number.isFinite(entry.cn) || !Number.isInteger(entry.cn) || entry.cn < 0)) {
+      if (entry.cn === null) {
+        if (entry.rulesStatus !== 'bibliographic') {
+          p(`${where} "cn" may be null only for a bibliographic entry.`);
+        }
+      } else if (!isNumber(entry.cn) || !Number.isInteger(entry.cn) || entry.cn < 0) {
         p(`${where} "cn" must be a finite integer greater than or equal to 0.`);
       }
       if (entry.damage !== undefined && !isString(entry.damage)) {
@@ -526,6 +529,9 @@ export function validatePack(raw: unknown): ValidationResult {
     strings: ['name', 'effect'],
     numbers: ['days'],
     requireId: false,
+    extra: (entry, where, p) => {
+      if (entry.conditions !== undefined && !isConditionEffects(entry.conditions)) p(`${where}.conditions must map names to positive integer stacks (1–100).`);
+    },
   });
 
   // criticalTables: location-keyed d100 tables of { min, max, name, effect, days }.
@@ -548,6 +554,7 @@ export function validatePack(raw: unknown): ValidationResult {
         if (!isString(row.name)) p(`${rw} missing string "name".`);
         if (!isString(row.effect)) p(`${rw} missing string "effect".`);
         if (!isNumber(row.days)) p(`${rw} missing numeric "days".`);
+        if (row.conditions !== undefined && !isConditionEffects(row.conditions)) p(`${rw}.conditions must map names to positive integer stacks (1–100).`);
       });
     },
   });

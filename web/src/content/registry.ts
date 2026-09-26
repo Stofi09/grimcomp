@@ -396,6 +396,10 @@ export class ContentRegistry {
       .filter((p): p is Prayer => p !== undefined);
   }
 
+  get allTables(): RollTable[] {
+    return [...this.tableMap.values()];
+  }
+
   getTable(id: string): RollTable | undefined {
     return this.tableMap.get(id);
   }

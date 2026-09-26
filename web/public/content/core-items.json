@@ -2,11 +2,11 @@
   "$schema": "grimcomp.content.v2",
   "id": "core-items",
   "name": "Core Rulebook — Items",
-  "version": "2026.06.17",
+  "version": "2026.09.07",
   "weapons": [
     { "id": "wp.hand-weapon-sword", "name": "Hand Weapon (Sword)", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+4", "qual": ["Defensive"] },
     { "id": "wp.mace", "name": "Mace", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+4", "qual": ["Pummel"] },
-    { "id": "wp.warhammer", "name": "Warhammer", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+5", "qual": ["Pummel"] },
+    { "id": "wp.warhammer", "name": "Warhammer", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+5", "qual": ["Pummel", "Slow"] },
     { "id": "wp.dagger", "name": "Dagger", "group": "Basic", "enc": 0, "reach": "Short", "dmg": "SB+2", "qual": [] },
     { "id": "wp.quarterstaff", "name": "Quarterstaff", "group": "Two-Handed", "enc": 2, "reach": "Long", "dmg": "SB+3", "qual": ["Defensive", "Pummel"] },
     { "id": "wp.greatsword", "name": "Greatsword", "group": "Two-Handed", "enc": 3, "reach": "Long", "dmg": "SB+5", "qual": ["Hack", "Defensive"] },

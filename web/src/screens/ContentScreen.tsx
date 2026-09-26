@@ -88,6 +88,8 @@ export const ContentScreen: React.FC = () => {
     skills: reg.allSkillDefs,
     spells: reg.allSpells,
     prayers: reg.allPrayers,
+    references: reg.allReferences,
+    tables: reg.allTables,
     races: reg.allRaces,
     deities: reg.allDeities,
     weapons: reg.allWeapons,

@@ -63,6 +63,8 @@ export interface Critical {
   name: string;
   effect: string;
   days: number;
+  conditions?: Record<string, number>;
+  conditionsApplied?: boolean;
 }
 
 export interface Trapping {

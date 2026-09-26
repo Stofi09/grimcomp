@@ -452,6 +452,29 @@ describe('validatePack — unit', () => {
     expect(errors).toEqual([]);
   });
 
+  it.each([
+    [null, 'bibliographic', true],
+    [null, 'approximate', false],
+    [null, undefined, false],
+    [undefined, 'bibliographic', false],
+    ['unknown', 'bibliographic', false],
+    [99, undefined, true],
+    [99, 'bibliographic', true],
+    [-1, 'bibliographic', false],
+    [1.5, 'bibliographic', false],
+  ])('validates CN %s with rules status %s', (cn, rulesStatus, valid) => {
+    const result = validatePack({
+      $schema: 'grimcomp.content.v2', id: 't', name: 'T', version: '1',
+      spells: [{
+        id: 'spell.test', name: 'Test Spell', lore: 'Arcane', cn, rulesStatus,
+        range: 'See source', target: 'See source', duration: 'See source', description: 'An index entry.',
+      }],
+    });
+    expect(result.errors.length === 0).toBe(valid);
+    if (valid) expect(result.pack?.spells?.[0].cn).toBe(cn);
+    else expect(result.errors.some(error => error.includes('"cn"'))).toBe(true);
+  });
+
   it('accepts skill provenance, eligibility, exclusion, and rules-status metadata', () => {
     const { pack, errors } = validatePack({
       $schema: 'grimcomp.content.v2', id: 't', name: 'T', version: '1',

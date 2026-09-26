@@ -16,7 +16,7 @@ import {
   setSpellbookSelection,
   type SpellbookOverlay,
 } from '@/utils/spellbook';
-import { spellRulesStatusLabel, spellRulesStatusMeta, spellSourceLabel } from '@/utils/spells';
+import { formatSpellCn, spellRulesStatusLabel, spellRulesStatusMeta, spellSourceLabel } from '@/utils/spells';
 import { Alert } from '@/ui/alertStore';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
@@ -119,7 +119,7 @@ const SpellbookManager: React.FC<SpellbookManagerProps> = ({
               <div className="mag-spellbook-info">
                 <span className="mag-spellbook-name">{spell.name}</span>
                 <span className="mag-spellbook-meta">
-                  {[spell.lore, `CN ${spell.cn}`, status, source].filter(Boolean).join(' · ')}
+                  {[spell.lore, `CN ${formatSpellCn(spell)}`, spell.cn === null ? 'See source' : '', status, source].filter(Boolean).join(' · ')}
                 </span>
               </div>
               <button
@@ -295,6 +295,14 @@ export const MagicScreen: React.FC = () => {
   };
 
   const cast = async (spell: Spell) => {
+    if (spell.cn === null) {
+      const source = spellSourceLabel(spell);
+      Alert.alert(
+        `${spell.name} — Casting Number unknown`,
+        `Look up the Casting Number in ${source || 'the source'} before using automated casting.`,
+      );
+      return;
+    }
     if (poolActionRef.current) return;
     poolActionRef.current = true;
     setPoolActionPending(true);
@@ -486,18 +494,18 @@ export const MagicScreen: React.FC = () => {
               <Cell
                 num
                 flex={0.6}
-                textStyle={{ fontFamily: 'var(--font-mono)', fontWeight: 500, color: s.cn >= 8 ? colors.empire : colors.ink, fontVariantNumeric: 'tabular-nums' }}
-              >{s.cn}</Cell>
+                textStyle={{ fontFamily: 'var(--font-mono)', fontWeight: 500, color: s.cn !== null && s.cn >= 8 ? colors.empire : colors.ink, fontVariantNumeric: 'tabular-nums' }}
+              >{formatSpellCn(s)}</Cell>
               <Cell flex={1.2} textStyle={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: colors.ink3 }}>{s.range}</Cell>
               <Cell flex={1.1} textStyle={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: colors.ink3 }}>{s.duration}</Cell>
               <Cell flex={0.5} align="right">
                 <Button
                   variant="ghost"
-                  ariaLabel={`Cast ${s.name}`}
-                  iconLeft={<Icon name="dice" size={13} color={colors.ink2} />}
+                  ariaLabel={s.cn === null ? `See source for ${s.name}` : `Cast ${s.name}`}
+                  iconLeft={<Icon name={s.cn === null ? 'book' : 'dice'} size={13} color={colors.ink2} />}
                   onPress={() => cast(s)}
                   disabled={poolActionPending}
-                >{''}</Button>
+                >{s.cn === null ? 'See source' : ''}</Button>
               </Cell>
             </TableRow>
           ))}
