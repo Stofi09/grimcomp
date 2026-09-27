@@ -126,11 +126,12 @@ test('trusted proxies keep client rate limits separate and ignore spoofed leftmo
     method: 'POST', headers: { 'X-Forwarded-For': '203.0.113.99, 198.51.100.10' },
     body: { email: 'third@example.com', password: PASSWORD },
   }), 429);
-  // Independent email limits still hold across different real client addresses.
-  assertError(await app.request('/api/auth/login', {
+  // Attempts from other networks never lock the owner out of a fresh network.
+  const login = await app.request('/api/auth/login', {
     method: 'POST', headers: { 'X-Forwarded-For': '198.51.100.12' },
     body: { email: 'first@example.com', password: PASSWORD },
-  }), 429);
+  });
+  assert.equal(login.status, 200, JSON.stringify(login.data));
 });
 
 function snapshot(time = '2026-09-12T10:00:00.000Z') {

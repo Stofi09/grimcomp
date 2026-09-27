@@ -14,6 +14,9 @@ export function openDatabase(path) {
       database.exec(readFileSync(new URL('./migrations/001_accounts.sql', import.meta.url), 'utf8'));
       database.exec('PRAGMA user_version = 1');
     }
+    // Rate limits now live in process memory. Drop hashed IP/email counters
+    // left by older releases; the table stays for schema version 1.
+    database.exec('DELETE FROM rate_limits');
     database.exec('COMMIT');
     return database;
   } catch (error) {

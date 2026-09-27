@@ -1,5 +1,8 @@
 import { isIP } from 'node:net';
 
+// Client identity and in-memory counters for rate limiting. The account server
+// runs as a single process by design, so counters need no shared storage.
+
 const MAX_FORWARDED_BYTES = 4096;
 const MAX_FORWARDED_HOPS = 32;
 
@@ -49,5 +52,73 @@ export function createClientAddressResolver(trustedProxies = []) {
       if (!trusted.has(addresses[index])) return addresses[index];
     }
     return peer;
+  };
+}
+
+/**
+ * The rate-limit bucket for a resolved client address. IPv4 clients are
+ * limited per address. One IPv6 subscriber normally controls a whole /64, so
+ * per-address buckets would give it 2^64 fresh limits; IPv6 is bucketed per /64.
+ */
+export function rateLimitNetwork(address) {
+  if (typeof address !== 'string' || isIP(address) !== 6 || address.includes('%')) return address;
+  const canonical = new URL(`http://[${address}]/`).hostname.slice(1, -1);
+  const [head, tail] = canonical.split('::');
+  const left = head ? head.split(':') : [];
+  const right = tail ? tail.split(':') : [];
+  const groups = tail === undefined
+    ? left
+    : [...left, ...Array(8 - left.length - right.length).fill('0'), ...right];
+  return `${new URL(`http://[${groups.slice(0, 4).join(':')}::]/`).hostname.slice(1, -1)}/64`;
+}
+
+/**
+ * Fixed-window attempt counters kept in process memory. Every window has the
+ * same length, so Map insertion order is also expiry order: pruning stops at
+ * the first live entry, and a full table evicts the entry closest to expiry
+ * instead of refusing unrelated clients.
+ */
+export function createRateLimiter({ limit, windowMs, maxEntries = 10_000 }) {
+  if (![limit, windowMs, maxEntries].every(value => Number.isSafeInteger(value) && value > 0)) {
+    throw new TypeError('Rate limits need positive whole-number limit, windowMs and maxEntries values.');
+  }
+  const entries = new Map();
+
+  function prune(timestamp) {
+    for (const [key, entry] of entries) {
+      if (entry.resetAt > timestamp) break;
+      entries.delete(key);
+    }
+  }
+
+  return {
+    /** Seconds until `key` may try again, or 0 while it is under the limit. Never mutates. */
+    retryAfter(key, timestamp) {
+      const entry = entries.get(key);
+      if (!entry || entry.resetAt <= timestamp || entry.count < limit) return 0;
+      return Math.max(1, Math.ceil((entry.resetAt - timestamp) / 1000));
+    },
+    /** Count one attempt for `key`. */
+    hit(key, timestamp) {
+      prune(timestamp);
+      let entry = entries.get(key);
+      if (entry && entry.resetAt <= timestamp) {
+        entries.delete(key);
+        entry = undefined;
+      }
+      if (!entry) {
+        while (entries.size >= maxEntries) entries.delete(entries.keys().next().value);
+        entry = { count: 0, resetAt: timestamp + windowMs };
+        entries.set(key, entry);
+      }
+      entry.count += 1;
+    },
+    /** Forget `key`, for example after a successful sign-in. */
+    reset(key) {
+      entries.delete(key);
+    },
+    get size() {
+      return entries.size;
+    },
   };
 }
