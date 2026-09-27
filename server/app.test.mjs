@@ -1,13 +1,60 @@
 import assert from 'node:assert/strict';
+import { randomBytes, randomUUID, scrypt, scryptSync } from 'node:crypto';
 import { once } from 'node:events';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createApplication } from './app.mjs';
+import { setTimeout as delay } from 'node:timers/promises';
+import { promisify } from 'node:util';
+import { APP_CONTENT_SECURITY_POLICY, createApplication, MAX_BACKUP_BYTES, MAX_BACKUP_REQUEST_BYTES } from './app.mjs';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'A long unique password 2026!';
+const NEW_PASSWORD = 'An entirely new passphrase 2026!';
+const realDeriveKey = promisify(scrypt);
+
+/** Wrap scrypt to count derivations; a gated wrapper holds each one until released. */
+function trackedDeriveKey({ gated = false } = {}) {
+  const calls = [];
+  const gates = [];
+  async function deriveKey(password, salt, keyBytes, options) {
+    calls.push({ options });
+    if (gated) await new Promise(resolve => gates.push(resolve));
+    return realDeriveKey(password, salt, keyBytes, options);
+  }
+  return {
+    deriveKey,
+    calls,
+    releaseNext: () => gates.shift()?.(),
+    get held() { return gates.length; },
+  };
+}
+
+async function waitUntil(condition, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error('Timed out waiting for the condition.');
+    await delay(5);
+  }
+}
+
+function legacyHash(password, { N = 16_384, r = 8, p = 1 } = {}) {
+  const salt = randomBytes(16).toString('hex');
+  return `scrypt$${N}$${r}$${p}$${salt}$${scryptSync(password, salt, 64, { N, r, p }).toString('hex')}`;
+}
+
+function insertUser(app, email, passwordHash) {
+  const id = randomUUID();
+  app.database.prepare('INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)')
+    .run(id, email, 'Legacy Adventurer', passwordHash, Date.now());
+  return id;
+}
+
+const storedHash = (app, id) => app.database.prepare('SELECT password_hash FROM users WHERE id = ?').get(id).password_hash;
+const countRows = (app, table) => app.database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count;
+const databaseWrites = (app) => app.database.prepare('SELECT total_changes() AS count').get().count;
 
 async function start(t, options = {}) {
   const application = createApplication({
@@ -50,7 +97,7 @@ async function start(t, options = {}) {
     }
     return { status: response.status, headers: response.headers, data, text };
   }
-  return { ...application, request, stop };
+  return { ...application, baseUrl, request, stop };
 }
 
 async function register(app, values = {}, requestOptions = {}) {
@@ -132,6 +179,96 @@ test('trusted proxies keep client rate limits separate and ignore spoofed leftmo
     body: { email: 'first@example.com', password: PASSWORD },
   });
   assert.equal(login.status, 200, JSON.stringify(login.data));
+});
+
+test('over-limit sign-in attempts are refused before hashing or any database write', async (t) => {
+  const hashing = trackedDeriveKey();
+  const app = await start(t, { rateLimit: 1, deriveKey: hashing.deriveKey });
+  assertError(await app.request('/api/auth/login', {
+    method: 'POST', body: { email: 'missing@example.com', password: PASSWORD },
+  }), 401);
+  assert.equal(hashing.calls.length, 1);
+  const writes = databaseWrites(app);
+  for (const path of ['/api/auth/login', '/api/auth/register']) {
+    const refused = await app.request(path, {
+      method: 'POST', body: { name: 'Adventurer', email: 'another@example.com', password: PASSWORD },
+    });
+    assertError(refused, 429);
+    assert.ok(Number(refused.headers.get('retry-after')) >= 1);
+  }
+  assert.equal(hashing.calls.length, 1);
+  assert.equal(databaseWrites(app), writes);
+  assert.equal(countRows(app, 'rate_limits'), 0);
+});
+
+test('IPv6 clients share one rate-limit bucket per /64 network', async (t) => {
+  const app = await start(t, { rateLimit: 1, trustedProxies: ['127.0.0.1'] });
+  const attempt = forwardedFor => app.request('/api/auth/login', {
+    method: 'POST', headers: { 'X-Forwarded-For': forwardedFor },
+    body: { email: 'missing@example.com', password: PASSWORD },
+  });
+  assertError(await attempt('2001:db8:1:2::1'), 401);
+  assertError(await attempt('2001:db8:1:2:ffff:ffff:ffff:ffff'), 429);
+  assertError(await attempt('2001:db8:1:3::1'), 401);
+});
+
+test('only failed sign-ins count per account and network, so the owner is never locked out elsewhere', async (t) => {
+  const app = await start(t, { failedLoginLimit: 2, trustedProxies: ['127.0.0.1'] });
+  await register(app);
+  const login = (password, forwardedFor = '198.51.100.20', email = 'adventurer@example.com') => app.request('/api/auth/login', {
+    method: 'POST', headers: { 'X-Forwarded-For': forwardedFor }, body: { email, password },
+  });
+  for (let index = 0; index < 3; index += 1) assert.equal((await login(PASSWORD)).status, 200);
+  assertError(await login('A wrong password guess'), 401);
+  assertError(await login('Another wrong password guess'), 401);
+  const locked = await login(PASSWORD);
+  assertError(locked, 429);
+  assert.ok(Number(locked.headers.get('retry-after')) >= 1);
+  // The same account elsewhere, and other accounts on this network, are unaffected.
+  assert.equal((await login(PASSWORD, '198.51.100.21')).status, 200);
+  assertError(await login(PASSWORD, '198.51.100.20', 'someone-else@example.com'), 401);
+  // A successful sign-in clears that network's failures for the account.
+  assertError(await login('A wrong password guess', '198.51.100.22'), 401);
+  assert.equal((await login(PASSWORD, '198.51.100.22')).status, 200);
+  assertError(await login('A wrong password guess', '198.51.100.22'), 401);
+  assertError(await login('Another wrong password guess', '198.51.100.22'), 401);
+  assertError(await login(PASSWORD, '198.51.100.22'), 429);
+});
+
+test('sign-in uses the stored scrypt parameters and upgrades outdated hashes', async (t) => {
+  const app = await start(t);
+  const id = insertUser(app, 'legacy@example.com', legacyHash(PASSWORD));
+  const login = password => app.request('/api/auth/login', { method: 'POST', body: { email: 'legacy@example.com', password } });
+  assertError(await login('Not the right password at all'), 401);
+  assert.match(storedHash(app, id), /^scrypt\$16384\$8\$1\$/);
+  assert.equal((await login(PASSWORD)).status, 200);
+  const upgraded = storedHash(app, id);
+  assert.match(upgraded, /^scrypt\$32768\$8\$3\$[0-9a-f]{32}\$[0-9a-f]{128}$/);
+  assert.equal((await login(PASSWORD)).status, 200);
+  assert.equal(storedHash(app, id), upgraded);
+  assertError(await login('Not the right password at all'), 401);
+});
+
+test('malformed or out-of-bounds stored hashes fail sign-in with 401, never 500', async (t) => {
+  const app = await start(t);
+  const valid = legacyHash(PASSWORD).split('$');
+  const variants = [
+    '', 'not-a-hash', 'bcrypt$2b$12$abcdefghijklmnopqrstuv', valid.slice(0, 4).join('$'),
+    [...valid, 'extra'].join('$'),
+    ['scrypt', '16000', ...valid.slice(2)].join('$'),
+    ['scrypt', String(2 ** 24), ...valid.slice(2)].join('$'),
+    ['scrypt', '65536', '16', '1', ...valid.slice(4)].join('$'),
+    ['scrypt', '16384', '8', '99', ...valid.slice(4)].join('$'),
+    ['scrypt', '016384', ...valid.slice(2)].join('$'),
+    [...valid.slice(0, 4), 'zz'.repeat(16), valid[5]].join('$'),
+    [...valid.slice(0, 5), valid[5].slice(0, 127)].join('$'),
+  ];
+  for (const [index, passwordHash] of variants.entries()) {
+    insertUser(app, `broken${index}@example.com`, passwordHash);
+    assertError(await app.request('/api/auth/login', {
+      method: 'POST', body: { email: `broken${index}@example.com`, password: PASSWORD },
+    }), 401);
+  }
 });
 
 function snapshot(time = '2026-09-12T10:00:00.000Z') {
