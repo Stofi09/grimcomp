@@ -833,6 +833,153 @@ test('health checks probe the database and answer 503 when it is unavailable', a
   assert.equal(logged.mock.callCount(), 1);
 });
 
+const webCookie = response => response.headers.get('set-cookie').split(';')[0];
+
+test('changing the password rotates this session and revokes every other session', async (t) => {
+  const app = await start(t);
+  const registered = await register(app, {}, { client: 'web', origin: ORIGIN });
+  const cookie = webCookie(registered);
+  const phone = await app.request('/api/auth/login', { method: 'POST', body: { email: 'adventurer@example.com', password: PASSWORD } });
+  const change = (body, options = {}) => app.request('/api/auth/password', {
+    method: 'POST', client: 'web', origin: ORIGIN, cookie, body, ...options,
+  });
+  // A wrong current password is 403, not 401, so clients keep the session.
+  assertError(await change({ currentPassword: 'Not my password at all', newPassword: NEW_PASSWORD }), 403);
+  assertError(await change({ currentPassword: PASSWORD, newPassword: 'short' }), 400);
+  assertError(await change({ currentPassword: PASSWORD, newPassword: PASSWORD }), 400);
+  assertError(await change({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD },
+    { headers: { 'X-Grim-User': 'another-account' } }), 409);
+  assertError(await change({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD }, { cookie: undefined }), 401);
+  assert.deepEqual((await app.request('/api/auth/session', { client: 'web', cookie })).data.user, registered.data.user);
+
+  const changed = await change({ currentPassword: PASSWORD, newPassword: NEW_PASSWORD },
+    { headers: { 'X-Grim-User': registered.data.user.id } });
+  assert.equal(changed.status, 200);
+  assert.deepEqual(changed.data.user, registered.data.user);
+  assert.equal(changed.data.token, undefined);
+  const rotated = webCookie(changed);
+  assert.notEqual(rotated, cookie);
+  assert.deepEqual((await app.request('/api/auth/session', { client: 'web', cookie: rotated })).data.user, registered.data.user);
+  assert.deepEqual((await app.request('/api/auth/session', { client: 'web', cookie })).data, { user: null });
+  assert.deepEqual((await app.request('/api/auth/session', { token: phone.data.token })).data, { user: null });
+  assertError(await app.request('/api/auth/login', { method: 'POST', body: { email: 'adventurer@example.com', password: PASSWORD } }), 401);
+  const login = await app.request('/api/auth/login', { method: 'POST', body: { email: 'adventurer@example.com', password: NEW_PASSWORD } });
+  assert.equal(login.status, 200);
+
+  // Native clients receive the replacement token in the body.
+  const nativeChange = await app.request('/api/auth/password', {
+    method: 'POST', token: login.data.token, body: { currentPassword: NEW_PASSWORD, newPassword: PASSWORD },
+  });
+  assert.equal(nativeChange.status, 200);
+  assert.match(nativeChange.data.token, /^[a-f0-9]{64}$/);
+  assert.deepEqual((await app.request('/api/auth/session', { token: login.data.token })).data, { user: null });
+  assert.deepEqual((await app.request('/api/auth/session', { token: nativeChange.data.token })).data.user, registered.data.user);
+});
+
+test('wrong current passwords are limited like failed sign-ins', async (t) => {
+  const hashing = trackedDeriveKey();
+  const app = await start(t, { failedLoginLimit: 1, deriveKey: hashing.deriveKey });
+  const { token } = (await register(app)).data;
+  const change = currentPassword => app.request('/api/auth/password', {
+    method: 'POST', token, body: { currentPassword, newPassword: NEW_PASSWORD },
+  });
+  assertError(await change('Not my password at all'), 403);
+  const hashes = hashing.calls.length;
+  assertError(await change(PASSWORD), 429);
+  assertError(await app.request('/api/account', { method: 'DELETE', token, body: { password: PASSWORD } }), 429);
+  assert.equal(hashing.calls.length, hashes);
+});
+
+test('signing out everywhere revokes every session of only this account', async (t) => {
+  const app = await start(t);
+  const registered = await register(app, {}, { client: 'web', origin: ORIGIN });
+  const cookie = webCookie(registered);
+  const phone = await app.request('/api/auth/login', { method: 'POST', body: { email: 'adventurer@example.com', password: PASSWORD } });
+  const other = (await register(app, { email: 'other@example.com' })).data;
+  const response = await app.request('/api/auth/logout-all', {
+    method: 'POST', client: 'web', origin: ORIGIN, cookie, body: {}, headers: { 'X-Grim-User': registered.data.user.id },
+  });
+  assert.equal(response.status, 204);
+  assert.match(response.headers.get('set-cookie') ?? '', /Max-Age=0/);
+  assert.deepEqual((await app.request('/api/auth/session', { client: 'web', cookie })).data, { user: null });
+  assert.deepEqual((await app.request('/api/auth/session', { token: phone.data.token })).data, { user: null });
+  assert.deepEqual((await app.request('/api/auth/session', { token: other.token })).data.user, other.user);
+  assertError(await app.request('/api/auth/logout-all', { method: 'POST', token: phone.data.token, body: {} }), 401);
+});
+
+test('backups can be deleted only by their owner', async (t) => {
+  const app = await start(t);
+  const alice = (await register(app, { email: 'alice@example.com' })).data;
+  const bob = (await register(app, { email: 'bob@example.com' })).data;
+  const backup = await saveBackup(app, alice.token);
+  const remove = options => app.request(`/api/backups/${backup.id}`, { method: 'DELETE', ...options });
+  assertError(await remove({ token: bob.token }), 404);
+  assertError(await remove({ token: alice.token, headers: { 'X-Grim-User': bob.user.id } }), 409);
+  assertError(await remove({}), 401);
+  assert.deepEqual((await app.request('/api/backups', { token: alice.token })).data, { backups: [backup] });
+  const deleted = await remove({ token: alice.token, headers: { 'X-Grim-User': alice.user.id } });
+  assert.equal(deleted.status, 204);
+  assert.equal(deleted.text, '');
+  assertError(await app.request(`/api/backups/${backup.id}`, { token: alice.token }), 404);
+  assertError(await remove({ token: alice.token }), 404);
+  assert.deepEqual((await app.request('/api/backups', { token: alice.token })).data, { backups: [] });
+});
+
+test('deleting an account requires its password and removes its sessions and backups', async (t) => {
+  const app = await start(t);
+  const registered = await register(app, {}, { client: 'web', origin: ORIGIN });
+  const cookie = webCookie(registered);
+  const userId = registered.data.user.id;
+  const phone = await app.request('/api/auth/login', { method: 'POST', body: { email: 'adventurer@example.com', password: PASSWORD } });
+  await saveBackup(app, phone.data.token);
+  const bob = (await register(app, { email: 'bob@example.com' })).data;
+  const bobsBackup = await saveBackup(app, bob.token);
+  const remove = body => app.request('/api/account', {
+    method: 'DELETE', client: 'web', origin: ORIGIN, cookie, body, headers: { 'X-Grim-User': userId },
+  });
+  assertError(await remove({ password: 'Not my password at all' }), 403);
+  assertError(await remove({}), 400);
+  assert.equal(countRows(app, 'users'), 2);
+  const deleted = await remove({ password: PASSWORD });
+  assert.equal(deleted.status, 204);
+  assert.match(deleted.headers.get('set-cookie') ?? '', /Max-Age=0/);
+  for (const [table, column] of [['users', 'id'], ['sessions', 'user_id'], ['backups', 'user_id']]) {
+    assert.equal(app.database.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE ${column} = ?`).get(userId).count, 0);
+  }
+  assert.deepEqual((await app.request('/api/auth/session', { token: phone.data.token })).data, { user: null });
+  assert.deepEqual((await app.request('/api/backups', { token: bob.token })).data, { backups: [bobsBackup] });
+  assert.notEqual((await register(app)).data.user.id, userId);
+});
+
+test('account lifecycle mutations keep the Origin, client-header and preflight rules', async (t) => {
+  const app = await start(t);
+  const registered = await register(app, {}, { client: 'web', origin: ORIGIN });
+  const cookie = webCookie(registered);
+  const saved = await app.request('/api/backups', { method: 'POST', client: 'web', origin: ORIGIN, cookie, body: { snapshot: snapshot() } });
+  const backup = saved.data.backup;
+  for (const [method, path, body] of [
+    ['POST', '/api/auth/password', { currentPassword: PASSWORD, newPassword: NEW_PASSWORD }],
+    ['POST', '/api/auth/logout-all', {}],
+    ['DELETE', `/api/backups/${backup.id}`, undefined],
+    ['DELETE', '/api/account', { password: PASSWORD }],
+  ]) {
+    for (const origin of [undefined, 'https://attacker.example', 'null']) {
+      assertError(await app.request(path, { method, client: 'web', cookie, origin, body }), 403);
+    }
+    assertError(await app.request(path, { method, client: null, cookie, origin: ORIGIN, body }), 403);
+    // Native mode ignores browser cookies entirely.
+    assertError(await app.request(path, { method, client: 'native', cookie, body }), 401);
+  }
+  const preflight = await app.request('/api/account', {
+    method: 'OPTIONS', client: null, origin: ORIGIN, headers: { 'Access-Control-Request-Method': 'DELETE' },
+  });
+  assert.equal(preflight.status, 204);
+  assert.match(preflight.headers.get('access-control-allow-methods'), /\bDELETE\b/);
+  assertError(await app.request('/api/account', { method: 'OPTIONS', client: null, origin: 'https://attacker.example' }), 403);
+  assert.deepEqual((await app.request('/api/backups', { client: 'web', cookie })).data, { backups: [backup] });
+  assert.deepEqual((await app.request('/api/auth/session', { client: 'web', cookie })).data.user, registered.data.user);
+});
+
 test('only the newest ten backups are retained, separately for each account', async (t) => {
   let currentTime = Date.parse('2026-09-12T10:00:00.000Z');
   const app = await start(t, { now: () => currentTime });
