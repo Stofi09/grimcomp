@@ -16,12 +16,12 @@ import {
 import { useContent, useFigureLabels, useSystemRules, useCharacteristicDefs, useWeapons, useCapabilities, useHitLocations, useCriticals } from '@/content/useContent';
 import type { CombatRules } from '@/content/types';
 import { critFromTable } from '@/content/tables';
-import { resolveTest, formatTestResult, isDouble, rollExploding, resultLabel, slText } from '@/utils/roll';
+import { resolveTest, formatTestResult, resultLabel, slText } from '@/utils/roll';
 import { charVars, evalFormula } from '@/utils/formula';
 import { testSafeRegex } from '@/utils/safeRegex';
 import {
   apByLocation, apAt, hitLocationFromRoll, applyDamage,
-  advantageBonus, resolveAttackOutcome, computeHitDamage, weaponQualityNotes, hasQuality,
+  advantageBonus, resolveAttackOutcome, computeHitDamage, weaponQualityNotes,
   normalizeWeaponDistance, weaponDistance, skillAdvancesFor,
   type ApLocation,
 } from '@/utils/combat';
@@ -208,20 +208,17 @@ export const CombatScreen: React.FC = () => {
       dmgSl = attack.damageSl;
     }
 
-    // Damage with quality tweaks (Damaging / Impale fold into the number). The
-    // Impale die explodes (WFRP 4e); matched the same way computeHitDamage gates it.
-    const impaleRoll = landed && isDouble(r.roll) && hasQuality(w.qual, 'Impale')
-      ? rollExploding(10) : 0;
+    // Damage with quality tweaks (Damaging folds into the number; Impale can
+    // add a Critical Wound).
     const dmg = landed
-      ? computeHitDamage({ baseDamage: computeDamage(w.dmg, vars), sl: dmgSl, toHitRoll: r.roll, qualities: w.qual, impaleRoll })
+      ? computeHitDamage({ baseDamage: computeDamage(w.dmg, vars), sl: dmgSl, toHitRoll: r.roll, qualities: w.qual })
       : null;
 
     const loc = caps.combatHitLocations && landed ? hitLocationFromRoll(r.roll, hitLocations) : null;
     const locLine = loc ? `\n\nHit location: ${loc.label}  (${r.roll} → ${loc.locRoll})` : '';
     const dmgLine = dmg
       ? `\n\nDamage dealt: ${dmg.total}  (${w.dmg}` +
-        `${dmg.damagingApplied ? ` + ${dmg.slBonus} units die` : dmg.slBonus ? ` + ${dmg.slBonus} SL` : ''}` +
-        `${dmg.impaleExtra ? ` + ${dmg.impaleExtra} Impale` : ''})` +
+        `${dmg.damagingApplied ? ` + ${dmg.slBonus} units die` : dmg.slBonus ? ` + ${dmg.slBonus} SL` : ''})` +
         `\nThe target subtracts its Toughness Bonus + AP.`
       : '';
     const qualLines = landed ? weaponQualityNotes(w.qual) : [];
@@ -235,9 +232,11 @@ export const CombatScreen: React.FC = () => {
     // be lost after a successful double).
     const critLine = r.outcome === 'crit-success' && landed
       ? '\n\nCRITICAL HIT (a double): the target also suffers a Critical Wound.'
-      : r.outcome === 'fumble'
-        ? '\n\nFUMBLE (a failed double): resolve the fumble.'
-        : '';
+      : dmg?.impaleCritical
+        ? `\n\nIMPALE: the roll ends in 0, so the target also suffers a Critical Wound.`
+        : r.outcome === 'fumble'
+          ? '\n\nFUMBLE (a failed double): resolve the fumble.'
+          : '';
 
     const difficultyLine = `\n\nDifficulty modifier: ${atk.difficulty >= 0 ? '+' : ''}${atk.difficulty}`;
     const settingsTicket = setAttackSettings({

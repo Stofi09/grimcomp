@@ -8,7 +8,6 @@
 // Combat and Wounds screens share one source of truth.
 
 import type { HitLocationKey, HitLocationRow } from '@/content/types';
-import { isDouble } from './roll';
 
 // --- Weapon reach/range shape ----------------------------------------------
 
@@ -268,12 +267,10 @@ export interface HitDamageInput {
   baseDamage: number;
   /** SL that feeds damage — own SL unopposed, net opposed SL otherwise. */
   sl: number;
-  /** The to-hit roll (its units digit feeds Damaging; a double triggers Impale). */
+  /** The to-hit roll (its units digit feeds Damaging and Impale). */
   toHitRoll: number;
   /** Weapon qualities (and flaws), verbatim from the weapon. */
   qualities: string[];
-  /** Pre-rolled extra Impale die (1d10). Injected so the calc stays pure/testable. */
-  impaleRoll?: number;
 }
 
 export interface HitDamageResult {
@@ -282,17 +279,19 @@ export interface HitDamageResult {
   slBonus: number;
   /** Damaging replaced SL with the (higher) units die of the to-hit roll. */
   damagingApplied: boolean;
-  /** Impale added an extra die (only on a double to-hit roll). */
-  impaleExtra: number;
+  /** Impale: the hit's units die shows 10 (a roll ending in 0), so the target
+      also suffers a Critical Wound. */
+  impaleCritical: boolean;
   /** Units die of the to-hit roll (0 reads as 10). */
   unitsDie: number;
 }
 
 /**
  * WFRP 4e damage from a landed hit: Weapon Damage + SL, with the quality tweaks
- * that change the number:
+ * that change the outcome:
  *  - **Damaging** — use the units die of the to-hit roll instead of SL if higher.
- *  - **Impale** — a double to-hit roll adds an extra Damage die (1d10).
+ *  - **Impale** — a hit whose units die shows 10 (10, 20, 30, …) also causes a
+ *    Critical Wound. It adds no Damage.
  * Other qualities (Hack, Penetrating, Pummel, …) don't change this total; they
  * surface as notes via weaponQualityNotes().
  */
@@ -301,13 +300,11 @@ export function computeHitDamage(input: HitDamageInput): HitDamageResult {
   const damaging = hasQuality(input.qualities, 'Damaging');
   const rawBonus = damaging ? Math.max(input.sl, unitsDie) : input.sl;
   const slBonus = Math.max(0, rawBonus);
-  const impaleExtra = hasQuality(input.qualities, 'Impale') && isDouble(input.toHitRoll)
-    ? Math.max(0, Math.round(input.impaleRoll ?? 0)) : 0;
   return {
-    total: Math.max(0, Math.round(input.baseDamage)) + slBonus + impaleExtra,
+    total: Math.max(0, Math.round(input.baseDamage)) + slBonus,
     slBonus,
     damagingApplied: damaging && unitsDie > input.sl,
-    impaleExtra,
+    impaleCritical: hasQuality(input.qualities, 'Impale') && unitsDie === 10,
     unitsDie,
   };
 }
@@ -316,7 +313,7 @@ export function computeHitDamage(input: HitDamageInput): HitDamageResult {
     the number. Returned in weapon order; empty when none apply. */
 export function weaponQualityNotes(qualities: string[]): string[] {
   const notes: Record<string, string> = {
-    penetrating: 'Penetrating — the target ignores Armour Points equal to this hit\'s SL.',
+    penetrating: 'Penetrating — non-metal armour is ignored, and the first point of other armour.',
     hack: 'Hack — on a damaging hit, reduce the struck location\'s armour by 1 AP.',
     pummel: 'Pummel — you may spend Advantage to add the Stunned condition.',
     defensive: 'Defensive — grants +1 SL when used to defend in an Opposed Test.',
@@ -324,9 +321,9 @@ export function weaponQualityNotes(qualities: string[]): string[] {
     trapblade: 'Trap Blade — may catch and hold a foe\'s weapon on a successful defence.',
     dangerous: 'Dangerous — a fumble may harm the wielder.',
     reload: 'Reload — needs one or more actions to reload before firing again.',
-    blackpowder: 'Blackpowder — ignores standard Armour Points (not magical AP).',
+    blackpowder: 'Blackpowder — a loud, frightening shot; check the Blackpowder quality.',
     entangle: 'Entangle — a hit may apply the Entangled condition instead of Wounds.',
-    impact: 'Impact — roll two dice for the Damage die and take the higher.',
+    impact: 'Impact — add the units die of the attack roll to the Damage.',
     wrap: 'Wrap — ignores shields when working out the hit.',
   };
   const out: string[] = [];

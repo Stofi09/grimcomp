@@ -256,10 +256,10 @@ describe('hasQuality — case-insensitive, word-boundary match', () => {
 
 describe('computeHitDamage — Weapon Damage + SL with quality tweaks', () => {
   it('applies Impale/Damaging even when authored as a compound quality string', () => {
-    // "Impale, Ranged" must still add the extra die on a double, and
+    // "Impale, Ranged" must still crit on a roll ending in 0, and
     // "Damaging (…)" must still swap in the higher units die.
-    const impaled = computeHitDamage({ baseDamage: 4, sl: 1, toHitRoll: 33, qualities: ['Impale, Ranged'], impaleRoll: 6 });
-    expect(impaled.impaleExtra).toBe(6);
+    const impaled = computeHitDamage({ baseDamage: 4, sl: 1, toHitRoll: 30, qualities: ['Impale, Ranged'] });
+    expect(impaled.impaleCritical).toBe(true);
     const damaging = computeHitDamage({ baseDamage: 4, sl: 1, toHitRoll: 8, qualities: ['Damaging (test)'] });
     expect(damaging.damagingApplied).toBe(true);
     expect(damaging.slBonus).toBe(8);
@@ -287,12 +287,13 @@ describe('computeHitDamage — Weapon Damage + SL with quality tweaks', () => {
     expect(r.damagingApplied).toBe(false);
   });
 
-  it('Impale adds an extra die only on a double to-hit roll', () => {
-    const dbl = computeHitDamage({ baseDamage: 6, sl: 1, toHitRoll: 33, qualities: ['Impale'], impaleRoll: 8 });
-    expect(dbl.impaleExtra).toBe(8);
-    expect(dbl.total).toBe(6 + 1 + 8);
-    const notDbl = computeHitDamage({ baseDamage: 6, sl: 1, toHitRoll: 34, qualities: ['Impale'], impaleRoll: 8 });
-    expect(notDbl.impaleExtra).toBe(0);
+  it('Impale causes a Critical Wound on a hit ending in 0 and adds no Damage', () => {
+    const ten = computeHitDamage({ baseDamage: 6, sl: 1, toHitRoll: 40, qualities: ['Impale'] });
+    expect(ten.impaleCritical).toBe(true);
+    expect(ten.total).toBe(6 + 1);
+    // A double is a critical by itself; Impale does not add to it.
+    expect(computeHitDamage({ baseDamage: 6, sl: 1, toHitRoll: 33, qualities: ['Impale'] }).impaleCritical).toBe(false);
+    expect(computeHitDamage({ baseDamage: 6, sl: 1, toHitRoll: 40, qualities: [] }).impaleCritical).toBe(false);
   });
 
   it('a units digit of 0 reads as 10', () => {
