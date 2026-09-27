@@ -273,8 +273,9 @@ describe('Winds of Magic content pack', () => {
       }),
     ]);
     expect(new Set(pack.skills.map(skill => skill.id)).size).toBe(2);
-    expect(registry.allSkillDefs).toHaveLength(46);
-    expect(new Set(registry.allSkillDefs.map(skill => skill.name.trim().toLocaleLowerCase())).size).toBe(46);
+    // 45 Core skills (including Perform) + the two Winds of Magic skills.
+    expect(registry.allSkillDefs).toHaveLength(47);
+    expect(new Set(registry.allSkillDefs.map(skill => skill.name.trim().toLocaleLowerCase())).size).toBe(47);
     expect(registry.allSkillDefs.some(skill => skill.name === 'Alchemy')).toBe(false);
     expect(registry.allSkillDefs.some(skill => /^Channelling \([^)]+\)$/.test(skill.name))).toBe(false);
     expect(pack.references).toEqual(expect.arrayContaining([
