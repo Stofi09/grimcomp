@@ -1,10 +1,31 @@
-# Excluded from EAS cloud builds, including local account data and configuration.
+# EAS uses this file INSTEAD of .gitignore when it exists
+# (https://docs.expo.dev/build-reference/easignore/), so it repeats the
+# .gitignore entries before adding exclusions that only apply to EAS uploads.
+# Keep web/public/content: the native app bundles those JSON packs.
+
+# --- Same as .gitignore ---
+node_modules/
+.pnpm-store/
+.expo/
+dist/
+web-build/
+ios/
+android/
 .DS_Store
-/_check
-/server/
+*.log
 .env
 .env.local
 .env.*
+server/data/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+.idea/
+.vscode/
+.claude/
+
+# --- EAS uploads only: local account data, server and deployment tooling ---
+/_check
+/server/
+/ops/
+coverage/
