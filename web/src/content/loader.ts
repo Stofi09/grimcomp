@@ -41,8 +41,9 @@ export async function loadBundledPacks(): Promise<{ packs: ContentPack[]; errors
     return { packs, errors };
   }
 
-  // Preserve manifest order — registry folding is order-sensitive.
-  for (const file of files) {
+  // Fetch every pack at once (one round trip instead of one per pack) but
+  // keep manifest order in the result — registry folding is order-sensitive.
+  const results = await Promise.all(files.map(async (file): Promise<{ pack?: ContentPack; error?: string }> => {
     try {
       const res = await fetch(`${base()}content/${file}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -52,14 +53,14 @@ export async function loadBundledPacks(): Promise<{ packs: ContentPack[]; errors
       // screen) aren't surfaced in the UI for bundled packs, so log them — these
       // are the project's own packs, caught at dev time.
       for (const w of warnings) console.warn(`[content] ${file}: ${w}`);
-      if (pack) {
-        packs.push(pack);
-      } else {
-        errors.push(`${file}: ${packErrors.join('; ')}`);
-      }
+      return pack ? { pack } : { error: `${file}: ${packErrors.join('; ')}` };
     } catch (err) {
-      errors.push(`${file}: ${err instanceof Error ? err.message : String(err)}`);
+      return { error: `${file}: ${err instanceof Error ? err.message : String(err)}` };
     }
+  }));
+  for (const result of results) {
+    if (result.pack) packs.push(result.pack);
+    if (result.error) errors.push(result.error);
   }
 
   return { packs, errors };
