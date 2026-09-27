@@ -56,7 +56,7 @@
     {
       "id": "race.wood-elf",
       "name": "Wood Elf",
-      "charModifiers": { "ws": 10, "bs": 10, "i": 20, "ag": 10, "dex": 10, "int": 10, "wp": 10 },
+      "charModifiers": { "ws": 10, "bs": 10, "i": 20, "ag": 10, "dex": 10, "int": 10, "wp": 10, "fel": -10 },
       "movement": 5,
       "fate": 0,
       "resilience": 0,
