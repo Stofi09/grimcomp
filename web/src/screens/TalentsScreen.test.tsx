@@ -400,7 +400,7 @@ describe('catalog talent acquisition', () => {
     expect(screen.getAllByText('source unavailable').length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText(/Loaded definition unavailable/).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('Sure Shot').closest('.gc-card')?.textContent)
-      .toContain('No penalty when shooting from a moving mount');
+      .toContain("Your ranged attacks ignore some of a target's Armour Points.");
 
     openPicker('Alley Cat');
     fireEvent.click(screen.getByRole('option', { name: /Alley Cat/ }));
