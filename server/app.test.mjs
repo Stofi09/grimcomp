@@ -271,6 +271,97 @@ test('malformed or out-of-bounds stored hashes fail sign-in with 401, never 500'
   }
 });
 
+const missingLogin = app => app.request('/api/auth/login', {
+  method: 'POST', body: { email: 'missing@example.com', password: PASSWORD },
+});
+
+test('password hashing waits in a FIFO queue instead of failing while every slot is busy', async (t) => {
+  const hashing = trackedDeriveKey({ gated: true });
+  const app = await start(t, { hashConcurrency: 1, hashQueueLimit: 4, deriveKey: hashing.deriveKey });
+  const first = missingLogin(app);
+  await waitUntil(() => hashing.held === 1);
+  let queuedSettled = false;
+  const queued = missingLogin(app).finally(() => { queuedSettled = true; });
+  await delay(100);
+  assert.equal(queuedSettled, false, 'a queued sign-in must wait for a free slot');
+  assert.equal(hashing.calls.length, 1);
+  hashing.releaseNext();
+  assertError(await first, 401);
+  await waitUntil(() => hashing.held === 1);
+  hashing.releaseNext();
+  assertError(await queued, 401);
+});
+
+test('password hashing answers 503 only when its queue is full or a wait times out', async (t) => {
+  const hashing = trackedDeriveKey({ gated: true });
+  const full = await start(t, { hashConcurrency: 1, hashQueueLimit: 0, deriveKey: hashing.deriveKey });
+  const running = missingLogin(full);
+  await waitUntil(() => hashing.held === 1);
+  const refused = await missingLogin(full);
+  assertError(refused, 503);
+  assert.ok(Number(refused.headers.get('retry-after')) >= 1);
+  hashing.releaseNext();
+  assertError(await running, 401);
+
+  const slow = await start(t, { hashConcurrency: 1, hashQueueLimit: 1, hashQueueTimeoutMs: 100, deriveKey: hashing.deriveKey });
+  const blocking = missingLogin(slow);
+  await waitUntil(() => hashing.held === 1);
+  assertError(await missingLogin(slow), 503);
+  assert.equal(hashing.held, 1);
+  hashing.releaseNext();
+  assertError(await blocking, 401);
+  // The expired waiter left the queue, so the next sign-in starts at once.
+  const next = missingLogin(slow);
+  await waitUntil(() => hashing.held === 1);
+  hashing.releaseNext();
+  assertError(await next, 401);
+});
+
+test('registering an existing email pays for the same password hash as a new account', async (t) => {
+  const hashing = trackedDeriveKey();
+  const app = await start(t, { deriveKey: hashing.deriveKey });
+  await register(app);
+  assert.equal(hashing.calls.length, 1);
+  const duplicate = await app.request('/api/auth/register', {
+    method: 'POST', body: { name: 'Someone Else', email: 'adventurer@example.com', password: NEW_PASSWORD },
+  });
+  assertError(duplicate, 409);
+  assert.match(duplicate.data.error, /already exists/);
+  assert.equal(hashing.calls.length, 2);
+  assert.deepEqual(hashing.calls[1].options, hashing.calls[0].options);
+});
+
+test('duplicate session cookies are treated as signed out instead of picking one', async (t) => {
+  const app = await start(t);
+  const registered = await register(app, {}, { client: 'web', origin: ORIGIN });
+  const cookie = registered.headers.get('set-cookie').split(';')[0];
+  const planted = `grimcomp_session=${'a'.repeat(64)}`;
+  assert.deepEqual((await app.request('/api/auth/session', { client: 'web', cookie })).data.user, registered.data.user);
+  for (const tossed of [`${planted}; ${cookie}`, `${cookie}; ${planted}`, `${cookie}; ${cookie}`]) {
+    assert.deepEqual((await app.request('/api/auth/session', { client: 'web', cookie: tossed })).data, { user: null });
+    assertError(await app.request('/api/backups', { client: 'web', cookie: tossed }), 401);
+  }
+  assert.deepEqual((await app.request('/api/auth/session', { client: 'web', cookie })).data.user, registered.data.user);
+});
+
+test('unexpected failures log the error code and message without credentials', async (t) => {
+  const app = await start(t);
+  const logged = t.mock.method(console, 'error', () => {});
+  app.database.exec(`CREATE TEMP TRIGGER reject_sessions BEFORE INSERT ON sessions
+    BEGIN SELECT RAISE(ABORT, 'simulated session storage failure'); END;`);
+  const failed = await app.request('/api/auth/register', {
+    method: 'POST', body: { name: 'Adventurer', email: 'adventurer@example.com', password: PASSWORD },
+  });
+  assertError(failed, 500);
+  assert.equal(logged.mock.callCount(), 1);
+  const line = logged.mock.calls[0].arguments.join(' ');
+  assert.match(line, /POST \/api\/auth\/register/);
+  assert.match(line, /ERR_SQLITE_ERROR/);
+  assert.match(line, /simulated session storage failure/);
+  assert.ok(!line.includes(PASSWORD));
+  assert.ok(!line.includes('adventurer@example.com'));
+});
+
 function snapshot(time = '2026-09-12T10:00:00.000Z') {
   return JSON.stringify({ $schema: 'grimcomp.v1', scope: 'roster', exportedAt: time, 'gc.notes': [] });
 }
