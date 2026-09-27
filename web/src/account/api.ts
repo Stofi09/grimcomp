@@ -15,8 +15,12 @@ export interface BackupMetadata {
   bytes: number;
 }
 
+/** Which sign-ups the account server accepts. */
+export type RegistrationMode = 'open' | 'closed' | 'invite';
+
 export class AccountApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  /** `code` is the server's machine-readable reason, e.g. `invite_required`. */
+  constructor(message: string, readonly status: number, readonly code?: string) {
     super(message);
     this.name = 'AccountApiError';
   }
@@ -24,6 +28,11 @@ export class AccountApiError extends Error {
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
+);
+
+const REGISTRATION_MODES: readonly string[] = ['open', 'closed', 'invite'] satisfies RegistrationMode[];
+const isRegistrationMode = (value: unknown): value is RegistrationMode => (
+  typeof value === 'string' && REGISTRATION_MODES.includes(value)
 );
 
 const invalidResponse = (): never => {
@@ -83,12 +92,19 @@ async function readResponse(response: Response, limit: number): Promise<unknown>
   catch { return undefined; }
 }
 
-async function request(path: string, body?: unknown, expectedUserId?: string): Promise<unknown> {
+interface RequestOptions {
+  /** Defaults to POST with a body and GET without one. */
+  method?: 'GET' | 'POST' | 'DELETE';
+  body?: unknown;
+  expectedUserId?: string;
+}
+
+async function request(path: string, { method, body, expectedUserId }: RequestOptions = {}): Promise<unknown> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
     const response = await fetch(`/api${path}`, {
-      method: body === undefined ? 'GET' : 'POST',
+      method: method ?? (body === undefined ? 'GET' : 'POST'),
       credentials: 'include',
       cache: 'no-store',
       headers: {
@@ -109,7 +125,8 @@ async function request(path: string, body?: unknown, expectedUserId?: string): P
         : response.status === 401
           ? 'Your session has expired. Please log in again.'
           : 'The account service is unavailable. Your local characters are still available.';
-      throw new AccountApiError(message, response.status);
+      const code = isRecord(result) && typeof result.code === 'string' ? result.code : undefined;
+      throw new AccountApiError(message, response.status, code);
     }
     if (result === undefined) return invalidResponse();
     return result;
@@ -128,35 +145,60 @@ export const accountApi = {
   async session(): Promise<AccountSession> {
     return readSession(await request('/auth/session'));
   },
+  async registrationMode(): Promise<RegistrationMode> {
+    const result = await request('/auth/registration');
+    if (!isRecord(result) || !isRegistrationMode(result.mode)) return invalidResponse();
+    return result.mode;
+  },
   async login(email: string, password: string): Promise<AccountSession> {
-    const session = readSession(await request('/auth/login', { email, password }));
+    const session = readSession(await request('/auth/login', { body: { email, password } }));
     if (!session.user) return invalidResponse();
     return session;
   },
-  async register(name: string, email: string, password: string): Promise<AccountSession> {
-    const session = readSession(await request('/auth/register', { name, email, password }));
+  /** `inviteCode` is sent only when given, for servers that accept invited sign-ups. */
+  async register(name: string, email: string, password: string, inviteCode?: string): Promise<AccountSession> {
+    const session = readSession(await request('/auth/register', {
+      body: { name, email, password, ...(inviteCode ? { inviteCode } : {}) },
+    }));
     if (!session.user) return invalidResponse();
     return session;
   },
   async logout(): Promise<void> {
-    await request('/auth/logout', {});
+    await request('/auth/logout', { body: {} });
+  },
+  /** Revokes every session of the account, including this browser's. */
+  async logoutEverywhere(expectedUserId?: string): Promise<void> {
+    await request('/auth/logout-all', { body: {}, expectedUserId });
+  },
+  /** Replaces this browser's session and revokes all others. */
+  async changePassword(currentPassword: string, newPassword: string, expectedUserId?: string): Promise<AccountSession> {
+    const session = readSession(await request('/auth/password', { body: { currentPassword, newPassword }, expectedUserId }));
+    if (!session.user) return invalidResponse();
+    return session;
+  },
+  /** Permanently deletes the account with its sessions and backups. */
+  async deleteAccount(password: string, expectedUserId?: string): Promise<void> {
+    await request('/account', { method: 'DELETE', body: { password }, expectedUserId });
   },
   async listBackups(expectedUserId?: string): Promise<BackupMetadata[]> {
-    const result = await request('/backups', undefined, expectedUserId);
+    const result = await request('/backups', { expectedUserId });
     if (!isRecord(result) || !Array.isArray(result.backups) || result.backups.length > 10) return invalidResponse();
     return result.backups.map(readBackup);
   },
   async saveBackup(snapshot: string, expectedUserId?: string): Promise<BackupMetadata> {
-    const result = await request('/backups', { snapshot }, expectedUserId);
+    const result = await request('/backups', { body: { snapshot }, expectedUserId });
     if (!isRecord(result)) return invalidResponse();
     return readBackup(result.backup);
   },
   async getBackup(id: string, expectedUserId?: string): Promise<{ backup: BackupMetadata; snapshot: string }> {
-    const result = await request(`/backups/${encodeURIComponent(id)}`, undefined, expectedUserId);
+    const result = await request(`/backups/${encodeURIComponent(id)}`, { expectedUserId });
     if (!isRecord(result) || typeof result.snapshot !== 'string') return invalidResponse();
     const backup = readBackup(result.backup);
     if (backup.id !== id) return invalidResponse();
     return { backup, snapshot: result.snapshot };
+  },
+  async deleteBackup(id: string, expectedUserId?: string): Promise<void> {
+    await request(`/backups/${encodeURIComponent(id)}`, { method: 'DELETE', expectedUserId });
   },
 };
 import { MAX_SETTINGS_BACKUP_FILE_BYTES } from '@grimcomp/core';

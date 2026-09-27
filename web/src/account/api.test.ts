@@ -95,6 +95,60 @@ describe('account API client', () => {
     await expect(accountApi.getBackup('another-backup')).rejects.toMatchObject({ status: 502 });
   });
 
+  it('asks which registrations the server accepts and sends an invite code only when given', async () => {
+    const fetchMock = mockResponse({ mode: 'invite' });
+    expect(await accountApi.registrationMode()).toBe('invite');
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/auth/registration', expect.objectContaining({
+      method: 'GET', credentials: 'include', headers: { 'X-Grim-Client': 'web' },
+    }));
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ mode: 'public' })));
+    await expect(accountApi.registrationMode()).rejects.toMatchObject({ status: 502 });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(session)));
+    await accountApi.register('Marta', user.email, 'long password', 'friends-of-the-grim');
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/auth/register', expect.objectContaining({
+      body: JSON.stringify({ name: 'Marta', email: user.email, password: 'long password', inviteCode: 'friends-of-the-grim' }),
+    }));
+  });
+
+  it('keeps the machine-readable reason of a refused request', async () => {
+    mockResponse({ error: 'Enter the invite code from the server owner.', code: 'invite_required' }, 403);
+    await expect(accountApi.register('Marta', user.email, 'long password')).rejects.toMatchObject({
+      name: 'AccountApiError', status: 403, code: 'invite_required', message: 'Enter the invite code from the server owner.',
+    });
+  });
+
+  it('changes the password for the displayed account and returns the rotated session', async () => {
+    const fetchMock = mockResponse(session);
+    expect(await accountApi.changePassword('old password', 'a brand new passphrase', user.id)).toEqual(session);
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/password', expect.objectContaining({
+      method: 'POST', credentials: 'include', cache: 'no-store',
+      headers: { 'X-Grim-Client': 'web', 'X-Grim-User': user.id, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: 'old password', newPassword: 'a brand new passphrase' }),
+    }));
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ user: null })));
+    await expect(accountApi.changePassword('old password', 'a brand new passphrase', user.id)).rejects.toMatchObject({ status: 502 });
+  });
+
+  it('signs out everywhere and deletes backups or the account for the displayed account', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(accountApi.logoutEverywhere(user.id)).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/auth/logout-all', expect.objectContaining({
+      method: 'POST', credentials: 'include', body: '{}',
+      headers: { 'X-Grim-Client': 'web', 'X-Grim-User': user.id, 'Content-Type': 'application/json' },
+    }));
+    await expect(accountApi.deleteBackup('id/with?syntax', user.id)).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/backups/id%2Fwith%3Fsyntax', expect.objectContaining({
+      method: 'DELETE', credentials: 'include', headers: { 'X-Grim-Client': 'web', 'X-Grim-User': user.id },
+    }));
+    expect(fetchMock.mock.lastCall?.[1].body).toBeUndefined();
+    await expect(accountApi.deleteAccount('my password', user.id)).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/account', expect.objectContaining({
+      method: 'DELETE', credentials: 'include', body: JSON.stringify({ password: 'my password' }),
+      headers: { 'X-Grim-Client': 'web', 'X-Grim-User': user.id, 'Content-Type': 'application/json' },
+    }));
+  });
+
   it('bounds response bodies even when the server omits Content-Length', async () => {
     const cancel = vi.fn();
     const body = new ReadableStream<Uint8Array>({

@@ -50,3 +50,7 @@
 .account-backups li { border-top: 1px solid var(--divider); padding: 10px 0; }
 .account-backups li:last-child { padding-bottom: 0; }
 .account-backups time { font-size: 12px; }
+.account-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.account-backups li > .account-actions { display: flex; }
+.account-security { display: grid; gap: 12px; padding-top: 14px; border-top: 1px solid var(--divider); }
+.account-security h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
