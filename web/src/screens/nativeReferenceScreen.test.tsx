@@ -122,6 +122,14 @@ describe('native ReferenceScreen', () => {
     expect(host.modal).toEqual({ mounts: 1, unmounts: 0 });
   });
 
+  it('shows a category tile only when entries are loaded for it', () => {
+    render(<ReferenceScreen />);
+    expect(screen.getByRole('button', { name: 'Browse Spells, 1 loaded entries' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Browse Talents, 1 loaded entries' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Browse Rules/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /, 0 loaded entries$/ })).toBeNull();
+  });
+
   it('lets the first tap reach controls while the keyboard is up', () => {
     const view = render(<ReferenceScreen />);
     fireEvent.click(screen.getByRole('button', { name: 'Search rules' }));

@@ -5,6 +5,9 @@ import { ScreenContainer } from './ScreenContainer';
 import { useContentPacks } from '@/content/useContentPacks';
 import { countQuarantinedPacks } from '@/content/storedPacks';
 import { validatePack } from '@/content/validate';
+import { loadBundledCatalogue } from '@/content/bundled';
+import { latestContentVersion } from '@/content/contentVersion';
+import { useContentStatus } from '@/content/useContent';
 import { Hero } from '@/components/Hero';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -59,11 +62,13 @@ export const SettingsScreen: React.FC = () => {
   const { all } = useRoster();
   const {
     packs: userPacks,
+    active: activePacks,
     quarantined: quarantinedPacks,
     add: addPack,
     remove: removePack,
     setEnabled,
   } = useContentPacks();
+  const { catalogueIssues } = useContentStatus();
   const storageStatus = useNativeStorageStatus();
   const [exportSheet, setExportSheet] = useState<{ scope: 'character' | 'roster'; json: string } | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
@@ -233,6 +238,18 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const rosterCount = Object.keys(all).length;
+  // The bundled catalogue is projected once and cached; report what loaded.
+  const bundledPacks = loadBundledCatalogue().packs;
+  const rulebookVersion = latestContentVersion(bundledPacks) ?? 'Unavailable';
+  const coreRulesVersion = bundledPacks.find(pack => pack.id === 'core-rules')?.version;
+  const importedLabel = activePacks.length === 0
+    ? ''
+    : `, plus ${activePacks.length} imported ${activePacks.length === 1 ? 'pack' : 'packs'}`;
+  const failedLabel = catalogueIssues.length === 0
+    ? ''
+    : ` Failed to load: ${catalogueIssues.map(issue => issue.source).join(', ')}.`;
+  const rulebookHint = `Core Rulebook and Winds of Magic data: ${bundledPacks.length} bundled packs, newest ${rulebookVersion}`
+    + `${coreRulesVersion ? ` (core rules ${coreRulesVersion})` : ''}${importedLabel}.${failedLabel}`;
   const storageValue = storageStatus.pending > 0
     ? `Saving (${storageStatus.pending})`
     : storageStatus.dirty ? 'Needs attention' : 'Saved';
@@ -309,8 +326,8 @@ export const SettingsScreen: React.FC = () => {
 
         <Row
           title="Rulebook"
-          hint="WFRP 4e core book references used for spells, prayers, and miscast tables."
-          value="2026.04.01"
+          hint={rulebookHint}
+          value={rulebookVersion}
         />
 
         <Row

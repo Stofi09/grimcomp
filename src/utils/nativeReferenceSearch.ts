@@ -146,7 +146,12 @@ export function buildNativeReferenceItems(registry: ContentRegistry): NativeRefe
   return items.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
 
-/** Counts and filters use the same items, including categories from imported packs. */
+/**
+ * Counts and filters use the same items, including categories from imported
+ * packs. A category with nothing loaded is omitted rather than offered as an
+ * empty tile; only the selected category stays, even at zero, so an active
+ * filter never vanishes (e.g. after its imported pack is removed or disabled).
+ */
 export function nativeReferenceCategoryCounts(
   items: NativeReferenceItem[],
   selectedCategory: string | null = null,
@@ -155,9 +160,10 @@ export function nativeReferenceCategoryCounts(
   for (const entry of items) counts.set(entry.category, (counts.get(entry.category) ?? 0) + 1);
   const known: readonly string[] = NATIVE_REFERENCE_CATEGORIES;
   const titles = [...known, ...[...counts.keys()].filter(title => !known.includes(title)).sort()];
-  // Keep an active imported category visible if its pack is removed or disabled.
   if (selectedCategory !== null && !titles.includes(selectedCategory)) titles.push(selectedCategory);
-  return titles.map(title => ({ title, count: counts.get(title) ?? 0 }));
+  return titles
+    .map(title => ({ title, count: counts.get(title) ?? 0 }))
+    .filter(entry => entry.count > 0 || entry.title === selectedCategory);
 }
 
 /** Literal, case-insensitive token matching; punctuation never becomes a regex. */

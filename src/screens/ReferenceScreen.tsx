@@ -79,6 +79,9 @@ export const ReferenceScreen: React.FC = () => {
 
       <Section title="Categories" />
       <View style={styles.grid}>
+        {categories.length === 0 ? (
+          <Text style={styles.empty}>No reference entries are loaded.</Text>
+        ) : null}
         {categories.map(entry => (
           <Pressable
             key={entry.title}

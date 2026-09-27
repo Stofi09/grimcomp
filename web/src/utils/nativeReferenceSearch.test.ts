@@ -140,11 +140,22 @@ describe('native reference browsing', () => {
     expect(searchNativeReferenceItems(items, '', null)).toHaveLength(items.length);
   });
 
-  it('returns honest zero counts and no fictional recent or placeholder records when nothing is loaded', () => {
+  it('offers no empty categories and no placeholder records when nothing is loaded', () => {
     const items = buildNativeReferenceItems(new ContentRegistry([]));
     expect(items).toEqual([]);
-    expect(nativeReferenceCategoryCounts(items).every(category => category.count === 0)).toBe(true);
+    expect(nativeReferenceCategoryCounts(items)).toEqual([]);
     expect(searchNativeReferenceItems(items, '')).toEqual([]);
+  });
+
+  it('omits categories with no loaded entries, such as Rules in the bundled catalogue', () => {
+    const bundled = buildNativeReferenceItems(new ContentRegistry([...loadBundledCatalogue().packs]));
+    const counts = nativeReferenceCategoryCounts(bundled);
+    expect(counts.length).toBeGreaterThan(0);
+    expect(counts.every(category => category.count > 0)).toBe(true);
+    expect(counts.some(category => category.title === 'Rules')).toBe(false);
+    // A pack that does load Rules entries brings the category back.
+    expect(nativeReferenceCategoryCounts(buildNativeReferenceItems(new ContentRegistry([pack]))))
+      .toContainEqual({ title: 'Rules', count: 1 });
   });
 
   it('makes the bundled Core and Winds of Magic catalogue accessible through the native browser', () => {
