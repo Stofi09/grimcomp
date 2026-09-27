@@ -233,10 +233,12 @@ function registrationPolicy(mode, inviteCode) {
     throw new TypeError(`registrationMode must be one of: ${REGISTRATION_MODES.join(', ')}.`);
   }
   if (mode !== 'invite') return { mode };
-  if (typeof inviteCode !== 'string' || inviteCode.length < 12 || inviteCode.length > 256) {
+  const code = typeof inviteCode === 'string' ? inviteCode.trim() : '';
+  if (code.length < 12 || code.length > 256) {
     throw new TypeError('Invite-only registration needs an invite code of 12 to 256 characters.');
   }
-  return { mode, invite: createHash('sha256').update(inviteCode).digest() };
+  // Offered codes are trimmed too, so pasted whitespace never matters.
+  return { mode, invite: createHash('sha256').update(code).digest() };
 }
 
 // Compare fixed-length digests, so neither the code nor its length leaks through timing.
@@ -521,7 +523,11 @@ export function createApplication({
       throw new HttpError(401, INVALID_LOGIN);
     }
     limiters.failures.reset(failureKey);
-    const upgraded = isCurrentHash(verified) ? null : await createPasswordHash(password);
+    // The upgrade is opportunistic: a busy hashing queue must not fail a correct sign-in.
+    const upgraded = isCurrentHash(verified) ? null : await createPasswordHash(password).catch(error => {
+      if (error instanceof HttpError) return null;
+      throw error;
+    });
     return issueSession(request, response, user, 200, () => {
       // The password may have changed, or the account been deleted, while hashing.
       if (storedPasswordHash(user.id) !== user.password_hash) throw new HttpError(401, INVALID_LOGIN);

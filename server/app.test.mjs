@@ -320,6 +320,28 @@ test('password hashing answers 503 only when its queue is full or a wait times o
   assertError(await next, 401);
 });
 
+test('a busy hashing queue skips the hash upgrade instead of failing a correct sign-in', async (t) => {
+  const hashing = trackedDeriveKey({ gated: true });
+  const app = await start(t, { hashConcurrency: 1, hashQueueLimit: 1, hashQueueTimeoutMs: 300, deriveKey: hashing.deriveKey });
+  const legacy = legacyHash(PASSWORD);
+  const id = insertUser(app, 'legacy@example.com', legacy);
+  const login = app.request('/api/auth/login', { method: 'POST', body: { email: 'legacy@example.com', password: PASSWORD } });
+  await waitUntil(() => hashing.held === 1);
+  // One of these waits in the single queue place; the other is refused at once.
+  const others = [missingLogin(app), missingLogin(app)];
+  assertError(await Promise.race(others), 503);
+  // The verification finishes and hands its slot to the waiting sign-in, so
+  // the upgrade has to queue and times out while that one is held.
+  hashing.releaseNext();
+  const signedIn = await login;
+  assert.equal(signedIn.status, 200, JSON.stringify(signedIn.data));
+  assert.equal(storedHash(app, id), legacy);
+  await waitUntil(() => hashing.held === 1);
+  hashing.releaseNext();
+  const settled = await Promise.all(others);
+  assert.deepEqual(settled.map(response => response.status).sort(), [401, 503]);
+});
+
 test('registering an existing email pays for the same password hash as a new account', async (t) => {
   const hashing = trackedDeriveKey();
   const app = await start(t, { deriveKey: hashing.deriveKey });
