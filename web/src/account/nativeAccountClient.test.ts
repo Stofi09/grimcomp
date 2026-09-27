@@ -139,7 +139,7 @@ describe('native account client', () => {
     expect(h.savedToken()).toBe('rotated-session');
   });
 
-  it('rejects a declared oversized response before reading its body', async () => {
+  it('rejects a declared oversized response and aborts it before reading its body', async () => {
     const h = harness('native', 'saved-session');
     h.fetcher.mockResolvedValueOnce(json({ user: USER }));
     await h.client.restoreSession();
@@ -149,7 +149,106 @@ describe('native account client', () => {
     h.fetcher.mockResolvedValueOnce(response);
     await expect(h.client.listBackups()).rejects.toThrow(/response is too large/);
     expect(read).not.toHaveBeenCalled();
+    expect(h.fetcher.mock.calls[1][1]?.signal?.aborted).toBe(true);
     expect(h.savedToken()).toBe('saved-session');
+  });
+
+  it('aborts an undeclared oversized body as soon as the stream crosses the cap', async () => {
+    const h = harness('native', 'saved-session');
+    h.fetcher.mockResolvedValueOnce(json({ user: USER }));
+    await h.client.restoreSession();
+    let chunksPulled = 0;
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        chunksPulled += 1;
+        controller.enqueue(new Uint8Array(16_384).fill(0x78));
+      },
+    });
+    h.fetcher.mockResolvedValueOnce(new Response(endless, { status: 200 }));
+
+    await expect(h.client.listBackups()).rejects.toThrow(/response is too large/);
+    expect(h.fetcher.mock.calls[1][1]?.signal?.aborted).toBe(true);
+    expect(chunksPulled).toBeLessThan(12);
+    expect(h.client.getSnapshot().user).toEqual(USER);
+  });
+
+  it('checks a buffered React Native body size before materializing its text', async () => {
+    const h = harness('native', 'saved-session');
+    h.fetcher.mockResolvedValueOnce(json({ user: USER }));
+    await h.client.restoreSession();
+    // React Native's fetch has no body stream; it resolves with a native Blob.
+    const buffered = (size: number, text: string) => {
+      const readText = vi.fn(async () => text);
+      const response = {
+        ok: true, status: 200, headers: new Headers(), body: undefined,
+        clone: () => ({ blob: async () => ({ size }) }),
+        text: readText,
+      } as unknown as Response;
+      return { response, readText };
+    };
+
+    const oversized = buffered(65_537, '{}');
+    h.fetcher.mockResolvedValueOnce(oversized.response);
+    await expect(h.client.listBackups()).rejects.toThrow(/response is too large/);
+    expect(oversized.readText).not.toHaveBeenCalled();
+    expect(h.fetcher.mock.calls[1][1]?.signal?.aborted).toBe(true);
+
+    const listing = JSON.stringify({ backups: [BACKUP] });
+    const small = buffered(listing.length, listing);
+    h.fetcher.mockResolvedValueOnce(small.response);
+    await expect(h.client.listBackups()).resolves.toEqual([BACKUP]);
+  });
+
+  it('signs out locally with the saved token removed when the server cannot be reached', async () => {
+    const h = harness('native', 'saved-session');
+    h.fetcher.mockResolvedValueOnce(json({ user: USER }))
+      .mockRejectedValueOnce(new TypeError('Network request failed'));
+    await h.client.restoreSession();
+    const version = h.client.sessionVersion;
+
+    await expect(h.client.logout()).resolves.toEqual({ serverConfirmed: false });
+    // Revocation was still attempted with the session it should end.
+    expect(h.fetcher.mock.calls[1][0]).toBe('https://accounts.example.test/api/auth/logout');
+    expect(h.fetcher.mock.calls[1][1]?.headers).toMatchObject({ Authorization: 'Bearer saved-session' });
+    expect(h.client.getSnapshot()).toEqual({ user: null, initialized: true });
+    expect(h.savedToken()).toBeNull();
+    expect(() => h.client.assertSession(version)).toThrow(/account changed/);
+  });
+
+  it.each([
+    ['a server error', () => json({ error: 'Temporarily unavailable.' }, 503)],
+    ['an already-expired session', () => json({ error: 'Expired' }, 401)],
+  ])('still signs out locally after %s', async (_label, response) => {
+    const h = harness('native', 'saved-session');
+    h.fetcher.mockResolvedValueOnce(json({ user: USER })).mockResolvedValueOnce(response());
+    await h.client.restoreSession();
+
+    await expect(h.client.logout()).resolves.toEqual({ serverConfirmed: false });
+    expect(h.client.getSnapshot().user).toBeNull();
+    expect(h.savedToken()).toBeNull();
+  });
+
+  it('confirms a server-side sign-out', async () => {
+    const h = harness('native', 'saved-session');
+    h.fetcher.mockResolvedValueOnce(json({ user: USER })).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await h.client.restoreSession();
+
+    await expect(h.client.logout()).resolves.toEqual({ serverConfirmed: true });
+    expect(h.savedToken()).toBeNull();
+  });
+
+  it('reports a saved token that could not be removed while still clearing the session', async () => {
+    const h = harness('native', 'saved-session');
+    h.fetcher.mockResolvedValueOnce(json({ user: USER })).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await h.client.restoreSession();
+    h.tokenStore.remove.mockRejectedValueOnce(new Error('Keychain is unavailable.'));
+
+    await expect(h.client.logout()).rejects.toThrow(/could not be removed/);
+    expect(h.client.getSnapshot().user).toBeNull();
+    // The pending removal is retried before the next restore reads a token.
+    await h.client.restoreSession();
+    expect(h.savedToken()).toBeNull();
+    expect(h.client.getSnapshot().user).toBeNull();
   });
 
   it('bounds small metadata responses independently from downloaded snapshots', async () => {

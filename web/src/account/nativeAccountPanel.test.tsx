@@ -134,6 +134,20 @@ describe('native account panel lifecycle', () => {
     expect(screen.getByText(/Backup restored. 1 saved values/)).toBeTruthy();
   });
 
+  it.each([
+    [true, /^Signed out\. Local characters remain/],
+    [false, /server could not be reached, so the server session will end when it expires/],
+  ])('reports a sign-out whose server confirmation is %s', async (serverConfirmed, message) => {
+    mocked.account.logout.mockImplementation(async () => {
+      mocked.account.getSnapshot.mockReturnValue({ user: null, initialized: true });
+      return { serverConfirmed };
+    });
+    await showPanel();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Sign out' })); });
+    expect(screen.getByText(message)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Restore' })).toBeNull();
+  });
+
   it('hides the previous account backups immediately if another account is restored', async () => {
     await showPanel();
     mocked.account.restoreSession.mockImplementationOnce(async () => {

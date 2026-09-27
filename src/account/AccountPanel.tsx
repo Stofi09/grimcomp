@@ -152,8 +152,14 @@ export const AccountPanel: React.FC = () => {
           <View style={styles.actions}>
             <Button variant="primary" disabled={!!busy || storageUnavailable} onPress={save}>{busy === 'save' ? 'Saving…' : 'Save roster backup'}</Button>
             <Button variant="ghost" disabled={!!busy} onPress={() => { void run('logout', async () => {
-              await account.logout();
-              if (mounted.current) { setSavedBackups({ userId: null, items: [] }); setPassword(''); setMessage('Signed out. Local characters remain on this device.'); }
+              const { serverConfirmed } = await account.logout();
+              if (mounted.current) {
+                setSavedBackups({ userId: null, items: [] });
+                setPassword('');
+                setMessage(serverConfirmed
+                  ? 'Signed out. Local characters remain on this device.'
+                  : 'Signed out on this device. The account server could not be reached, so the server session will end when it expires. Local characters remain on this device.');
+              }
             }); }}>Sign out</Button>
           </View>
           <View style={styles.listHeading}>

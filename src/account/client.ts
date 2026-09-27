@@ -27,6 +27,59 @@ function userFrom(value: unknown): AccountUser {
   }
   return { id: value.id, name: value.name, email: value.email };
 }
+export interface AccountLogoutResult {
+  /** False when the server could not confirm it revoked the session. */
+  readonly serverConfirmed: boolean;
+}
+
+class ResponseTooLargeError extends Error {
+  constructor() { super('The account server response is too large.'); }
+}
+
+/**
+ * Read at most `maxBytes` of a response body as text. A declared
+ * Content-Length over the cap aborts the request before the body is read;
+ * otherwise the body is streamed and the request aborted as soon as the cap is
+ * crossed. React Native's fetch exposes no body stream (it resolves with the
+ * body already buffered natively as a Blob), so there the Blob's size is
+ * checked before the text is materialized in JavaScript.
+ */
+async function readBoundedText(response: Response, maxBytes: number, abort: () => void): Promise<string> {
+  const tooLarge = (): never => {
+    abort();
+    throw new ResponseTooLargeError();
+  };
+  const declared = Number(response.headers.get('Content-Length'));
+  if (Number.isFinite(declared) && declared > maxBytes) tooLarge();
+
+  const body = response.body;
+  if (body && typeof body.getReader === 'function' && typeof TextDecoder === 'function') {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let received = 0;
+    let text = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > maxBytes) {
+        void reader.cancel().catch(() => undefined);
+        tooLarge();
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    return text + decoder.decode();
+  }
+
+  if (typeof response.clone === 'function') {
+    const buffered = await response.clone().blob();
+    if (buffered.size > maxBytes) tooLarge();
+  }
+  const text = await response.text();
+  if (text.length > maxBytes) tooLarge();
+  return text;
+}
+
 function backupFrom(value: unknown): AccountBackup {
   if (!record(value) || !boundedText(value.id, 128) || !boundedText(value.createdAt, 64)
     || !Number.isFinite(Date.parse(value.createdAt)) || typeof value.bytes !== 'number'
@@ -114,13 +167,8 @@ export class NativeAccountClient {
       const maxResponseBytes = method === 'GET' && path.startsWith('/api/backups/')
         ? MAX_SETTINGS_BACKUP_FILE_BYTES * 6 + 65_536
         : 65_536;
-      const contentLength = Number(response.headers.get('Content-Length'));
-      if (Number.isFinite(contentLength) && contentLength > maxResponseBytes) {
-        throw new Error('The account server response is too large.');
-      }
-      const raw = await response.text();
+      const raw = await readBoundedText(response, maxResponseBytes, () => controller.abort());
       if (version !== this.version) throw new Error('Your account changed. Try this action again.');
-      if (raw.length > maxResponseBytes) throw new Error('The account server response is too large.');
       let data: unknown;
       try { data = JSON.parse(raw) as unknown; }
       catch { throw new Error('The account server returned an unreadable response.'); }
@@ -129,6 +177,8 @@ export class NativeAccountClient {
       }
       return data;
     } catch (error) {
+      // An oversized body aborts the request itself; that is not a timeout.
+      if (error instanceof ResponseTooLargeError) throw error;
       if (controller.signal.aborted) throw new Error('The account server took too long to respond. Try again.');
       if (error instanceof TypeError) throw new Error('Could not reach the account server. Check your connection and try again.');
       throw error;
@@ -209,12 +259,32 @@ export class NativeAccountClient {
       this.authBusy = false;
     }
   }
-  async logout(): Promise<void> {
+  /**
+   * Always signs this device out, including offline. Server revocation is
+   * attempted first because it needs the session token; whatever it returns,
+   * the local session and the saved token are then cleared.
+   */
+  async logout(): Promise<AccountLogoutResult> {
     if (this.authBusy) throw new Error('An account action is already in progress.');
     this.authBusy = true;
     try {
-      await this.request('/api/auth/logout', 'POST');
-      await this.clearSession();
+      let serverConfirmed = false;
+      try {
+        await this.request('/api/auth/logout', 'POST');
+        serverConfirmed = true;
+      } catch {
+        // Offline, timed out, or already expired: the server session then
+        // lapses on its own expiry, and this device is signed out below.
+      } finally {
+        try {
+          await this.clearSession();
+        } catch {
+          // The in-memory session is already gone; a pending token removal is
+          // retried before the next session restore in this process.
+          throw new Error('Signed out, but the saved sign-in could not be removed from this device. If the app signs you back in later, sign out again.');
+        }
+      }
+      return { serverConfirmed };
     } finally {
       this.authBusy = false;
     }
