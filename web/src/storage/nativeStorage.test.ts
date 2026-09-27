@@ -22,6 +22,7 @@ import {
 } from '../../../src/storage/migrations';
 import { CHARACTER_TEMPLATES } from '../../../src/data/character';
 import type { ContentPack } from '../../../src/content/types';
+import { incrementTalentRank } from '../../../src/utils/nativeTalents';
 import {
   partitionStoredPacks,
   removeStoredPack,
@@ -960,6 +961,38 @@ describe('NativeStorageStore', () => {
     expect(journal.operations).toHaveLength(2);
     expect(backend.values.get('gc.a')).toBe('1');
     expect(backend.values.get('gc.b')).toBe('15');
+  });
+
+  it('discards an in-batch talent rank when the XP spend refuses and aborts the purchase', async () => {
+    const backend = new FakeNativeBackend();
+    const store = new NativeStorageStore(backend, coordinatorFor(backend));
+    expect((await store.initialize()).ready).toBe(true);
+    backend.journalWrites.length = 0;
+    const xpSeed = { current: 50, spent: 0, log: [] as unknown[] };
+
+    // TalentsScreen order: capped rank first, then the XP spend; a refused
+    // spend throws so the whole batch, including the rank, is abandoned.
+    const refused = await store.runTransaction(() => {
+      void store.update<Record<string, number>>(
+        'gc.c1.talents.times', { Hardy: 2 }, previous => incrementTalentRank(previous, 'Hardy', 2, 4).times,
+      );
+      void store.update('gc.c1.xp', xpSeed, previous => previous);
+      throw new Error('Need 300 XP, you only have 50.');
+    });
+    expect(refused).toMatchObject({ ok: false, outcome: 'rejected' });
+    expect(store.read('gc.c1.talents.times', null)).toBeNull();
+    expect(backend.values.has('gc.c1.talents.times')).toBe(false);
+    expect(backend.journalWrites).toHaveLength(0);
+
+    // At the cap the rank update is a no-op, so nothing is journaled.
+    expect((await store.update('gc.c1.talents.times', {}, { Hardy: 4 })).ok).toBe(true);
+    backend.journalWrites.length = 0;
+    const capped = await store.update<Record<string, number>>(
+      'gc.c1.talents.times', { Hardy: 2 }, previous => incrementTalentRank(previous, 'Hardy', 2, 4).times,
+    );
+    expect(capped).toMatchObject({ ok: true, outcome: 'unchanged' });
+    expect(backend.journalWrites).toHaveLength(0);
+    expect(JSON.parse(backend.values.get('gc.c1.talents.times') ?? 'null')).toEqual({ Hardy: 4 });
   });
 
   it('rejects async callbacks and blocks global writes from their late continuation', async () => {

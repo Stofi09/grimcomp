@@ -17,6 +17,9 @@ import { useProgressionActionGuard } from './useProgressionActionGuard';
 // "Buy another rank" cost: 100 × the new rank number. WFRP 4e core p.49.
 const talentCost = (currentTimes: number) => 100 * (currentTimes + 1);
 
+/** Abandons the purchase batch so a rank bought earlier in it is not kept. */
+class PurchaseRefused extends Error {}
+
 export const TalentsScreen: React.FC = () => {
   const { list, buyAnother } = useTalents();
   const xp = useXp();
@@ -29,23 +32,34 @@ export const TalentsScreen: React.FC = () => {
     try {
       const cost = talentCost(currentTimes);
       const reason = `${name} ×${currentTimes + 1}`;
-      let r = { ok: false, message: 'Storage is not ready for this purchase.' };
+      const outcome: { refusal?: { title: string; message: string }; spent?: string } = {};
       const durability = await runStoredTransaction(() => {
-        r = xp.spend(cost, reason, 'talent');
-        if (r.ok) buyAnother(name);
+        // The rank goes first: at the talent's cap it refuses without writing,
+        // so no XP is spent on a rank that cannot be taken.
+        const rank = buyAnother(name);
+        if (!rank.ok) {
+          outcome.refusal = {
+            title: rank.max !== undefined ? 'Maximum rank reached' : 'Could not buy rank',
+            message: rank.message,
+          };
+          return;
+        }
+        const spend = xp.spend(cost, reason, 'talent');
+        if (!spend.ok) {
+          outcome.refusal = { title: 'Not enough XP', message: spend.message };
+          throw new PurchaseRefused(spend.message);
+        }
+        outcome.spent = spend.message;
       });
-      if (!r.ok) {
-        Alert.alert(
-          durability.ok ? 'Not enough XP' : 'Could not save purchase',
-          durability.ok ? r.message : durability.error.message,
-        );
+      if (outcome.refusal) {
+        Alert.alert(outcome.refusal.title, outcome.refusal.message);
         return;
       }
       if (!durability.ok) {
         Alert.alert('Could not save purchase', durability.error.message);
         return;
       }
-      Alert.alert('Bought talent', r.message);
+      Alert.alert('Bought talent', outcome.spent ?? '');
     } finally {
       action.release();
     }
@@ -72,6 +86,7 @@ export const TalentsScreen: React.FC = () => {
       <View style={styles.grid}>
         {list.map((t, i) => {
           const cost = talentCost(t.times);
+          const atMax = t.max !== undefined && t.times >= t.max;
           return (
             <Card key={i} style={styles.cell}>
               <View style={[layoutStyles.row, { alignItems: 'flex-start', justifyContent: 'space-between' }]}>
@@ -83,14 +98,19 @@ export const TalentsScreen: React.FC = () => {
                   <Text style={styles.desc}>{t.desc}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end', marginLeft: 14 }}>
-                  <Text style={styles.miniLabel}>TIMES</Text>
+                  <Text style={styles.miniLabel}>{t.max !== undefined ? `TIMES / MAX ${t.max}` : 'TIMES'}</Text>
                   <Text style={styles.times}>×{t.times}</Text>
                 </View>
               </View>
               <View style={styles.divider} />
               <View style={layoutStyles.rowBetween}>
-                <Text style={styles.next}>NEXT {cost} XP</Text>
-                <Button variant="ghost" onPress={() => buy(t.name, t.times)}>
+                <Text style={styles.next}>{atMax ? 'MAXIMUM RANK REACHED' : `NEXT ${cost} XP`}</Text>
+                <Button
+                  variant="ghost"
+                  disabled={atMax}
+                  accessibilityHint={atMax ? `${t.name} is at its maximum of ${t.max} ranks.` : undefined}
+                  onPress={() => buy(t.name, t.times)}
+                >
                   Buy another
                 </Button>
               </View>
