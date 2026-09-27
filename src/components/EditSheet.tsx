@@ -28,6 +28,13 @@ interface EditSheetProps {
   saveDisabled?: boolean;
   /** Optional left-side action (e.g. "Delete"). */
   destructive?: { label: string; onPress: () => void };
+  /**
+   * Changing this remounts only the scrollable body (resetting its scroll
+   * position) while the Modal stays presented. Never key the sheet itself: on
+   * iOS, swapping one visible Modal for another in a single commit drops the
+   * new presentation, so the sheet silently disappears.
+   */
+  contentKey?: string;
   children: React.ReactNode;
 }
 
@@ -40,6 +47,7 @@ export const EditSheet: React.FC<EditSheetProps> = ({
   saveLabel = 'Save',
   saveDisabled,
   destructive,
+  contentKey,
   children,
 }) => (
   <Modal
@@ -78,6 +86,7 @@ export const EditSheet: React.FC<EditSheetProps> = ({
         </View>
 
         <ScrollView
+          key={contentKey}
           style={styles.body}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}

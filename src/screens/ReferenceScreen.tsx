@@ -1,21 +1,23 @@
 import React from 'react';
 import { View, Text, TextInput, ScrollView, StyleSheet, Pressable } from 'react-native';
+// Relative imports keep this screen renderable by the native regression tests,
+// whose '@/' alias points at the web tree.
 import { ScreenContainer } from './ScreenContainer';
-import { useContent } from '@/content/useContent';
-import { Hero } from '@/components/Hero';
-import { Section } from '@/components/Section';
-import { Card } from '@/components/Card';
-import { Button } from '@/components/Button';
-import { EditSheet } from '@/components/EditSheet';
-import { Icon, type IconName } from '@/components/Icon';
-import { colors, fontFamilies } from '@/theme';
-import { layoutStyles } from '@/components/primitives';
+import { useContent } from '../content/useContent';
+import { Hero } from '../components/Hero';
+import { Section } from '../components/Section';
+import { Card } from '../components/Card';
+import { Button } from '../components/Button';
+import { EditSheet } from '../components/EditSheet';
+import { Icon, type IconName } from '../components/Icon';
+import { colors, fontFamilies } from '../theme';
+import { layoutStyles } from '../components/primitives';
 import {
   buildNativeReferenceItems,
   nativeReferenceCategoryCounts,
   searchNativeReferenceItems,
   type NativeReferenceItem,
-} from '@/utils/nativeReferenceSearch';
+} from '../utils/nativeReferenceSearch';
 
 const CATEGORY_ICONS: Record<string, IconName> = {
   Careers: 'crown', Skills: 'scroll', Talents: 'star', Spells: 'sparkle',
@@ -107,7 +109,7 @@ export const ReferenceScreen: React.FC = () => {
       </Card>
 
       <EditSheet
-        key={selected?.id ?? 'browse'}
+        contentKey={selected ? `detail:${selected.id}` : 'browse'}
         visible={visible}
         title={selected?.name ?? 'Browse reference'}
         subtitle={selected ? selected.category : `${category ?? 'All categories'} · ${results.length} matching entries`}
