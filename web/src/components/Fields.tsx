@@ -121,6 +121,24 @@ interface NumberFieldProps extends FieldProps {
   max?: number;
 }
 
+/** The whole number a draft spells out: digits with an optional leading minus. */
+function parseDraft(text: string): number | null {
+  const cleaned = text.replace(/[^\d-]/g, '');
+  return /^-?\d+$/.test(cleaned) ? parseInt(cleaned, 10) : null;
+}
+
+/**
+ * The value a draft stands for. An empty or unfinished draft ("", "-") counts
+ * as 0 kept inside the range, so clearing a field zeroes it (or lifts it to a
+ * positive minimum) instead of jumping to a negative minimum.
+ */
+function draftValue(text: string, min?: number, max?: number): number {
+  let n = parseDraft(text) ?? 0;
+  if (min != null) n = Math.max(min, n);
+  if (max != null) n = Math.min(max, n);
+  return n;
+}
+
 export const NumberField: React.FC<NumberFieldProps> = ({
   label,
   hint,
@@ -132,22 +150,16 @@ export const NumberField: React.FC<NumberFieldProps> = ({
 }) => {
   const controlId = React.useId();
   const hintId = `${controlId}-hint`;
+  // The local draft keeps what the user typed ("", "-", "-2") while the parent
+  // holds the number. Outside changes (presets, resets) replace the draft only
+  // when it no longer stands for the current value, so typing "-20" works.
   const [raw, setRaw] = React.useState(String(value));
-  React.useEffect(() => { setRaw(String(value)); }, [value]);
+  React.useEffect(() => {
+    setRaw(prev => (draftValue(prev, min, max) === value ? prev : String(value)));
+  }, [value, min, max]);
   const commit = (text: string) => {
     setRaw(text);
-    const n = parseInt(text.replace(/[^\d-]/g, ''), 10);
-    if (Number.isNaN(n)) {
-      // Empty / non-numeric input: fall back to the min (or 0) and still fire
-      // the callback, so a field can actually be cleared or zeroed. The local
-      // `raw` draft keeps the empty string so typing stays natural.
-      onChangeNumber(min ?? 0);
-      return;
-    }
-    let clamped = n;
-    if (min != null) clamped = Math.max(min, clamped);
-    if (max != null) clamped = Math.min(max, clamped);
-    onChangeNumber(clamped);
+    onChangeNumber(draftValue(text, min, max));
   };
   return (
     <FieldFrame
@@ -164,6 +176,7 @@ export const NumberField: React.FC<NumberFieldProps> = ({
         inputMode="numeric"
         value={raw}
         onChange={e => commit(e.target.value)}
+        onBlur={() => setRaw(String(value))}
         aria-describedby={hint ? hintId : undefined}
         autoCorrect="off"
         spellCheck={false}

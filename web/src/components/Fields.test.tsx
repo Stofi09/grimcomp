@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import * as React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import {
@@ -52,6 +53,45 @@ describe('form fields', () => {
 
     fireEvent.change(input, { target: { value: '' } });
     expect(onChangeNumber).toHaveBeenLastCalledWith(16);
+  });
+
+  it('lets a negative-range field be typed, cleared and preset', () => {
+    function Difficulty() {
+      const [value, setValue] = React.useState(10);
+      return (
+        <>
+          <NumberField label="Difficulty modifier" value={value} min={-100} max={100} onChangeNumber={setValue} />
+          <output aria-label="Current difficulty">{value}</output>
+          <button type="button" onClick={() => setValue(20)}>Preset +20</button>
+        </>
+      );
+    }
+    render(<Difficulty />);
+    const input = screen.getByRole('textbox', { name: 'Difficulty modifier' }) as HTMLInputElement;
+    const current = () => screen.getByLabelText('Current difficulty').textContent;
+
+    // Clearing zeroes the value instead of jumping to the -100 minimum.
+    fireEvent.change(input, { target: { value: '' } });
+    expect(current()).toBe('0');
+    expect(input.value).toBe('');
+
+    // A lone minus is an unfinished entry: it stays in the field.
+    fireEvent.change(input, { target: { value: '-' } });
+    expect(input.value).toBe('-');
+    expect(current()).toBe('0');
+    fireEvent.change(input, { target: { value: '-20' } });
+    expect(current()).toBe('-20');
+    expect(input.value).toBe('-20');
+
+    // An outside change replaces the draft.
+    fireEvent.click(screen.getByRole('button', { name: 'Preset +20' }));
+    expect(input.value).toBe('20');
+
+    // An out-of-range entry clamps the value; leaving the field tidies the text.
+    fireEvent.change(input, { target: { value: '-1002' } });
+    expect(current()).toBe('-100');
+    fireEvent.blur(input);
+    expect(input.value).toBe('-100');
   });
 
   it('exposes a named single-choice group and its selected state', () => {
