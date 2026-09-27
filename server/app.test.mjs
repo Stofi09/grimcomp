@@ -1,14 +1,17 @@
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID, scrypt, scryptSync } from 'node:crypto';
 import { once } from 'node:events';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
-import { APP_CONTENT_SECURITY_POLICY, createApplication, MAX_BACKUP_BYTES, MAX_BACKUP_REQUEST_BYTES } from './app.mjs';
+import {
+  APP_CONTENT_SECURITY_POLICY, createApplication, DEFAULT_CONTENT_SECURITY_POLICY,
+  MAX_BACKUP_BYTES, MAX_BACKUP_REQUEST_BYTES,
+} from './app.mjs';
 
 const ORIGIN = 'http://localhost:5173';
 const PASSWORD = 'A long unique password 2026!';
@@ -885,5 +888,64 @@ test('static hosting blocks encoded hidden files and rejects malformed URL encod
   }
   for (const path of ['/%', '/%GG', '/%E0%A4%A']) {
     assertError(await app.request(path), 400);
+  }
+});
+
+test('static hosting sends the app CSP with HTML and caches only fingerprinted assets for a year', async (t) => {
+  const staticDir = await mkdtemp(join(tmpdir(), 'grimcomp-static-'));
+  await mkdir(join(staticDir, 'assets'));
+  await Promise.all([
+    writeFile(join(staticDir, 'index.html'), '<!doctype html><title>Grim Companion</title>'),
+    writeFile(join(staticDir, 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>'),
+    writeFile(join(staticDir, 'assets', 'index-BDiERoRh.js'), 'export {};'),
+    writeFile(join(staticDir, 'assets', 'unversioned.js'), 'export {};'),
+  ]);
+  const app = await start(t, { staticDir, secureCookies: true });
+  t.after(() => rm(staticDir, { recursive: true, force: true }));
+  const get = async (path, headers = {}) => {
+    const response = await fetch(`${app.baseUrl}${path}`, { headers });
+    return { response, text: await response.text() };
+  };
+  assert.doesNotMatch(APP_CONTENT_SECURITY_POLICY, /unsafe-inline|unsafe-eval|\*/);
+  for (const { response, text } of [await get('/'), await get('/roster', { Accept: 'text/html' })]) {
+    assert.equal(response.status, 200);
+    assert.match(text, /Grim Companion/);
+    assert.equal(response.headers.get('content-security-policy'), APP_CONTENT_SECURITY_POLICY);
+    assert.equal(response.headers.get('cache-control'), 'no-cache');
+  }
+  const asset = (await get('/assets/index-BDiERoRh.js')).response;
+  assert.equal(asset.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+  assert.equal(asset.headers.get('content-security-policy'), DEFAULT_CONTENT_SECURITY_POLICY);
+  for (const path of ['/assets/unversioned.js', '/favicon.svg']) {
+    assert.equal((await get(path)).response.headers.get('cache-control'), 'no-cache');
+  }
+  const api = await app.request('/api/health', { client: null });
+  for (const headers of [asset.headers, api.headers]) {
+    assert.equal(headers.get('referrer-policy'), 'same-origin');
+    assert.equal(headers.get('strict-transport-security'), 'max-age=31536000; includeSubDomains');
+    assert.equal(headers.get('x-frame-options'), 'DENY');
+    assert.equal(headers.get('x-content-type-options'), 'nosniff');
+  }
+  assert.equal(api.headers.get('content-security-policy'), DEFAULT_CONTENT_SECURITY_POLICY);
+});
+
+test('nginx templates restate every security header wherever a block declares its own', async () => {
+  const policies = new Set([APP_CONTENT_SECURITY_POLICY, DEFAULT_CONTENT_SECURITY_POLICY]);
+  for (const name of ['grimcomp-https.conf.example', 'grimcomp-api.location.example']) {
+    const template = (await readFile(new URL(`../ops/nginx/${name}`, import.meta.url), 'utf8')).replace(/#.*$/gm, '');
+    const locations = [...template.matchAll(/location[^{]*\{([^}]*)\}/g)].map(match => match[1]);
+    const serverLevel = template.replace(/location[^{]*\{[^}]*\}/g, '');
+    const declaring = [serverLevel, ...locations].filter(block => block.includes('add_header'));
+    assert.ok(declaring.length > 0, name);
+    // add_header is not inherited by a block that declares any add_header itself.
+    for (const block of declaring) {
+      assert.match(block, /add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;/);
+      assert.match(block, /add_header X-Content-Type-Options nosniff always;/);
+      assert.match(block, /add_header Referrer-Policy same-origin always;/);
+      assert.match(block, /add_header X-Frame-Options DENY always;/);
+      const csp = [...block.matchAll(/add_header Content-Security-Policy "([^"]+)" always;/g)].map(match => match[1]);
+      assert.equal(csp.length, 1, block);
+      assert.ok(policies.has(csp[0]), csp[0]);
+    }
   }
 });

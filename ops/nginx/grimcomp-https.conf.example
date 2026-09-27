@@ -14,23 +14,37 @@ server {
     autoindex off;
     access_log /var/log/nginx/grimcomp.access.log combined;
     error_log /var/log/nginx/grimcomp.error.log warn;
+
+    # Security headers. nginx does not merge add_header across levels: a
+    # location with any add_header of its own drops this whole set, so every
+    # such location below restates it. Keep all copies identical.
+    # The app loads only same-origin scripts, styles, JSON and fonts (some
+    # inlined as data: URIs); React sets styles through CSSOM, which CSP
+    # allows without 'unsafe-inline'. Mirrors APP_CONTENT_SECURITY_POLICY in
+    # server/app.mjs.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
     add_header X-Content-Type-Options nosniff always;
-    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header Referrer-Policy same-origin always;
     add_header X-Frame-Options DENY always;
 
     # Fingerprinted assets from past releases survive current-pointer switches.
     location ^~ /assets/ {
         alias /srv/grimcomp/assets/;
         add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
         add_header X-Content-Type-Options nosniff always;
-        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        add_header Referrer-Policy same-origin always;
         add_header X-Frame-Options DENY always;
     }
     location ^~ /content/ {
         try_files $uri =404;
         add_header Cache-Control "no-cache" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
         add_header X-Content-Type-Options nosniff always;
-        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        add_header Referrer-Policy same-origin always;
         add_header X-Frame-Options DENY always;
     }
 
@@ -40,14 +54,22 @@ server {
     location ^~ /api/ {
         default_type application/json;
         add_header Cache-Control "no-store" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy same-origin always;
+        add_header X-Frame-Options DENY always;
         return 503 '{"error":"Account service is not enabled on this deployment."}';
     }
+    # No add_header here: inherits the server-level set.
     location ~ /\. { return 404; }
     location / {
         try_files $uri $uri/ =404;
         add_header Cache-Control "no-cache" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
         add_header X-Content-Type-Options nosniff always;
-        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        add_header Referrer-Policy same-origin always;
         add_header X-Frame-Options DENY always;
     }
 }

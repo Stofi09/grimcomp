@@ -9,8 +9,8 @@ location ^~ /api/ {
     proxy_set_header X-Forwarded-For $remote_addr;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header Connection "";
-    # A 960 KiB snapshot is nested inside JSON and can grow through escaping.
-    # The application enforces its exact snapshot and request-body bounds.
+    # JSON escaping at most doubles a valid 960 KiB snapshot. The application
+    # enforces 2 x 960 KiB + 4 KiB per backup upload and 4 KiB for sign-in.
     client_max_body_size 2m;
     client_body_timeout 30s;
     proxy_connect_timeout 5s;
@@ -18,8 +18,19 @@ location ^~ /api/ {
     proxy_send_timeout 30s;
     proxy_no_cache 1;
     proxy_cache_bypass 1;
+    # nginx owns the security headers of proxied responses: hide the Node
+    # server's copies so each header is sent exactly once with one value.
+    # Any add_header here drops the server-level set, so restate all of it.
+    proxy_hide_header Cache-Control;
+    proxy_hide_header Strict-Transport-Security;
+    proxy_hide_header Content-Security-Policy;
+    proxy_hide_header X-Content-Type-Options;
+    proxy_hide_header Referrer-Policy;
+    proxy_hide_header X-Frame-Options;
     add_header Cache-Control "no-store" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'" always;
     add_header X-Content-Type-Options nosniff always;
-    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header Referrer-Policy same-origin always;
     add_header X-Frame-Options DENY always;
 }
