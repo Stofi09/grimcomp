@@ -126,11 +126,47 @@ describe('native bundled catalogue', () => {
     expect(registry.allReferences).toEqual(expect.arrayContaining(merged('references')));
     expect(registry.allReferences).toEqual(expect.arrayContaining([
       expect.objectContaining({ category: 'Conditions', name: 'Ablaze', description: expect.stringContaining('fire') }),
-      expect.objectContaining({ category: 'Critical Wounds', name: 'Bruised Muscle' }),
-      expect.objectContaining({ category: 'Critical Wounds', name: 'Struck Silly', meta: expect.stringContaining('head') }),
       expect.objectContaining({ category: 'Deities', name: 'Sigmar' }),
     ]));
     expect(new Set(registry.allReferences.map(reference => reference.id)).size).toBe(registry.allReferences.length);
+  });
+
+  it('lists critical wounds once, from the per-location tables, with readable locations and stable ids', () => {
+    const coreRules = catalogue.find(pack => pack.id === 'core-rules') as unknown as {
+      criticalTables: Array<{ locations: string[]; rows: Array<{ name: string; min: number; max: number }> }>;
+    };
+    const tableRows = coreRules.criticalTables.flatMap(table => table.rows);
+    const criticals = registry.allReferences.filter(reference => reference.category === 'Critical Wounds');
+
+    // One coherent source: no second copy of a name from the flat summary list.
+    expect(criticals).toHaveLength(tableRows.length);
+    expect(new Set(criticals.map(critical => critical.name)).size).toBe(criticals.length);
+    expect(criticals.map(critical => critical.name).sort()).toEqual(tableRows.map(row => row.name).sort());
+    expect(criticals.some(critical => critical.name === 'Bruised Muscle')).toBe(false);
+
+    expect(criticals).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'ref.core-rules.critical.head.1-10', name: 'Struck Silly', meta: 'Head · 1–10 · 1 healing day',
+      }),
+      expect.objectContaining({
+        id: 'ref.core-rules.critical.arm_l+arm_r.31-45', name: 'Dislocated Shoulder',
+        meta: expect.stringMatching(/^Left Arm \/ Right Arm · 31–45 · \d+ healing days$/),
+      }),
+      expect.objectContaining({ name: 'Decapitated', meta: expect.stringMatching(/^Head · 100 · /) }),
+    ]));
+    for (const critical of criticals) {
+      expect(critical.meta).not.toMatch(/arm_l|arm_r|leg_l|leg_r/);
+    }
+  });
+
+  it('falls back to the flat critical list only for a pack without per-location tables', () => {
+    const projected = projectBundledPack({
+      $schema: 'grimcomp.content.v2', id: 'flat', name: 'Flat criticals', version: '1',
+      criticals: [{ name: 'Deep Cut', effect: 'Bleeding 1.', days: 5 }],
+    });
+    expect(projected.references).toEqual([
+      { id: 'ref.flat.critical.0', category: 'Critical Wounds', name: 'Deep Cut', description: 'Bleeding 1.', meta: '5 healing days' },
+    ]);
   });
 
   it('retains every old spell id for saved characters without adding legacy spells to the catalogue', () => {

@@ -53,8 +53,81 @@ function requiredString(value: unknown, where: string): string {
   return value;
 }
 
-function optionalNumber(value: unknown, label: string): string {
-  return typeof value === 'number' && Number.isFinite(value) ? `${value} ${label}` : '';
+function requiredInteger(value: unknown, where: string): number {
+  if (typeof value !== 'number' || !Number.isInteger(value)) throw new Error(`${where} must be an integer.`);
+  return value;
+}
+
+function healingDays(value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '';
+  return `${value} healing ${value === 1 ? 'day' : 'days'}`;
+}
+
+/**
+ * Display names for hit-location keys, taken from the pack itself: the d100
+ * hit-location labels ("Left Arm"), else the figure captions ("L. ARM"), else
+ * the key with underscores spaced out.
+ */
+function locationLabeller(raw: Record<string, unknown>): (key: string) => string {
+  const labels = new Map<string, string>();
+  const figureLabels = raw.figureLabels;
+  if (typeof figureLabels === 'object' && figureLabels !== null && !Array.isArray(figureLabels)) {
+    for (const [key, label] of Object.entries(figureLabels)) {
+      if (typeof label === 'string' && label.trim()) labels.set(key, label.trim());
+    }
+  }
+  if (Array.isArray(raw.hitLocations)) {
+    for (const location of raw.hitLocations as unknown[]) {
+      if (typeof location !== 'object' || location === null) continue;
+      const { key, label } = location as Record<string, unknown>;
+      if (typeof key === 'string' && typeof label === 'string' && label.trim()) labels.set(key, label.trim());
+    }
+  }
+  return key => labels.get(key) ?? key.replace(/_/g, ' ');
+}
+
+/**
+ * Critical wounds come from one coherent source. The per-location d100 tables
+ * are what play uses; the flat `criticals` list is a legacy summary whose
+ * names overlap the tables with different healing times, so it is shown only
+ * for a pack that has no tables. Ids derive from the location and roll band,
+ * so they stay stable if rows or tables are reordered.
+ */
+function criticalReferences(raw: Record<string, unknown>, packId: string): ReferenceDef[] {
+  const tables = objects(raw.criticalTables, 'criticalTables');
+  if (tables.length === 0) {
+    return objects(raw.criticals, 'criticals').map((critical, index): ReferenceDef => ({
+      id: `ref.${packId}.critical.${index}`,
+      category: 'Critical Wounds',
+      name: requiredString(critical.name, `criticals[${index}].name`),
+      description: requiredString(critical.effect, `criticals[${index}].effect`),
+      meta: healingDays(critical.days),
+    }));
+  }
+  const labelFor = locationLabeller(raw);
+  return tables.flatMap((table, tableIndex) => {
+    const where = `criticalTables[${tableIndex}]`;
+    const locations = table.locations;
+    if (!Array.isArray(locations) || locations.length === 0
+      || !locations.every(location => typeof location === 'string' && location.trim())) {
+      throw new Error(`${where}.locations must be a nonempty array of location keys.`);
+    }
+    const locationKeys = locations as string[];
+    const locationLabel = locationKeys.map(labelFor).join(' / ');
+    return objects(table.rows, `${where}.rows`).map((row, rowIndex): ReferenceDef => {
+      const rowWhere = `${where}.rows[${rowIndex}]`;
+      const min = requiredInteger(row.min, `${rowWhere}.min`);
+      const max = requiredInteger(row.max, `${rowWhere}.max`);
+      return {
+        id: `ref.${packId}.critical.${locationKeys.join('+')}.${min}-${max}`,
+        category: 'Critical Wounds',
+        name: requiredString(row.name, `${rowWhere}.name`),
+        description: requiredString(row.effect, `${rowWhere}.effect`),
+        meta: [locationLabel, min === max ? `${min}` : `${min}–${max}`, healingDays(row.days)]
+          .filter(Boolean).join(' · '),
+      };
+    });
+  });
 }
 
 /** Expose v2 descriptive sections as references, without connecting their rules
@@ -68,26 +141,6 @@ function descriptiveReferences(raw: Record<string, unknown>): ReferenceDef[] {
     description: requiredString(condition.description ?? '', `conditions[${index}].description`),
     meta: 'Bundled condition reference',
   }));
-  const criticals = objects(raw.criticals, 'criticals').map((critical, index): ReferenceDef => ({
-    id: `ref.${packId}.critical.${index}`,
-    category: 'Critical Wounds',
-    name: requiredString(critical.name, `criticals[${index}].name`),
-    description: requiredString(critical.effect, `criticals[${index}].effect`),
-    meta: optionalNumber(critical.days, 'healing days'),
-  }));
-  const criticalTables = objects(raw.criticalTables, 'criticalTables').flatMap((table, tableIndex) => {
-    if (!Array.isArray(table.locations) || !table.locations.every(location => typeof location === 'string')) {
-      throw new Error(`criticalTables[${tableIndex}].locations must be a string array.`);
-    }
-    const locations = table.locations.join(', ');
-    return objects(table.rows, `criticalTables[${tableIndex}].rows`).map((row, rowIndex): ReferenceDef => ({
-      id: `ref.${packId}.critical-table.${tableIndex}.${rowIndex}`,
-      category: 'Critical Wounds',
-      name: requiredString(row.name, `criticalTables[${tableIndex}].rows[${rowIndex}].name`),
-      description: requiredString(row.effect, `criticalTables[${tableIndex}].rows[${rowIndex}].effect`),
-      meta: [locations, `${row.min}–${row.max}`, optionalNumber(row.days, 'healing days')].filter(Boolean).join(' · '),
-    }));
-  });
   const deities = objects(raw.deities, 'deities').map((deity, index): ReferenceDef => ({
     id: `ref.${packId}.deity.${requiredString(deity.id, `deities[${index}].id`)}`,
     category: 'Deities',
@@ -95,7 +148,7 @@ function descriptiveReferences(raw: Record<string, unknown>): ReferenceDef[] {
     description: requiredString(deity.dogma, `deities[${index}].dogma`),
     meta: requiredString(deity.epithet, `deities[${index}].epithet`),
   }));
-  return [...conditions, ...criticals, ...criticalTables, ...deities];
+  return [...conditions, ...criticalReferences(raw, packId), ...deities];
 }
 
 /** Only for the app's bundled v2 catalogue, never a permissive v2 import path.
