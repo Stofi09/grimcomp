@@ -4,10 +4,8 @@ import manifest from '../../public/content/manifest.json';
 import nativeRules from '../../../src/content/packs/core-rules.json';
 import {
   BUNDLED_CATALOGUE_FILES,
-  BUNDLED_PACKS,
-  LEGACY_NATIVE_SPELLS,
-  LEGACY_NATIVE_SKILLS,
-  LEGACY_NATIVE_TALENTS,
+  buildBundledCatalogue,
+  loadBundledCatalogue,
   projectBundledPack,
 } from '../../../src/content/bundled';
 import { ContentRegistry } from '../../../src/content/registry';
@@ -22,11 +20,10 @@ type RawPack = Record<string, unknown>;
 const catalogue = manifest.packs
   .filter(file => file !== 'core-creation.json' && file !== 'core-characters.json')
   .map(file => JSON.parse(readFileSync(new URL(`../../public/content/${file}`, import.meta.url), 'utf8')) as RawPack);
-const legacyLookups = {
-  legacySpells: LEGACY_NATIVE_SPELLS,
-  legacySkills: LEGACY_NATIVE_SKILLS,
-  legacyTalents: LEGACY_NATIVE_TALENTS,
-};
+const bundledCatalogue = loadBundledCatalogue();
+const BUNDLED_PACKS = [...bundledCatalogue.packs];
+const legacyLookups = bundledCatalogue.legacyLookups;
+const LEGACY_NATIVE_SPELLS = legacyLookups.legacySpells;
 const registry = new ContentRegistry(BUNDLED_PACKS, legacyLookups);
 
 function merged(section: string): unknown[] {
@@ -38,6 +35,41 @@ function merged(section: string): unknown[] {
 }
 
 describe('native bundled catalogue', () => {
+  it('ships a catalogue that loads without a single projection issue', () => {
+    // Projection no longer throws at import time, so this assertion is what
+    // keeps a broken catalogue file from reaching a build.
+    expect(bundledCatalogue.issues).toEqual([]);
+    expect(loadBundledCatalogue()).toBe(bundledCatalogue);
+    expect(legacyLookups.legacySkills.length).toBeGreaterThan(0);
+  });
+
+  it('isolates a catalogue file that fails projection instead of throwing', () => {
+    const [coreRulesFile, ...rest] = catalogue;
+    const broken = {
+      $schema: 'grimcomp.content.v2', id: 'broken', name: 'Broken', version: '1',
+      talents: [{ id: 'tal.broken', name: 'Broken', description: '', maxChar: 'invalid' }],
+    };
+    const result = buildBundledCatalogue([
+      ['core-rules.json', coreRulesFile],
+      ['broken.json', broken],
+      ['core-chaos.json', rest[0]],
+    ]);
+
+    expect(result.packs.map(pack => pack.id)).toEqual(['core-rules', 'core-chaos']);
+    expect(result.issues).toEqual([{ source: 'broken.json', message: expect.stringContaining('maxChar') }]);
+  });
+
+  it('keeps native engine rules when the Core rules file itself fails projection', () => {
+    const result = buildBundledCatalogue([['core-rules.json', { $schema: 'grimcomp.content.v2' }]]);
+
+    expect(result.issues).toEqual([expect.objectContaining({ source: 'core-rules.json' })]);
+    expect(result.packs).toHaveLength(1);
+    const engineOnly = new ContentRegistry([...result.packs]);
+    expect(engineOnly.conditions).toEqual(nativeRules.conditions);
+    expect(engineOnly.xpCosts).toEqual(nativeRules.xpCosts);
+    expect(engineOnly.allSpells).toEqual([]);
+  });
+
   it('projects every catalogue pack in the web manifest in the same override order', () => {
     expect(BUNDLED_CATALOGUE_FILES).toEqual(manifest.packs.filter(file =>
       file !== 'core-creation.json' && file !== 'core-characters.json'));

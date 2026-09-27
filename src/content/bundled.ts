@@ -1,6 +1,10 @@
 // The web catalogue is the single source for bundled reference entities. Native
 // keeps its v1 engine configuration and storage envelope; importing the web
 // engine or its v2 singleton configuration would change native game behaviour.
+//
+// Nothing here validates at import time: App imports this module before the
+// storage gate renders, so a throw would crash launch with no recovery screen.
+// The catalogue is projected on first use and failures are reported instead.
 
 import coreRules from '../../web/public/content/core-rules.json';
 import coreChaos from '../../web/public/content/core-chaos.json';
@@ -16,15 +20,15 @@ import nativeRules from './packs/core-rules.json';
 import nativeMagic from './packs/core-magic.json';
 import nativeSkills from './packs/core-skills.json';
 import nativeTalents from './packs/core-talents.json';
-import { CONTENT_SCHEMA, type ContentPack, type ReferenceDef, type SkillDef } from './types';
+import {
+  CONTENT_SCHEMA,
+  type ContentPack,
+  type ReferenceDef,
+  type SkillDef,
+  type Spell,
+  type TalentDef,
+} from './types';
 import { validatePack } from './validate';
-
-/** Kept in manifest order: the Winds of Magic entries override Core by id. */
-export const BUNDLED_CATALOGUE_FILES = [
-  'core-rules.json', 'core-chaos.json', 'core-races.json', 'core-careers.json',
-  'core-skills.json', 'core-talents.json', 'core-items.json', 'core-magic.json',
-  'winds-of-magic.json', 'core-faith.json',
-] as const;
 
 const ENTITY_SECTIONS = [
   'spells', 'prayers', 'tables', 'races', 'careers', 'skills', 'talents',
@@ -113,28 +117,116 @@ export function projectBundledPack(value: unknown): ContentPack {
     projected.references = [...objects(raw.references, 'references'), ...extraReferences];
   }
   const { pack, errors } = validatePack(projected);
-  if (!pack) throw new Error(`Invalid native catalogue projection: ${errors.join('; ')}`);
+  if (!pack) throw new Error(`Invalid native catalogue projection: ${errors.slice(0, 3).join('; ')}`);
   return pack;
 }
 
-export const BUNDLED_PACKS: ContentPack[] = [
-  {
-    ...projectBundledPack(coreRules),
+/** A bundled source that could not be loaded; empty for a healthy build. */
+export interface BundledCatalogueIssue {
+  readonly source: string;
+  readonly message: string;
+}
+
+export interface NativeLegacyLookups {
+  readonly legacySpells: readonly Spell[];
+  readonly legacySkills: readonly SkillDef[];
+  readonly legacyTalents: readonly TalentDef[];
+}
+
+export interface BundledCatalogue {
+  /** Successfully projected packs, in manifest (override) order. */
+  readonly packs: readonly ContentPack[];
+  readonly issues: readonly BundledCatalogueIssue[];
+  readonly legacyLookups: NativeLegacyLookups;
+}
+
+const MAX_ISSUE_MESSAGE_LENGTH = 500;
+
+function issueMessage(error: unknown): string {
+  let message = 'Unknown failure';
+  try { message = error instanceof Error ? error.message : String(error); }
+  catch { /* keep the generic message */ }
+  return message.slice(0, MAX_ISSUE_MESSAGE_LENGTH);
+}
+
+/**
+ * The native engine configuration (conditions, XP costs) is not reference
+ * data: it rides on the Core rules layer when that projects, and stands alone
+ * when it does not, so a broken catalogue file can never disable XP spending.
+ */
+function withNativeEngineRules(pack: ContentPack | undefined): ContentPack {
+  return {
+    ...(pack ?? { $schema: CONTENT_SCHEMA, id: nativeRules.id, name: nativeRules.name, version: nativeRules.version }),
     conditions: nativeRules.conditions,
     xpCosts: nativeRules.xpCosts,
-  },
-  ...[coreChaos, coreRaces, coreCareers, coreSkills, coreTalents, coreItems,
-    coreMagic, windsOfMagic, coreFaith].map(projectBundledPack),
+  };
+}
+
+const CATALOGUE_SOURCES: ReadonlyArray<readonly [string, unknown]> = [
+  ['core-rules.json', coreRules],
+  ['core-chaos.json', coreChaos],
+  ['core-races.json', coreRaces],
+  ['core-careers.json', coreCareers],
+  ['core-skills.json', coreSkills],
+  ['core-talents.json', coreTalents],
+  ['core-items.json', coreItems],
+  ['core-magic.json', coreMagic],
+  ['winds-of-magic.json', windsOfMagic],
+  ['core-faith.json', coreFaith],
 ];
+const CORE_RULES_SOURCE = 'core-rules.json';
 
-/** Old m.* ids remain resolvable for saved characters without adding the
- * obsolete sample spell list to the shared catalogue or guessing new ids. */
-export const LEGACY_NATIVE_SPELLS = nativeMagic.spells;
+/** Kept in manifest order: the Winds of Magic entries override Core by id. */
+export const BUNDLED_CATALOGUE_FILES: readonly string[] = CATALOGUE_SOURCES.map(([file]) => file);
 
-/** Imported v1 races may grant these old ids. They remain lookup fallbacks,
- * not additional entries in the shared catalogue. Validate the authored native
- * skill keys once instead of asserting arbitrary strings as characteristics. */
-const validatedNativeSkills = validatePack(nativeSkills);
-if (!validatedNativeSkills.pack) throw new Error(`Invalid legacy native skills: ${validatedNativeSkills.errors.join('; ')}`);
-export const LEGACY_NATIVE_SKILLS: readonly SkillDef[] = validatedNativeSkills.pack.skills ?? [];
-export const LEGACY_NATIVE_TALENTS = nativeTalents.talents;
+function buildLegacyLookups(issues: BundledCatalogueIssue[]): NativeLegacyLookups {
+  // Imported v1 races may grant these old skill ids. They remain lookup
+  // fallbacks, not catalogue entries; validate the authored characteristic
+  // keys once instead of asserting arbitrary strings.
+  const validatedNativeSkills = validatePack(nativeSkills);
+  if (!validatedNativeSkills.pack) {
+    issues.push({
+      source: 'native core-skills.json',
+      message: issueMessage(`Invalid legacy native skills: ${validatedNativeSkills.errors.slice(0, 3).join('; ')}`),
+    });
+  }
+  return {
+    // Old m.* ids stay resolvable for saved characters without adding the
+    // obsolete sample spell list to the shared catalogue or guessing new ids.
+    legacySpells: nativeMagic.spells,
+    legacySkills: validatedNativeSkills.pack?.skills ?? [],
+    legacyTalents: nativeTalents.talents,
+  };
+}
+
+/**
+ * Project the bundled catalogue without ever throwing. A file that fails
+ * validation is left out and reported, so one bad pack cannot crash launch
+ * ahead of the storage-recovery gate; the native test suite requires `issues`
+ * to be empty for the shipped catalogue.
+ */
+export function buildBundledCatalogue(
+  sources: ReadonlyArray<readonly [string, unknown]> = CATALOGUE_SOURCES,
+): BundledCatalogue {
+  const packs: ContentPack[] = [];
+  const issues: BundledCatalogueIssue[] = [];
+  for (const [source, raw] of sources) {
+    let projected: ContentPack | undefined;
+    try {
+      projected = projectBundledPack(raw);
+    } catch (error) {
+      issues.push({ source, message: issueMessage(error) });
+    }
+    if (source === CORE_RULES_SOURCE) packs.push(withNativeEngineRules(projected));
+    else if (projected) packs.push(projected);
+  }
+  return { packs, issues, legacyLookups: buildLegacyLookups(issues) };
+}
+
+let loadedCatalogue: BundledCatalogue | null = null;
+
+/** Built on first use (inside the content provider), then shared. */
+export function loadBundledCatalogue(): BundledCatalogue {
+  if (!loadedCatalogue) loadedCatalogue = buildBundledCatalogue();
+  return loadedCatalogue;
+}

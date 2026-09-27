@@ -2,15 +2,32 @@
 // content packs or the registry directly.
 
 import { useContext } from 'react';
-import { ContentContext } from './ContentProvider';
-import type { ContentRegistry } from './registry';
+import { ContentContext, ContentStatusContext, type ContentStatus } from './ContentProvider';
+import { loadBundledCatalogue } from './bundled';
+import { ContentRegistry } from './registry';
 import type {
   Spell, Prayer, RollTable, XpCostRow,
   Race, Career, SkillDef, TalentDef, WeaponDef, ArmourDef, TrappingDef,
 } from './types';
 
+let bundledOnly: ContentRegistry | null = null;
+
+/** The bundled catalogue alone, for a consumer rendered outside the provider. */
+function bundledOnlyRegistry(): ContentRegistry {
+  if (!bundledOnly) {
+    const catalogue = loadBundledCatalogue();
+    bundledOnly = new ContentRegistry([...catalogue.packs], catalogue.legacyLookups);
+  }
+  return bundledOnly;
+}
+
 export function useContent(): ContentRegistry {
-  return useContext(ContentContext);
+  return useContext(ContentContext) ?? bundledOnlyRegistry();
+}
+
+/** Load problems with bundled content, for visible error states. */
+export function useContentStatus(): ContentStatus {
+  return useContext(ContentStatusContext);
 }
 
 export function useResolveSpells(ids: string[]): Spell[] {

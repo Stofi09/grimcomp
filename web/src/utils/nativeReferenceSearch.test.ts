@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ContentRegistry } from '../../../src/content/registry';
-import { BUNDLED_PACKS } from '../../../src/content/bundled';
+import { loadBundledCatalogue } from '../../../src/content/bundled';
 import type { ContentPack } from '../../../src/content/types';
 import {
   buildNativeReferenceItems,
@@ -148,7 +148,7 @@ describe('native reference browsing', () => {
   });
 
   it('makes the bundled Core and Winds of Magic catalogue accessible through the native browser', () => {
-    const registry = new ContentRegistry(BUNDLED_PACKS);
+    const registry = new ContentRegistry([...loadBundledCatalogue().packs]);
     const items = buildNativeReferenceItems(registry);
     expect(items.filter(entry => entry.category === 'Spells')).toHaveLength(registry.allSpells.length);
     expect(items.filter(entry => entry.category === 'Tables')).toHaveLength(registry.allTables.length);

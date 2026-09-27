@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, RAIL_BREAKPOINT, RAIL_WIDTH } from '@/theme';
 import { Rail } from './Rail';
 import { AppBar } from './AppBar';
+import { ContentIssueBanner } from './ContentIssueBanner';
 import type { ScreenId } from '@/data/nav';
 import { SCREEN_CRUMBS } from '@/data/nav';
 import { useCharacter } from '@/hooks/useCharacter';
@@ -39,6 +40,7 @@ export const Shell: React.FC<ShellProps> = ({ current, onNav, children }) => {
             showMenu={!isWide}
             onMenuPress={() => setDrawerOpen(true)}
           />
+          <ContentIssueBanner />
           <View style={styles.content}>{children}</View>
         </View>
       </View>
