@@ -76,7 +76,10 @@ export function AlertHost() {
         if (event.target === event.currentTarget) dismissRef.current();
       }}
     >
+      {/* A fresh sheet per alert: a queued alert takes focus and is announced
+          even when its buttons match the previous one's. */}
       <div
+        key={current.id}
         ref={sheetRef}
         className="gc-alert-sheet"
         role="alertdialog"

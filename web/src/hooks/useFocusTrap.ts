@@ -11,21 +11,24 @@ const FOCUSABLE =
 
 export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean): void {
   useEffect(() => {
-    if (!active) return;
-    const node = ref.current;
-    if (!node) return;
+    if (!active || !ref.current) return;
+    // Read the node on every event: a modal may swap its container node while
+    // it stays open (the alert host renders a fresh sheet per alert).
+    const current = () => ref.current;
 
-    const isTopModal = () => {
+    const isTopModal = (node: HTMLElement) => {
       const alert = document.querySelector('[role="alertdialog"][aria-modal="true"]');
       const dialogs = document.querySelectorAll('[aria-modal="true"]');
       return (alert ?? dialogs[dialogs.length - 1] ?? node) === node;
     };
     const onFocusIn = (event: FocusEvent) => {
-      if (isTopModal() && event.target instanceof Node && !node.contains(event.target)) node.focus();
+      const node = current();
+      if (node && isTopModal(node) && event.target instanceof Node && !node.contains(event.target)) node.focus();
     };
 
     const onKeyDown = (e: KeyboardEvent): void => {
-      if (!isTopModal()) return;
+      const node = current();
+      if (!node || !isTopModal(node)) return;
       if (!node.contains(document.activeElement) && (e.key === 'Enter' || e.key === ' ')) {
         e.preventDefault();
         e.stopPropagation();

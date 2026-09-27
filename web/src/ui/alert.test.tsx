@@ -95,6 +95,54 @@ describe('AlertHost', () => {
     expect(document.body.style.overflow).toBe('');
   });
 
+  it('moves focus to each queued alert, even when its buttons match the last one', async () => {
+    render(
+      <>
+        <button type="button" onClick={() => { Alert.alert('Roll result'); Alert.alert('History not saved'); }}>
+          Roll
+        </button>
+        <AlertHost />
+      </>,
+    );
+    const trigger = screen.getByRole('button', { name: 'Roll' });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const first = screen.getByRole('alertdialog', { name: 'Roll result' });
+    await waitFor(() => expect(first.contains(document.activeElement)).toBe(true));
+    // A keyboard user activates OK while it has focus.
+    const ok = screen.getByRole('button', { name: 'OK' });
+    ok.focus();
+    fireEvent.click(ok);
+
+    // The second alert must take focus so assistive technology announces it.
+    const second = await screen.findByRole('alertdialog', { name: 'History not saved' });
+    await waitFor(() => expect(document.activeElement).toBe(second));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  it('returns focus to the control inside a sheet that raised an alert', async () => {
+    function Form() {
+      return <>
+        <AlertHost />
+        <EditSheet visible title="Weapon" onClose={() => {}} onSave={() => Alert.alert('Name required')}>
+          <input aria-label="Weapon name" />
+        </EditSheet>
+      </>;
+    }
+    render(<Form />);
+    const save = screen.getByRole('button', { name: 'Save' });
+    save.focus();
+    fireEvent.click(save);
+    const alert = await screen.findByRole('alertdialog', { name: 'Name required' });
+    await waitFor(() => expect(document.activeElement).toBe(alert));
+
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    // Back on Save, not on the sheet's container.
+    await waitFor(() => expect(document.activeElement).toBe(save));
+  });
+
   it('uses the cancel action when Escape dismisses a choice alert', () => {
     const onCancel = vi.fn();
     render(
