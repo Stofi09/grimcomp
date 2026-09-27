@@ -5,7 +5,7 @@ import { useStoredState } from '@/hooks/useStoredState';
 import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useConditions } from '@/hooks/useConditions';
-import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
+import { resolveTest, resultLabel, formatTestResult } from '@/utils/roll';
 import { useResolvePrayers, useTable } from '@/content/useContent';
 import { rollOnTable } from '@/content/tables';
 import type { Prayer } from '@/content/types';
@@ -77,12 +77,12 @@ export const FaithScreen: React.FC = () => {
 
     if (r.success) {
       Alert.alert(
-        `${prayer.name} — ${outcomeLabel(r.outcome)}`,
+        `${prayer.name} — ${resultLabel(r)}`,
         `${formatTestResult(r)}\n\n→ ${prayer.description}`,
       );
     } else {
       Alert.alert(
-        `${prayer.name} — ${outcomeLabel(r.outcome)}`,
+        `${prayer.name} — ${resultLabel(r)}`,
         `${formatTestResult(r)}\n\nThe deity does not answer.`,
       );
     }

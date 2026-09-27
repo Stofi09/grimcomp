@@ -7,7 +7,7 @@ import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useCharacterCollection } from '@/hooks/useCharacterCollection';
-import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
+import { resolveTest, resultLabel, formatTestResult } from '@/utils/roll';
 import { Hero } from '@/components/Hero';
 import { Card, CardHead } from '@/components/Card';
 import { Pill } from '@/components/Pill';
@@ -123,7 +123,7 @@ export const CombatScreen: React.FC = () => {
     const condLine = condMod.parts.length
       ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
       : '';
-    Alert.alert(`${w.name} — ${outcomeLabel(r.outcome)}`, formatTestResult(r) + dmgLine + condLine);
+    Alert.alert(`${w.name} — ${resultLabel(r)}`, formatTestResult(r) + dmgLine + condLine);
   };
 
   // Edit-sheet state for both weapons + armour.

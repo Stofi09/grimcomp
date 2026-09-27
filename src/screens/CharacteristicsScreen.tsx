@@ -7,7 +7,7 @@ import { useXp } from '@/hooks/useXp';
 import { runStoredTransaction } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useXpCosts } from '@/content/useContent';
-import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
+import { resolveTest, resultLabel, formatTestResult } from '@/utils/roll';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Stat } from '@/components/Stat';
@@ -47,7 +47,7 @@ export const CharacteristicsScreen: React.FC = () => {
       ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
       : '';
     Alert.alert(
-      `${c.name} — ${outcomeLabel(r.outcome)}`,
+      `${c.name} — ${resultLabel(r)}`,
       formatTestResult(r) + condLine,
     );
   };

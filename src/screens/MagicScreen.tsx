@@ -6,7 +6,7 @@ import { useStoredState } from '@/hooks/useStoredState';
 import { characterKey } from '@/hooks/useCharacter';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useConditions } from '@/hooks/useConditions';
-import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
+import { resolveTest, resultLabel, formatTestResult } from '@/utils/roll';
 import { nativeSpellSourceLabel, runNativeSpellCast } from '@/utils/nativeSpellCasting';
 import { useResolveSpells, useTable } from '@/content/useContent';
 import { rollOnTable } from '@/content/tables';
@@ -121,7 +121,7 @@ export const MagicScreen: React.FC = () => {
         }
       }
       Alert.alert(
-        `Channelling — ${outcomeLabel(r.outcome)}`,
+        `Channelling — ${resultLabel(r)}`,
         `${formatTestResult(r)}\n\n${
           r.success
             ? `Pool gained ${slGain} SL → ${newPool} total. Spend on your next cast.`
@@ -154,7 +154,7 @@ export const MagicScreen: React.FC = () => {
       }
 
       // A double on the casting roll is a Miscast (WFRP 4e), whether or not the
-      // spell goes off — not merely a fumble (96–00).
+      // spell goes off; an automatic failure (96–00) alone is not a Miscast.
       const isDouble = r.roll >= 11 && r.roll <= 99 && Math.floor(r.roll / 10) === (r.roll % 10);
 
       let body = `${formatTestResult(r)}\n\nChannelling pool used: +${usedPool} SL\nTotal SL: ${totalSl}\nNeeded: ${castingNumber}\n\n`;
@@ -174,7 +174,7 @@ export const MagicScreen: React.FC = () => {
         body += `→ Not enough SL — spell fizzles. The energy disperses harmlessly.`;
       }
 
-      Alert.alert(`${spell.name} — ${outcomeLabel(r.outcome)}`, body);
+      Alert.alert(`${spell.name} — ${resultLabel(r)}`, body);
     } finally {
       poolActionRef.current = false;
       setPoolActionPending(false);

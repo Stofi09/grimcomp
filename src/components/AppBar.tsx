@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { colors, fontFamilies, space } from '@/theme';
 import { Icon } from './Icon';
-import { resolveTest, outcomeLabel } from '@/utils/roll';
+import { resolveTest, resultLabel } from '@/utils/roll';
 import { useConditions } from '@/hooks/useConditions';
 
 interface AppBarProps {
@@ -53,14 +53,14 @@ export const AppBar: React.FC<AppBarProps> = ({ crumbs, showMenu, onMenuPress })
     <Pressable
       style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
       onPress={() => {
-        // No specific target — show the bare d100 plus auto-success/fumble
-        // interpretation (01–05 / 96–100).
+        // No specific target — show the bare d100 plus the automatic
+        // success/failure bands (01–05 / 96–100).
         const r = resolveTest({ target: 50, modifier: condMod.total, label: 'Quick test' });
         const condLine = condMod.parts.length
           ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
           : '';
         Alert.alert(
-          `Quick d100 — ${outcomeLabel(r.outcome)}`,
+          `Quick d100 — ${resultLabel(r)}`,
           `Rolled ${r.roll}.\n\nTip: tap the dice next to a skill or weapon to test against a real target.${condLine}`,
         );
       }}

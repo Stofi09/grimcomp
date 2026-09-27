@@ -7,7 +7,7 @@ import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useXp } from '@/hooks/useXp';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useConditions } from '@/hooks/useConditions';
-import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
+import { resolveTest, resultLabel, formatTestResult } from '@/utils/roll';
 import { Hero } from '@/components/Hero';
 import { Section } from '@/components/Section';
 import { Card } from '@/components/Card';
@@ -217,7 +217,7 @@ const SkillTable: React.FC<SkillTableProps> = ({ skills, advances, onChange, tot
                     ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
                     : '';
                   Alert.alert(
-                    `${s.name} — ${outcomeLabel(r.outcome)}`,
+                    `${s.name} — ${resultLabel(r)}`,
                     formatTestResult(r) + breakdown,
                   );
                 }}
