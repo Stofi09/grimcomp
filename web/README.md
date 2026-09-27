@@ -8,7 +8,7 @@ This is a browser counterpart to the Expo/React-Native app kept at the repo root
 
 ## Accounts and private backups
 
-Settings includes email/password registration, login/logout, and private account backup/restore. Run `pnpm server` from the repository root alongside `pnpm dev` in this directory; Vite forwards `/api` to the SQLite-backed service on port 3001. The static app remains usable offline. For account-enabled hosting, serve the built app with the backend or proxy same-origin `/api` to it. See [account service setup](../server/README.md).
+Settings includes email/password registration, login/logout, private account backup/restore, backup deletion, password change, sign-out on every device, and account deletion. When the server has closed registration or needs an invite code, the panel says so. Run `pnpm server` from the repository root alongside `pnpm dev` in this directory; Vite forwards `/api` to the SQLite-backed service on port 3001. The static app remains usable offline. For account-enabled hosting, serve the built app with the backend or proxy same-origin `/api` to it. See [account service setup](../server/README.md).
 
 ## Quick start
 
