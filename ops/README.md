@@ -136,6 +136,24 @@ Check index, favicon, every manifest pack, correct JS MIME types and Web Locks
 boot on HTTPS. This preparation has not edited DNS, obtained certificates,
 validated nginx on the VPS or exposed a public hostname.
 
+Security headers: the TLS server sends `Strict-Transport-Security:
+max-age=31536000; includeSubDomains` (covering only `*.grimcomp.solak.hu`),
+`X-Content-Type-Options`, `Referrer-Policy: same-origin`, `X-Frame-Options`
+and a strict Content-Security-Policy for the static app: `default-src 'none'`
+with only same-origin scripts, styles, images, JSON (`connect-src`) and fonts
+(`font-src 'self' data:`, because Vite inlines the smallest font files), plus
+`base-uri 'none'`, `form-action 'self'` and `frame-ancestors 'none'`. The
+policy was chosen from the built output, which has no inline scripts or
+styles; React sets style properties through CSSOM, which CSP permits, so
+`'unsafe-inline'` is not needed. nginx drops server-level `add_header` lines in
+any location that declares its own, so every such location restates the whole
+set; keep the copies identical (a server test checks this). `/api/` responses
+use `default-src 'none'; frame-ancestors 'none'` instead. The proxied API
+location hides the Node server's copies of these headers so each is sent once;
+Node sends the same values when it serves the app directly. HSTS cannot be
+withdrawn quickly once browsers have cached it; publish it only when the host
+will stay HTTPS-only.
+
 ## Optional API: stage before activation
 
 ```sh
@@ -175,6 +193,22 @@ IP rate limits. The Nginx API location overwrites incoming forwarded-address
 chains and proxies `/api/` without stripping that prefix. Add this location
 only after loopback/API smoke and recovery pass. Release native apps separately
 need `EXPO_PUBLIC_API_URL=https://grimcomp.solak.hu` baked into their build.
+
+Sign-up and capacity guards (see `api.env.example`):
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `REGISTRATION_MODE` | `closed` in production, `open` otherwise | `open`, `closed` or `invite`; the effective mode is logged at start-up. |
+| `REGISTRATION_INVITE_CODE` | none | Required for `invite`; 12–256 characters, constant-time compared, never logged. |
+| `MAX_ACCOUNTS` | `1000` | Registrations beyond it are refused (403 `account_limit`). |
+| `MAX_BACKUP_STORAGE_BYTES` | 2 GiB | Uploads that would push all stored snapshots past it are refused (507 `storage_full`). |
+
+Keep the process single: rate limits, the password-hashing queue and upload
+slots live in its memory and reset on restart. Its memory budget under
+`MemoryMax=512M` is dominated by at most four concurrent scrypt derivations
+(about 32 MiB each) and at most four in-flight backup bodies (about 1.9 MiB of
+request, plus parsing). `/api/health` queries SQLite and answers 503 when the
+database cannot be read, so it is a meaningful post-activation check.
 
 ## SQLite backup and recovery readiness
 
@@ -217,10 +251,15 @@ retention policy, disk/backup-freshness monitoring and an attended live-restore
 procedure. There is no enabled backup timer, offsite transfer or live-restore
 automation in this change. Same-disk backups cannot survive VPS/disk loss.
 
-The API has no email verification, password reset, account deletion or global
-registration/storage quota. Confirm the POC's audience and storage budget
-before exposing signup. Each account retains its newest ten uploaded backups;
-ordinary browser-local gameplay never reaches the VPS unless explicitly saved.
+The API has no email verification or password reset. Registration is closed
+by default in production; open it deliberately (`invite` for a known group)
+and size `MAX_ACCOUNTS` and `MAX_BACKUP_STORAGE_BYTES` to the POC's audience and
+storage budget first. Because there is no email verification, registration
+still reveals whether an address already has an account (see
+`server/README.md`). Users can change their password, sign out everywhere,
+delete single backups and delete their account (web UI; native UI pending).
+Each account retains its newest ten uploaded backups; ordinary browser-local
+gameplay never reaches the VPS unless explicitly saved.
 
 ## Verification
 
