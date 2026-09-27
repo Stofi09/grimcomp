@@ -573,6 +573,172 @@ test('invalid and oversized snapshots cannot replace or remove a valid saved bac
   assert.equal(restored.data.snapshot, snapshot());
 });
 
+/** Start a native backup upload whose body arrives only when `finish` is called. */
+function startUpload(app, token, value = snapshot()) {
+  const body = JSON.stringify({ snapshot: value });
+  const received = once(app.server, 'request');
+  const upload = httpRequest(`${app.baseUrl}/api/backups`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body),
+      'X-Grim-Client': 'native', Authorization: `Bearer ${token}`,
+    },
+  });
+  const response = new Promise((resolveResponse, reject) => {
+    upload.on('response', incoming => {
+      let text = '';
+      incoming.setEncoding('utf8');
+      incoming.on('data', chunk => { text += chunk; });
+      incoming.on('end', () => resolveResponse({ status: incoming.statusCode, data: text ? JSON.parse(text) : null }));
+    });
+    upload.on('error', reject);
+  });
+  upload.write(body.slice(0, 1));
+  return {
+    // The application handler runs before this resolves, so its slot is taken.
+    started: received.then(([serverRequest]) => serverRequest),
+    finish() {
+      upload.end(body.slice(1));
+      return response;
+    },
+    abort() {
+      response.catch(() => {});
+      upload.destroy();
+    },
+  };
+}
+
+test('backup bodies are capped at twice the snapshot limit, which still fits an honest maximal snapshot', async (t) => {
+  const app = await start(t);
+  const { token } = (await register(app)).data;
+  const prefix = '{"$schema":"grimcomp.v1","scope":"roster","gc.notes":"';
+  const suffix = '"}';
+  const room = MAX_BACKUP_BYTES - prefix.length - suffix.length;
+  // Escaped quotes are the worst case: they double again in the request body.
+  const worstCase = `${prefix}${'\\"'.repeat(Math.floor(room / 2))}${'x'.repeat(room % 2)}${suffix}`;
+  assert.equal(Buffer.byteLength(worstCase), MAX_BACKUP_BYTES);
+  const body = Buffer.byteLength(JSON.stringify({ snapshot: worstCase }));
+  assert.ok(body > 1.99 * MAX_BACKUP_BYTES && body <= MAX_BACKUP_REQUEST_BYTES, String(body));
+  await saveBackup(app, token, worstCase);
+  // Padding that the old six-fold limit accepted is now refused before parsing.
+  const padded = `{"snapshot":${JSON.stringify(snapshot())}${' '.repeat(MAX_BACKUP_REQUEST_BYTES)}}`;
+  assert.ok(Buffer.byteLength(padded) < 6 * MAX_BACKUP_BYTES);
+  assertError(await app.request('/api/backups', { method: 'POST', token, rawBody: padded }), 413);
+  assert.equal((await app.request('/api/backups', { token })).data.backups.length, 1);
+});
+
+test('backup uploads in flight are bounded per account and globally before their bodies are read', async (t) => {
+  const app = await start(t, { maxConcurrentUploads: 1 });
+  const alice = (await register(app, { email: 'alice@example.com' })).data;
+  const bob = (await register(app, { email: 'bob@example.com' })).data;
+  const first = startUpload(app, alice.token);
+  await first.started;
+  const again = await app.request('/api/backups', { method: 'POST', token: alice.token, body: { snapshot: snapshot() } });
+  assertError(again, 429);
+  assert.ok(Number(again.headers.get('retry-after')) >= 1);
+  const busy = await app.request('/api/backups', { method: 'POST', token: bob.token, body: { snapshot: snapshot() } });
+  assertError(busy, 503);
+  assert.ok(Number(busy.headers.get('retry-after')) >= 1);
+  assert.equal((await first.finish()).status, 201);
+  await saveBackup(app, bob.token);
+
+  // An abandoned upload gives its slots back as soon as its connection closes.
+  const abandoned = startUpload(app, alice.token);
+  const serverRequest = await abandoned.started;
+  // A plain listener: events.once() would also subscribe to 'error'.
+  const closed = new Promise(resolveClose => serverRequest.once('close', resolveClose));
+  abandoned.abort();
+  await closed;
+  await new Promise(resolveTick => setImmediate(resolveTick));
+  await saveBackup(app, alice.token, snapshot('2026-09-12T11:00:00.000Z'));
+  assert.equal((await app.request('/api/backups', { token: alice.token })).data.backups.length, 2);
+});
+
+test('closed registration refuses new accounts while existing accounts can still sign in', async (t) => {
+  const app = await start(t, { registrationMode: 'closed' });
+  insertUser(app, 'owner@example.com', legacyHash(PASSWORD));
+  assert.deepEqual((await app.request('/api/auth/registration')).data, { mode: 'closed' });
+  const refused = await app.request('/api/auth/register', {
+    method: 'POST', body: { name: 'Adventurer', email: 'new@example.com', password: PASSWORD },
+  });
+  assertError(refused, 403);
+  assert.equal(refused.data.code, 'registration_closed');
+  assert.equal(countRows(app, 'users'), 1);
+  const login = await app.request('/api/auth/login', { method: 'POST', body: { email: 'owner@example.com', password: PASSWORD } });
+  assert.equal(login.status, 200);
+});
+
+test('invite registration accepts only the configured invite code', async (t) => {
+  const inviteCode = 'friends-of-the-grim-2026';
+  const app = await start(t, { registrationMode: 'invite', registrationInviteCode: inviteCode });
+  assert.deepEqual((await app.request('/api/auth/registration')).data, { mode: 'invite' });
+  for (const offered of [undefined, '', 'friends-of-the-grim-2025', `${inviteCode}x`, 42]) {
+    const refused = await app.request('/api/auth/register', {
+      method: 'POST', body: { name: 'Adventurer', email: 'new@example.com', password: PASSWORD, inviteCode: offered },
+    });
+    assertError(refused, 403);
+    assert.equal(refused.data.code, 'invite_required');
+  }
+  assert.equal(countRows(app, 'users'), 0);
+  assert.equal((await register(app, { email: 'new@example.com', inviteCode: ` ${inviteCode} ` })).status, 201);
+});
+
+test('invalid registration and capacity settings fail when the application is created', () => {
+  assert.throws(() => createApplication({ registrationMode: 'public' }), /registrationMode must be one of/);
+  assert.throws(() => createApplication({ registrationMode: 'invite' }), /invite code/);
+  assert.throws(() => createApplication({ registrationMode: 'invite', registrationInviteCode: 'too-short' }), /invite code/);
+  assert.throws(() => createApplication({ maxAccounts: 0 }), /maxAccounts/);
+  assert.throws(() => createApplication({ maxBackupStorageBytes: 1.5 }), /maxBackupStorageBytes/);
+});
+
+test('the account limit refuses registration with a clear error before hashing', async (t) => {
+  const hashing = trackedDeriveKey();
+  const app = await start(t, { maxAccounts: 1, deriveKey: hashing.deriveKey });
+  await register(app, { email: 'first@example.com' });
+  const hashes = hashing.calls.length;
+  const refused = await app.request('/api/auth/register', {
+    method: 'POST', body: { name: 'Second', email: 'second@example.com', password: PASSWORD },
+  });
+  assertError(refused, 403);
+  assert.equal(refused.data.code, 'account_limit');
+  assert.match(refused.data.error, /account limit/);
+  assert.equal(hashing.calls.length, hashes);
+  assert.equal(countRows(app, 'users'), 1);
+});
+
+test('the backup storage ceiling refuses uploads that would exceed it after retention', async (t) => {
+  const size = Buffer.byteLength(snapshot());
+  let currentTime = Date.parse('2026-09-12T10:00:00.000Z');
+  const app = await start(t, { maxBackupStorageBytes: 10 * size, now: () => currentTime });
+  const alice = (await register(app, { email: 'alice@example.com' })).data;
+  const bob = (await register(app, { email: 'bob@example.com' })).data;
+  // The eleventh upload replaces Alice's oldest backup, so it stays within the ceiling.
+  for (let index = 0; index < 11; index += 1) {
+    currentTime += 1_000;
+    await saveBackup(app, alice.token, snapshot(new Date(currentTime).toISOString()));
+  }
+  const full = await app.request('/api/backups', { method: 'POST', token: bob.token, body: { snapshot: snapshot() } });
+  assertError(full, 507);
+  assert.equal(full.data.code, 'storage_full');
+  assert.deepEqual((await app.request('/api/backups', { token: bob.token })).data, { backups: [] });
+  const oldest = (await app.request('/api/backups', { token: alice.token })).data.backups.at(-1);
+  assert.equal((await app.request(`/api/backups/${oldest.id}`, { method: 'DELETE', token: alice.token })).status, 204);
+  await saveBackup(app, bob.token);
+});
+
+test('health checks probe the database and answer 503 when it is unavailable', async (t) => {
+  const app = await start(t);
+  const healthy = await app.request('/api/health', { client: null });
+  assert.equal(healthy.status, 200);
+  assert.deepEqual(healthy.data, { ok: true });
+  const logged = t.mock.method(console, 'error', () => {});
+  app.database.close();
+  const failing = await app.request('/api/health', { client: null });
+  assert.equal(failing.status, 503);
+  assert.equal(failing.data.ok, false);
+  assert.equal(logged.mock.callCount(), 1);
+});
+
 test('only the newest ten backups are retained, separately for each account', async (t) => {
   let currentTime = Date.parse('2026-09-12T10:00:00.000Z');
   const app = await start(t, { now: () => currentTime });
