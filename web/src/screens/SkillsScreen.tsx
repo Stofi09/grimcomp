@@ -10,7 +10,7 @@ import { useXp } from '@/hooks/useXp';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useConditions } from '@/hooks/useConditions';
 import { useCareers, useXpRules, useSystemRules, useSkillDefs } from '@/content/useContent';
-import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
+import { resolveTest, formatTestResult, resultLabel } from '@/utils/roll';
 import {
   skillDefForName,
   skillRulesStatusLabel,
@@ -321,7 +321,7 @@ export const SkillsScreen: React.FC = () => {
       : '';
     recordTest(r, breakdown + skillRulesLookup(skill));
     Alert.alert(
-      `${skill.name} — ${outcomeLabel(r.outcome)}`,
+      `${skill.name} — ${resultLabel(r)}`,
       formatTestResult(r) + breakdown + skillRulesLookup(skill),
     );
   };
@@ -700,7 +700,7 @@ const SkillTable: React.FC<SkillTableProps> = ({
                       : '';
                     recordTest(r, breakdown + skillRulesLookup(definition));
                     Alert.alert(
-                      `${s.name} — ${outcomeLabel(r.outcome)}`,
+                      `${s.name} — ${resultLabel(r)}`,
                       formatTestResult(r) + breakdown + skillRulesLookup(definition),
                     );
                   }}

@@ -5,7 +5,7 @@ import { useCharacter, characterKey } from '@/hooks/useCharacter';
 import { useStoredState } from '@/hooks/useStoredState';
 import { useCharacteristics } from '@/hooks/useCharacteristics';
 import { useConditions } from '@/hooks/useConditions';
-import { resolveTest, outcomeLabel, formatTestResult, isDouble } from '@/utils/roll';
+import { resolveTest, formatTestResult, isDouble, resultLabel } from '@/utils/roll';
 import { resolveCast } from '@/utils/magic';
 import { useContent, useTable, useSystemRules, useCreation, useCapabilities } from '@/content/useContent';
 import { rollOnTable, rollForTable } from '@/content/tables';
@@ -283,7 +283,7 @@ export const MagicScreen: React.FC = () => {
         }
       }
       reportTest(r,
-        `Channelling — ${outcomeLabel(r.outcome)}`,
+        `Channelling — ${resultLabel(r)}`,
         `${formatTestResult(r)}\n\n${
           r.success
             ? `Pool gained ${slGain} SL → ${newPool} total. Spend on your next cast.`

@@ -9,7 +9,7 @@ import { runStoredTransaction } from '@/hooks/useStoredState';
 import { useConditions } from '@/hooks/useConditions';
 import { useXpRules, useSystemRules, useCareers } from '@/content/useContent';
 import type { XpCostBand } from '@/content/types';
-import { resolveTest, outcomeLabel, formatTestResult } from '@/utils/roll';
+import { resolveTest, formatTestResult, resultLabel } from '@/utils/roll';
 import { isCareerCharacteristic, characteristicAdvanceCost } from '@/utils/advancement';
 import { careerDefForCharacter } from '@/utils/careers';
 import { Hero } from '@/components/Hero';
@@ -78,7 +78,7 @@ export const CharacteristicsScreen: React.FC = () => {
       : '';
     recordTest(r, condLine);
     Alert.alert(
-      `${c.name} — ${outcomeLabel(r.outcome)}`,
+      `${c.name} — ${resultLabel(r)}`,
       formatTestResult(r) + condLine,
     );
   };

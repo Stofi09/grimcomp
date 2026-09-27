@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveTest, isDouble, diceLabel, rollDice, rollExploding } from './roll';
+import { resolveTest, isDouble, diceLabel, rollDice, rollExploding, resultLabel, slText, formatTestResult } from './roll';
 import type { TestRules } from '@/content/types';
 
 // resolveTest is the resolution engine. These lock in WFRP 4e behaviour AND a
@@ -22,16 +22,33 @@ describe('resolveTest — WFRP d100 roll-under (defaults)', () => {
     expect(r.sl).toBe(-1); // 5 - 6
   });
 
-  it('honours the auto-success band regardless of target', () => {
+  it('honours the auto-success band regardless of target, without making it a critical', () => {
     const r = resolveTest({ target: 1, forceRoll: 3 }); // 3 > 1 but inside 1–5
     expect(r.success).toBe(true);
-    expect(r.outcome).toBe('crit-success');
+    expect(r.outcome).toBe('success');
+    expect(r.automatic).toBe(true);
+    expect(resultLabel(r)).toBe('AUTOMATIC SUCCESS');
   });
 
-  it('honours the auto-failure band regardless of target', () => {
+  it('honours the auto-failure band regardless of target, without making it a fumble', () => {
     const r = resolveTest({ target: 100, forceRoll: 98 }); // 98 <= 100 but inside 96–100
     expect(r.success).toBe(false);
+    expect(r.outcome).toBe('fail');
+    expect(r.automatic).toBe(true);
+    expect(resultLabel(r)).toBe('AUTOMATIC FAILURE');
+  });
+
+  it('keeps 99 a fumble: it is both an automatic failure and a double', () => {
+    const r = resolveTest({ target: 100, forceRoll: 99 });
+    expect(r.success).toBe(false);
     expect(r.outcome).toBe('fumble');
+    expect(r.automatic).toBe(true);
+    expect(resultLabel(r)).toBe('FUMBLE');
+  });
+
+  it('marks ordinary results as not automatic', () => {
+    expect(resolveTest({ target: 50, forceRoll: 30 }).automatic).toBe(false);
+    expect(resolveTest({ target: 50, forceRoll: 33 }).automatic).toBe(false);
   });
 
   it('upgrades a passing double to a critical and a failing double to a fumble', () => {
@@ -118,8 +135,29 @@ describe('resolveTest — SL sign agrees with the outcome', () => {
     // floor(100/10) − floor(96/10) = +1, but the 96–100 auto-fail band forces a
     // fumble — the success level must not stay positive.
     const r = resolveTest({ target: 100, forceRoll: 96 });
-    expect(r.outcome).toBe('fumble');
+    expect(r.outcome).toBe('fail');
     expect(r.success).toBe(false);
     expect(r.sl).toBe(-1);
+  });
+});
+
+describe('result labels and SL text', () => {
+  it('reads results saved before the automatic flag by their roll', () => {
+    // Older builds stored the 01–05 / 96–00 bands as critical / fumble.
+    expect(resultLabel({ outcome: 'crit-success', roll: 3 })).toBe('AUTOMATIC SUCCESS');
+    expect(resultLabel({ outcome: 'fumble', roll: 97 })).toBe('AUTOMATIC FAILURE');
+    expect(resultLabel({ outcome: 'crit-success', roll: 33 })).toBe('CRITICAL SUCCESS');
+    expect(resultLabel({ outcome: 'fumble', roll: 55 })).toBe('FUMBLE');
+    expect(resultLabel({ outcome: 'success', roll: 30 })).toBe('SUCCESS');
+  });
+
+  it('writes a failed zero-SL test as −0', () => {
+    const failed = resolveTest({ target: 40, forceRoll: 45 });
+    expect(failed.sl).toBe(0);
+    expect(slText(failed)).toBe('−0');
+    expect(formatTestResult(failed)).toMatch(/−0 SL$/u);
+    expect(slText(resolveTest({ target: 45, forceRoll: 40 }))).toBe('+0');
+    expect(slText({ sl: -2, success: false })).toBe('-2');
+    expect(slText({ sl: 3, success: true })).toBe('+3');
   });
 });

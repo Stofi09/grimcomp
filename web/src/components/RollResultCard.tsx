@@ -1,4 +1,4 @@
-import { outcomeLabel } from '@/utils/roll';
+import { resultLabel, slText } from '@/utils/roll';
 import type { RollHistoryEntry } from '@/utils/rollHistory';
 import './RollSheet.css';
 
@@ -19,11 +19,11 @@ export function RollResultCard({ entry }: { entry: RollHistoryEntry }) {
       <div className="roll-result-numbers">
         <div><span>Rolled · {entry.dice}</span><strong>{r.roll}</strong></div>
         <div><span>Target</span><strong>{r.effectiveTarget}</strong></div>
-        {r.hasSl && <div><span>Success levels</span><strong>{r.sl >= 0 ? '+' : ''}{r.sl}</strong></div>}
+        {r.hasSl && <div><span>Success levels</span><strong>{slText(r)}</strong></div>}
       </div>
-      <p className="roll-verdict">{landed === undefined ? `Test · ${outcomeLabel(r.outcome)}` : `Attack · ${landed ? 'HIT' : 'NO HIT'}`}</p>
+      <p className="roll-verdict">{landed === undefined ? `Test · ${resultLabel(r)}` : `Attack · ${landed ? 'HIT' : 'NO HIT'}`}</p>
       {landed !== undefined && <p className="roll-opposition">
-        Your test: {outcomeLabel(r.outcome)}
+        Your test: {resultLabel(r)}
         {defender && <> · Defender {defender.sl >= 0 ? '+' : ''}{defender.sl} SL (roll {defender.roll} vs {defender.target})</>}
         {entry.attack?.damage !== undefined && <> · Damage {entry.attack.damage} before Toughness and armour</>}
       </p>}

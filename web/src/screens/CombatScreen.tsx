@@ -16,7 +16,7 @@ import {
 import { useContent, useFigureLabels, useSystemRules, useCharacteristicDefs, useWeapons, useCapabilities, useHitLocations, useCriticals } from '@/content/useContent';
 import type { CombatRules } from '@/content/types';
 import { critFromTable } from '@/content/tables';
-import { resolveTest, outcomeLabel, formatTestResult, isDouble, rollExploding } from '@/utils/roll';
+import { resolveTest, formatTestResult, isDouble, rollExploding, resultLabel, slText } from '@/utils/roll';
 import { charVars, evalFormula } from '@/utils/formula';
 import { testSafeRegex } from '@/utils/safeRegex';
 import {
@@ -160,9 +160,16 @@ export const CombatScreen: React.FC = () => {
   // Test (WFRP 4e melee).
   const [atk, setAtk] = useState<{ weapon: Weapon; defence: number; difficulty: number } | null>(null);
   const [attackSettings, setAttackSettings] = useStoredState(characterKey(id, 'combat.attackSettings'), { defence: 0, difficulty: 0 });
-  const openAttack = (w: Weapon) => setAtk({ weapon: w, ...attackSettings });
+  // The remembered defence is a melee Opposed Test setting: a ranged shot opens
+  // unopposed, and saving it must not wipe the melee defence.
+  const isRangedWeapon = (w: Weapon) => charForWeapon(w, combat) === combat.rangedChar;
+  const openAttack = (w: Weapon) => setAtk({
+    weapon: w,
+    difficulty: attackSettings.difficulty,
+    defence: isRangedWeapon(w) ? 0 : attackSettings.defence,
+  });
 
-  const fmtSL = (n: number) => `${n >= 0 ? '+' : ''}${n} SL`;
+  const fmtSL = (res: { sl: number; success: boolean }) => `${slText(res)} SL`;
 
   const resolveAttack = () => {
     if (!atk) return;
@@ -188,7 +195,7 @@ export const CombatScreen: React.FC = () => {
       dmgSl = attack.damageSl;
       const verdict = res.winner === 'attacker' ? `you win by ${res.netSL} SL`
         : res.winner === 'defender' ? 'defender turns it aside' : 'draw — nothing lands';
-      opposedLine = `\n\nOpposed: you ${fmtSL(r.sl)} vs defender ${fmtSL(dr.sl)} ` +
+      opposedLine = `\n\nOpposed: you ${fmtSL(r)} vs defender ${fmtSL(dr)} ` +
         `(rolled ${dr.roll} vs ${atk.defence}) → ${verdict}.`;
     } else {
       const attack = resolveAttackOutcome(r.success, r.sl);
@@ -218,19 +225,30 @@ export const CombatScreen: React.FC = () => {
       ? '\n\nFrom conditions:\n' + condMod.parts.map(p => `  • ${p.name} ×${p.stacks} → ${p.modifier > 0 ? '+' : ''}${p.modifier}`).join('\n')
       : '';
     const advLine = advBonus > 0 ? `\n\nAdvantage: +${advBonus} to hit (${advantage} × 10).` : '';
+    // WFRP 4e: only a double is a critical or fumble; 01–05 / 96–00 are just
+    // automatic. A critical needs the attack to land (an opposed test can still
+    // be lost after a successful double).
+    const critLine = r.outcome === 'crit-success' && landed
+      ? '\n\nCRITICAL HIT (a double): the target also suffers a Critical Wound.'
+      : r.outcome === 'fumble'
+        ? '\n\nFUMBLE (a failed double): resolve the fumble.'
+        : '';
 
     const difficultyLine = `\n\nDifficulty modifier: ${atk.difficulty >= 0 ? '+' : ''}${atk.difficulty}`;
-    const settingsTicket = setAttackSettings({ defence: atk.defence, difficulty: atk.difficulty });
+    const settingsTicket = setAttackSettings({
+      defence: isRangedWeapon(w) ? attackSettings.defence : atk.defence,
+      difficulty: atk.difficulty,
+    });
     void settingsTicket.completion.then(result => {
       if (!result.ok) Alert.alert('Attack settings not saved', result.error.message);
     });
-    recordTest(r, advLine + opposedLine + locLine + dmgLine + qualLine + condLine + difficultyLine,
+    recordTest(r, critLine + advLine + opposedLine + locLine + dmgLine + qualLine + condLine + difficultyLine,
       `${w.name} — ${landed ? 'HIT' : 'NO HIT'}`, { landed, ...(defender ? { defender } : {}), ...(dmg ? { damage: dmg.total } : {}) });
     setAtk(null);
     const canGain = landed && !!dmg && dmg.total > 0;
     Alert.alert(
-      `${w.name} — ${opposed ? (landed ? 'HIT' : 'NO HIT') : outcomeLabel(r.outcome)}`,
-      formatTestResult(r) + advLine + opposedLine + locLine + dmgLine + qualLine + condLine + difficultyLine,
+      `${w.name} — ${opposed ? (landed ? 'HIT' : 'NO HIT') : resultLabel(r)}`,
+      formatTestResult(r) + critLine + advLine + opposedLine + locLine + dmgLine + qualLine + condLine + difficultyLine,
       canGain
         ? [{
             text: 'Gain +1 Advantage',
@@ -314,7 +332,9 @@ export const CombatScreen: React.FC = () => {
       setHit(null);
       Alert.alert(
         res.woundsLost > 0 ? `Hit${locPart} — ${res.woundsLost} Wound${res.woundsLost === 1 ? '' : 's'} lost` : `Hit${locPart} — fully soaked`,
-        `Damage ${res.damage} − TB ${res.toughnessBonus} − AP ${res.ap} = ${res.woundsLost} Wound${res.woundsLost === 1 ? '' : 's'}.\n` +
+        (res.minimumApplied
+          ? `Damage ${res.damage} − TB ${res.toughnessBonus} − AP ${res.ap} is below 1, but a hit always costs at least 1 Wound.\n`
+          : `Damage ${res.damage} − TB ${res.toughnessBonus} − AP ${res.ap} = ${res.woundsLost} Wound${res.woundsLost === 1 ? '' : 's'}.\n`) +
         `Wounds ${res.currentWounds} → ${res.newWounds}.${advLine}${critLine}` + (freshCritical ? `\n\n${criticalEffectNotice(freshCritical)}` : ''),
       );
     } finally {
@@ -762,9 +782,10 @@ export const CombatScreen: React.FC = () => {
       >
         {hit ? (() => {
           const apVal = apAt(ap, hit.locKey);
-          const net = Math.max(0, hit.damage - toughnessBonus - apVal);
-          const after = Math.max(0, wounds - net);
-          const crit = net > 0 && after === 0;
+          const preview = applyDamage({ damage: hit.damage, toughnessBonus, ap: apVal, currentWounds: wounds });
+          const net = preview.woundsLost;
+          const after = preview.newWounds;
+          const crit = preview.critical;
           return (
             <>
               <NumberField
@@ -798,6 +819,7 @@ export const CombatScreen: React.FC = () => {
                   {hit.damage} − TB {toughnessBonus} − AP {apVal} =
                 </span>{' '}
                 <strong>{net}</strong> Wound{net === 1 ? '' : 's'}
+                {preview.minimumApplied ? <span className="cmb-meta-mono"> (minimum 1)</span> : null}
                 <span className="cmb-meta-mono">  ·  Wounds {wounds} → {after}</span>
                 {crit ? <span className="cmb-hit-crit">  ·  CRITICAL WOUND</span> : null}
               </div>

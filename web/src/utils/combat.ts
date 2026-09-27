@@ -104,20 +104,30 @@ export interface SoakInput {
 }
 
 export interface SoakResult extends SoakInput {
-  /** Net Wounds lost = max(0, Damage − Toughness Bonus − Armour Points). */
+  /** Wounds lost: Damage − Toughness Bonus − Armour Points, and at least 1 for
+      a hit that deals any Damage. */
   woundsLost: number;
+  /** Toughness and armour absorbed everything, so the minimum of 1 applied. */
+  minimumApplied: boolean;
 }
 
 /**
  * WFRP 4e damage mitigation (CRB p.160): the target reduces incoming Damage by
- * their Toughness Bonus + the Armour Points covering the struck location. A hit
- * that is fully absorbed deals 0 Wounds.
+ * their Toughness Bonus + the Armour Points covering the struck location, but a
+ * successful hit always costs at least 1 Wound. Zero Damage means no hit.
  */
 export function soakDamage({ damage, toughnessBonus, ap }: SoakInput): SoakResult {
   const tb = Math.max(0, Math.round(toughnessBonus));
   const armour = Math.max(0, Math.round(ap));
   const dmg = Math.max(0, Math.round(damage));
-  return { damage: dmg, toughnessBonus: tb, ap: armour, woundsLost: Math.max(0, dmg - tb - armour) };
+  const net = dmg - tb - armour;
+  return {
+    damage: dmg,
+    toughnessBonus: tb,
+    ap: armour,
+    woundsLost: dmg > 0 ? Math.max(1, net) : 0,
+    minimumApplied: dmg > 0 && net < 1,
+  };
 }
 
 export interface ApplyDamageInput extends SoakInput {

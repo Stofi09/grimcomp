@@ -125,8 +125,16 @@ describe('soakDamage — TB + AP mitigation', () => {
     expect(soakDamage({ damage: 11, toughnessBonus: 4, ap: 2 }).woundsLost).toBe(5);
   });
 
-  it('never deals negative Wounds when fully soaked', () => {
-    expect(soakDamage({ damage: 3, toughnessBonus: 4, ap: 2 }).woundsLost).toBe(0);
+  it('still costs 1 Wound when Toughness and armour absorb the whole hit', () => {
+    const r = soakDamage({ damage: 3, toughnessBonus: 4, ap: 2 });
+    expect(r.woundsLost).toBe(1);
+    expect(r.minimumApplied).toBe(true);
+  });
+
+  it('deals no Wounds when there is no Damage', () => {
+    const r = soakDamage({ damage: 0, toughnessBonus: 4, ap: 2 });
+    expect(r.woundsLost).toBe(0);
+    expect(r.minimumApplied).toBe(false);
   });
 
   it('treats negative TB/AP as zero', () => {
@@ -154,10 +162,11 @@ describe('applyDamage — Wounds + Critical trigger', () => {
     expect(r.critical).toBe(true);
   });
 
-  it('does NOT flag a Critical when a hit at 0 Wounds is fully soaked', () => {
+  it('flags a Critical for any hit at 0 Wounds, even one Toughness and armour absorb', () => {
+    // The minimum of 1 Wound means every hit on a character at 0 Wounds crits.
     const r = applyDamage({ damage: 4, toughnessBonus: 4, ap: 2, currentWounds: 0 });
-    expect(r.woundsLost).toBe(0);
-    expect(r.critical).toBe(false);
+    expect(r.woundsLost).toBe(1);
+    expect(r.critical).toBe(true);
   });
 
   it('does NOT flag a Critical for a non-lethal hit', () => {

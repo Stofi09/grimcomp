@@ -7,7 +7,9 @@
 //   on an auto-failure is displayed as negative so it cannot contradict FUMBLE.
 // - Doubles (11, 22, …, 99): if the roll succeeds → critical success;
 //   if it fails → fumble.
-// - 01–05 always succeeds; 96–100 always fails (regardless of target).
+// - 01–05 always succeeds; 96–100 always fails (regardless of target). These
+//   automatic results are ordinary successes/failures, not criticals: only a
+//   double is a critical or fumble (so 99 is both automatic and a fumble).
 
 import type { DiceSpec, TestRules } from '@/content/types';
 import { evalFormula } from './formula';
@@ -24,10 +26,10 @@ export const DEFAULT_TEST_RULES: TestRules = {
 };
 
 export type Outcome =
-  | 'crit-success' // critical or auto success (auto band / passing double)
-  | 'success'      // ordinary success
-  | 'fail'         // ordinary failure
-  | 'fumble';      // critical failure (auto band / failing double)
+  | 'crit-success' // critical success (a passing double)
+  | 'success'      // ordinary or automatic success
+  | 'fail'         // ordinary or automatic failure
+  | 'fumble';      // critical failure (a failing double)
 
 export interface RollInput {
   /** Target characteristic + skill advance */
@@ -56,6 +58,9 @@ export interface RollResult {
   /** Whether this system models success levels (controls SL display). */
   hasSl: boolean;
   outcome: Outcome;
+  /** The roll fell in an automatic success/failure band (e.g. 01–05, 96–00).
+      Absent on results saved before this flag existed. */
+  automatic?: boolean;
 }
 
 /** Sum of `count` rolls of a `sides`-faced die. */
@@ -107,23 +112,16 @@ export function resolveTest(input: RollInput, rules: TestRules = DEFAULT_TEST_RU
   const roll = input.forceRoll ?? rollDice(rules.dice);
   const passes = rules.direction === 'under' ? roll <= effective : roll >= effective;
 
-  // Outcome resolution: auto-success/fail bands first, then doubles, then the
-  // plain pass/fail check.
-  let outcome: Outcome;
-  let success: boolean;
-  if (inBand(roll, rules.autoSuccess)) {
-    outcome = 'crit-success';
-    success = true;
-  } else if (inBand(roll, rules.autoFailure)) {
-    outcome = 'fumble';
-    success = false;
-  } else if (rules.doubles && isDouble(roll)) {
-    outcome = passes ? 'crit-success' : 'fumble';
-    success = passes;
-  } else {
-    outcome = passes ? 'success' : 'fail';
-    success = passes;
-  }
+  // Success comes from the automatic bands first, then the plain pass/fail
+  // check. A double then upgrades the result to a critical or a fumble; an
+  // automatic band on its own never does.
+  const autoSuccess = inBand(roll, rules.autoSuccess);
+  const autoFailure = !autoSuccess && inBand(roll, rules.autoFailure);
+  const success = autoSuccess || (!autoFailure && passes);
+  const double = !!rules.doubles && isDouble(roll);
+  const outcome: Outcome = double
+    ? (success ? 'crit-success' : 'fumble')
+    : (success ? 'success' : 'fail');
 
   const hasSl = typeof rules.sl === 'string' && rules.sl.length > 0;
   let sl = hasSl ? evalFormula(rules.sl as string, { roll, target: effective }) : 0;
@@ -141,6 +139,7 @@ export function resolveTest(input: RollInput, rules: TestRules = DEFAULT_TEST_RU
     sl,
     hasSl,
     outcome,
+    automatic: autoSuccess || autoFailure,
   };
 }
 
@@ -154,6 +153,26 @@ export function outcomeLabel(o: Outcome): string {
   }
 }
 
+/**
+ * Header label for a resolved test. Automatic results say so. Results saved
+ * before the `automatic` flag existed labelled the 01–05/96–00 bands as
+ * critical/fumble; those are recognised by a non-double roll.
+ */
+export function resultLabel(r: Pick<RollResult, 'outcome' | 'roll' | 'automatic'>): string {
+  const legacyAutomatic = (r.outcome === 'crit-success' || r.outcome === 'fumble')
+    && r.automatic === undefined && !isDouble(r.roll);
+  if (legacyAutomatic) return r.outcome === 'crit-success' ? 'AUTOMATIC SUCCESS' : 'AUTOMATIC FAILURE';
+  if (r.automatic && r.outcome === 'success') return 'AUTOMATIC SUCCESS';
+  if (r.automatic && r.outcome === 'fail') return 'AUTOMATIC FAILURE';
+  return outcomeLabel(r.outcome);
+}
+
+/** Signed SL text. A failed test with 0 SL is written −0, as in WFRP. */
+export function slText(r: Pick<RollResult, 'sl' | 'success'>): string {
+  if (r.sl === 0) return r.success ? '+0' : '−0';
+  return r.sl > 0 ? `+${r.sl}` : `${r.sl}`;
+}
+
 /** Multi-line, tabular-ish body for an Alert. */
 export function formatTestResult(r: RollResult): string {
   const targetLine =
@@ -161,6 +180,5 @@ export function formatTestResult(r: RollResult): string {
       ? `Roll  ${r.roll}  vs  ${r.baseTarget}`
       : `Roll  ${r.roll}  vs  ${r.effectiveTarget}   (${r.baseTarget} ${r.modifier >= 0 ? '+' : '−'} ${Math.abs(r.modifier)} mod)`;
   if (!r.hasSl) return targetLine;
-  const slStr = (r.sl >= 0 ? `+${r.sl}` : `${r.sl}`) + ' SL';
-  return `${targetLine}\n${slStr}`;
+  return `${targetLine}\n${slText(r)} SL`;
 }
