@@ -237,7 +237,7 @@ const buildCharacter = (
     // starting loadout, so every fresh character receives the same basic kit.
     weapons = [
       { name: 'Hand Weapon', group: 'Basic', enc: 1, reach: 'Average', dmg: 'SB+4', qual: [] },
-      { name: 'Dagger', group: 'Basic', enc: 0, reach: 'Short', dmg: 'SB+2', qual: [] },
+      { name: 'Dagger', group: 'Basic', enc: 0, reach: 'Very Short', dmg: 'SB+2', qual: [] },
     ];
     armour = [];
     trappings = [{ name: 'Clothing', enc: 0 }, { name: 'Backpack', enc: 0 }];
@@ -248,7 +248,7 @@ const buildCharacter = (
   } else {
     weapons = [
       { name: 'Hand Weapon', group: 'Basic', enc: 1, reach: 'Average', dmg: 'SB+4', qual: [] },
-      { name: 'Dagger', group: 'Basic', enc: 0, reach: 'Short', dmg: 'SB+2', qual: [] },
+      { name: 'Dagger', group: 'Basic', enc: 0, reach: 'Very Short', dmg: 'SB+2', qual: [] },
     ];
     armour = [];
     trappings = [{ name: 'Clothing', enc: 0 }, { name: 'Backpack', enc: 0 }];

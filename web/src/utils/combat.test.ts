@@ -112,12 +112,13 @@ describe('hitLocationFromRoll', () => {
 
 describe('apByLocation', () => {
   it('sums AP per location and spreads Arms/Legs to both sides', () => {
+    // WFRP 4e: a mail coat covers Body + Arms; plate pieces and helms are 2 AP.
     const ap = apByLocation([
-      { locs: ['Body', 'Arms'], ap: 2 }, // mail shirt
-      { locs: ['Head'], ap: 1 }, // helm
-      { locs: ['Body'], ap: 5 }, // breastplate
+      { locs: ['Body', 'Arms'], ap: 2 }, // mail coat
+      { locs: ['Head'], ap: 2 }, // open helm
+      { locs: ['Body'], ap: 2 }, // plate breastplate
     ]);
-    expect(ap).toEqual({ head: 1, body: 7, arm_l: 2, arm_r: 2, leg_l: 0, leg_r: 0 });
+    expect(ap).toEqual({ head: 2, body: 4, arm_l: 2, arm_r: 2, leg_l: 0, leg_r: 0 });
   });
 
   it('returns all-zero for no armour', () => {

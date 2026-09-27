@@ -71,16 +71,16 @@
         { "name": "Menacing", "definitionId": "tal.menacing", "times": 1, "desc": "+10 to Intimidate tests", "career": false }
       ],
       "weapons": [
-        { "name": "Hand Weapon (Sword)", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+4", "qual": ["Defensive"] },
-        { "name": "Longbow", "group": "Bow", "enc": 1, "range": "90", "dmg": "4", "qual": ["Penetrating"] },
-        { "name": "Dagger", "group": "Basic", "enc": 0, "reach": "Short", "dmg": "SB+2", "qual": [] }
+        { "name": "Hand Weapon (Sword)", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+4", "qual": [] },
+        { "name": "Longbow", "group": "Bow", "enc": 1, "range": "100", "dmg": "SB+4", "qual": ["Damaging"] },
+        { "name": "Dagger", "group": "Basic", "enc": 0, "reach": "Very Short", "dmg": "SB+2", "qual": [] }
       ],
       "armour": [
-        { "name": "Mail Shirt", "locs": ["Body", "Arms"], "enc": 2, "ap": 2, "qual": ["Flexible"] },
-        { "name": "Open Helm", "locs": ["Head"], "enc": 1, "ap": 1, "qual": [] },
+        { "name": "Mail Shirt", "locs": ["Body"], "enc": 2, "ap": 2, "qual": ["Flexible"] },
+        { "name": "Open Helm", "locs": ["Head"], "enc": 1, "ap": 2, "qual": ["Partial"] },
         { "name": "Leather Leggings", "locs": ["Legs"], "enc": 1, "ap": 1, "qual": [] }
       ],
-      "ap": { "head": 1, "arm_l": 2, "arm_r": 2, "body": 2, "leg_l": 1, "leg_r": 1, "shield": 0 },
+      "ap": { "head": 2, "arm_l": 0, "arm_r": 0, "body": 2, "leg_l": 1, "leg_r": 1, "shield": 0 },
       "conditions": [
         { "type": "Fatigued", "stacks": 1 },
         { "type": "Bleeding", "stacks": 0 }
@@ -180,8 +180,8 @@
         { "name": "Read/Write", "definitionId": "tal.read-write", "times": 1, "desc": "Can read and write Reikspiel", "career": true }
       ],
       "weapons": [
-        { "name": "Quarterstaff", "group": "Two-handed", "enc": 2, "reach": "Long", "dmg": "SB+3", "qual": ["Defensive", "Pummel"] },
-        { "name": "Dagger", "group": "Basic", "enc": 0, "reach": "Short", "dmg": "SB+2", "qual": [] }
+        { "name": "Quarterstaff", "group": "Polearm", "enc": 2, "reach": "Long", "dmg": "SB+4", "qual": ["Defensive", "Pummel"] },
+        { "name": "Dagger", "group": "Basic", "enc": 0, "reach": "Very Short", "dmg": "SB+2", "qual": [] }
       ],
       "armour": [
         { "name": "Robe", "locs": ["Body", "Arms", "Legs"], "enc": 0, "ap": 0, "qual": ["Practical"] }
@@ -286,8 +286,8 @@
       ],
       "weapons": [
         { "name": "Rune-etched Hand Weapon", "group": "Basic", "enc": 1, "reach": "Average", "dmg": "SB+5", "qual": ["Durable", "Magical"] },
-        { "name": "Dwarf Crossbow", "group": "Crossbow", "enc": 1, "range": "60", "dmg": "5", "qual": ["Reload"] },
-        { "name": "Dagger", "group": "Basic", "enc": 0, "reach": "Short", "dmg": "SB+2", "qual": [] }
+        { "name": "Dwarf Crossbow", "group": "Crossbow", "enc": 1, "range": "60", "dmg": "9", "qual": ["Reload 1"] },
+        { "name": "Dagger", "group": "Basic", "enc": 0, "reach": "Very Short", "dmg": "SB+2", "qual": [] }
       ],
       "armour": [
         { "name": "Gromril Mail Shirt", "locs": ["Body", "Arms"], "enc": 2, "ap": 3, "qual": ["Flexible"] },
@@ -388,7 +388,7 @@
         { "name": "Cat-tongued", "definitionId": "tal.cat-tongued", "times": 1, "desc": "Soothing words; +SL on Charm tests to calm the distressed", "career": false }
       ],
       "weapons": [
-        { "name": "Quarterstaff", "group": "Two-handed", "enc": 2, "reach": "Long", "dmg": "SB+3", "qual": ["Defensive", "Pummel"] }
+        { "name": "Quarterstaff", "group": "Polearm", "enc": 2, "reach": "Long", "dmg": "SB+4", "qual": ["Defensive", "Pummel"] }
       ],
       "armour": [
         { "name": "Robe", "locs": ["Body", "Arms", "Legs"], "enc": 0, "ap": 0, "qual": ["Practical"] }

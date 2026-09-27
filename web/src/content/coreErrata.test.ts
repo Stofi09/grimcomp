@@ -39,7 +39,8 @@ describe('bundled core errata corrections', () => {
   });
 
   it('preserves the existing weapon qualities while adding the correction', () => {
+    // WFRP 4e Warhammer (Two-Handed): +SB+6, Damaging, Pummel, Slow.
     expect(items.weapons.find(entry => entry.id === 'wp.warhammer')?.qual)
-      .toEqual(['Pummel', 'Slow']);
+      .toEqual(['Damaging', 'Pummel', 'Slow']);
   });
 });
