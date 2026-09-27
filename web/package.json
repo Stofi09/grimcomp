@@ -15,7 +15,7 @@
     "check:no-scratch": "node scripts/check-no-scratch.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:native": "vitest run src/storage/native*.test.ts src/utils/native*.test.ts src/content/native*.test.ts src/components/nativeControls.test.ts src/account/native*.test.*",
+    "test:native": "vitest run src/storage/native*.test.ts src/utils/native*.test.ts src/content/native*.test.ts src/components/native*.test.* src/screens/native*.test.* src/account/native*.test.*",
     "test:watch": "vitest"
   },
   "dependencies": {
