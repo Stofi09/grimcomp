@@ -8,11 +8,16 @@ interface ScreenContainerProps {
 }
 
 // Mirrors the .content + .screen wrapper from styles.css.
+// With the keyboard up, a tap on a control (e.g. "Sign in") must reach it on
+// the first press instead of only dismissing the keyboard, and iOS insets the
+// content so a focused field can scroll above the keyboard.
 export const ScreenContainer: React.FC<ScreenContainerProps> = ({ children, contentStyle }) => (
   <ScrollView
     style={styles.scroll}
     contentContainerStyle={[styles.content, contentStyle]}
     showsVerticalScrollIndicator
+    keyboardShouldPersistTaps="handled"
+    automaticallyAdjustKeyboardInsets
   >
     <View style={styles.screen}>{children}</View>
   </ScrollView>

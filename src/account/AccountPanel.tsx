@@ -30,6 +30,9 @@ export const AccountPanel: React.FC = () => {
   const backups = savedBackups.userId === session.user?.id ? savedBackups.items : [];
   const busyRef = useRef(false);
   const mounted = useRef(false);
+  // Return on one field moves to the next; Return on the password submits.
+  const emailInput = useRef<TextInput>(null);
+  const passwordInput = useRef<TextInput>(null);
   const storageUnavailable = storage.pending > 0 || storage.dirty || storage.blocked;
 
   const run = useCallback(async (action: Action, work: () => Promise<void>) => {
@@ -177,15 +180,15 @@ export const AccountPanel: React.FC = () => {
           </View>
           {mode === 'register' ? <View style={styles.field}>
             <Text style={styles.label}>Name</Text>
-            <TextInput accessibilityLabel="Account name" style={styles.input} value={name} onChangeText={setName} maxLength={80} editable={!busy} autoComplete="name" textContentType="name" placeholder="Your name" placeholderTextColor={colors.ink3} />
+            <TextInput accessibilityLabel="Account name" style={styles.input} value={name} onChangeText={setName} maxLength={80} editable={!busy} autoComplete="name" textContentType="name" placeholder="Your name" placeholderTextColor={colors.ink3} returnKeyType="next" blurOnSubmit={false} onSubmitEditing={() => emailInput.current?.focus()} />
           </View> : null}
           <View style={styles.field}>
             <Text style={styles.label}>Email</Text>
-            <TextInput accessibilityLabel="Account email" style={styles.input} value={email} onChangeText={setEmail} maxLength={254} editable={!busy} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" textContentType="emailAddress" placeholder="you@example.com" placeholderTextColor={colors.ink3} />
+            <TextInput ref={emailInput} accessibilityLabel="Account email" style={styles.input} value={email} onChangeText={setEmail} maxLength={254} editable={!busy} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" textContentType="emailAddress" placeholder="you@example.com" placeholderTextColor={colors.ink3} returnKeyType="next" blurOnSubmit={false} onSubmitEditing={() => passwordInput.current?.focus()} />
           </View>
           <View style={styles.field}>
             <Text style={styles.label}>Password</Text>
-            <TextInput accessibilityLabel="Account password" style={styles.input} value={password} onChangeText={setPassword} maxLength={128} editable={!busy} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} textContentType={mode === 'register' ? 'newPassword' : 'password'} placeholder={mode === 'register' ? '12–128 characters' : 'Your password'} placeholderTextColor={colors.ink3} returnKeyType="go" onSubmitEditing={submit} />
+            <TextInput ref={passwordInput} accessibilityLabel="Account password" style={styles.input} value={password} onChangeText={setPassword} maxLength={128} editable={!busy} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} textContentType={mode === 'register' ? 'newPassword' : 'password'} placeholder={mode === 'register' ? '12–128 characters' : 'Your password'} placeholderTextColor={colors.ink3} returnKeyType="go" onSubmitEditing={submit} />
           </View>
           <Button variant="primary" disabled={!!busy} onPress={submit}>{busy === 'login' || busy === 'register' ? 'Signing in…' : mode === 'register' ? 'Create account' : 'Sign in'}</Button>
         </View>

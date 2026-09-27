@@ -121,4 +121,18 @@ describe('native ReferenceScreen', () => {
     expect(screen.getByLabelText('Search reference entries')).toBeTruthy();
     expect(host.modal).toEqual({ mounts: 1, unmounts: 0 });
   });
+
+  it('lets the first tap reach controls while the keyboard is up', () => {
+    const view = render(<ReferenceScreen />);
+    fireEvent.click(screen.getByRole('button', { name: 'Search rules' }));
+
+    const scrollViews = [...view.container.querySelectorAll('[data-scroll]')];
+    // Screen container, sheet body, and the horizontal category chips.
+    expect(scrollViews).toHaveLength(3);
+    for (const scrollView of scrollViews) {
+      expect(scrollView.getAttribute('data-persist-taps')).toBe('handled');
+    }
+    expect(view.container.querySelector('[data-scroll="horizontal"]')).not.toBeNull();
+    expect(scrollViews[0].getAttribute('data-adjust-insets')).toBe('true');
+  });
 });

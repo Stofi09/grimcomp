@@ -138,7 +138,12 @@ export const ReferenceScreen: React.FC = () => {
               clearButtonMode="while-editing"
               returnKeyType="search"
             />
-            <ScrollView horizontal showsHorizontalScrollIndicator style={styles.filters}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator
+              keyboardShouldPersistTaps="handled"
+              style={styles.filters}
+            >
               {[null, ...filterCategories.map(entry => entry.title)].map(candidate => (
                 <Pressable
                   key={candidate === null ? 'all' : `category:${candidate}`}
